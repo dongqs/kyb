@@ -8,14 +8,22 @@ RUN apt-get update && apt-get upgrade -y && \
     ca-certificates curl wget git build-essential \
     libpq-dev libssl-dev libreadline-dev zlib1g-dev \
     vim tmux htop gnupg unzip jq docker-compose-v2 \
-    docker.io sudo \
+    docker.io sudo postgresql postgresql-client python3-pip \
     && rm -rf /var/lib/apt/lists/*
+
+# PostgreSQL: trust local connections (dev sandbox)
+RUN echo 'local all all trust' > /etc/postgresql/16/main/pg_hba.conf && \
+    echo 'host all all 127.0.0.1/32 trust' >> /etc/postgresql/16/main/pg_hba.conf && \
+    echo 'host all all ::1/128 trust' >> /etc/postgresql/16/main/pg_hba.conf
+
+# PostgreSQL: Asia/Shanghai timezone (required by mig25)
+RUN echo "ALTER SYSTEM SET timezone = 'Asia/Shanghai';" | su - postgres -c 'psql' 2>/dev/null || true
 
 # Proxy: socks5 via OrbStack host, bypass intranet
 ENV ALL_PROXY=socks5://host.orb.internal:2080 \
     all_proxy=socks5://host.orb.internal:2080 \
-    NO_PROXY=git.leyantech.com,localhost,127.0.0.1,host.orb.internal,.local,.internal \
-    no_proxy=git.leyantech.com,localhost,127.0.0.1,host.orb.internal,.local,.internal
+    NO_PROXY=.leyantech.com,git.leyantech.com,nexus.leyantech.com,localhost,127.0.0.1,host.orb.internal,.local,.internal \
+    no_proxy=.leyantech.com,git.leyantech.com,nexus.leyantech.com,localhost,127.0.0.1,host.orb.internal,.local,.internal
 
 # Create dev user (UID/GID adjusted at runtime by entrypoint)
 RUN useradd -m -s /bin/bash -G sudo dev && \
@@ -23,6 +31,9 @@ RUN useradd -m -s /bin/bash -G sudo dev && \
 
 USER dev
 WORKDIR /home/dev
+
+# Ensure ~/.local/bin is on PATH (mise, mig25, etc.)
+ENV PATH="/home/dev/.local/bin:${PATH}"
 
 # Install mise (retry for network readiness)
 RUN for i in 1 2 3 4 5; do \
@@ -36,6 +47,9 @@ RUN echo '[ -f ~/.bashrc ] && . ~/.bashrc' > ~/.bash_profile
 # mise activation in bashrc
 RUN echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> ~/.bashrc
 
+# Switch to bash — mise activate outputs bash-specific syntax
+SHELL ["/bin/bash", "-c"]
+
 # Node LTS via mise
 RUN eval "$($HOME/.local/bin/mise activate bash)" && \
     mise use -g node@lts
@@ -44,11 +58,17 @@ RUN eval "$($HOME/.local/bin/mise activate bash)" && \
 RUN eval "$($HOME/.local/bin/mise activate bash)" && \
     npm install -g @anthropic-ai/claude-code
 
+# Back to sh for remaining steps
+SHELL ["/bin/sh", "-c"]
+
 # Mirror configs
 RUN mkdir -p ~/.pip && \
     echo 'registry=https://registry.npmmirror.com' > ~/.npmrc && \
-    printf '---\nsources:\n  - https://gems.ruby-china.com\n' > ~/.gemrc && \
-    printf '[global]\nindex-url = https://mirrors.aliyun.com/pypi/simple/\n' > ~/.pip/pip.conf
+    printf '%s\n' '---' 'sources:' '  - https://gems.ruby-china.com' > ~/.gemrc && \
+    printf '%s\n' '[global]' 'index-url = https://mirrors.aliyun.com/pypi/simple/' > ~/.pip/pip.conf
+
+# mig25 — PostgreSQL migration toolkit (from Leyan Nexus)
+RUN pip3 install --break-system-packages -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 -U
 
 COPY entrypoint.sh /usr/local/bin/
 USER root

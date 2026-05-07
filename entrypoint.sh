@@ -18,7 +18,7 @@ if [ "$HOST_GID" != "$(id -g dev)" ]; then
     groupmod -g "$HOST_GID" dev
 fi
 
-chown -R dev:dev /home/dev
+chown -R dev:dev /home/dev 2>/dev/null || true
 
 # Docker socket access — match host's docker group GID
 if [ -S /var/run/docker.sock ]; then
@@ -30,5 +30,8 @@ if [ -S /var/run/docker.sock ]; then
     fi
     usermod -aG "$DOCKER_GROUP" dev
 fi
+
+# Start PostgreSQL
+pg_ctlcluster 16 main start 2>/dev/null || true
 
 exec runuser -u dev -- "$@"
