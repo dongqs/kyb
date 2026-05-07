@@ -31,8 +31,8 @@ if [ -S /var/run/docker.sock ]; then
     usermod -aG "$DOCKER_GROUP" dev
 fi
 
-# Generate Docker-specific Claude settings (yolo mode, no macOS hooks)
-if [ -f /home/dev/.claude/settings.host.json ]; then
+# Generate Docker-specific Claude settings on first run only
+if [ ! -f /home/dev/.claude/settings.json ] && [ -f /home/dev/.claude-host-settings.json ]; then
     mkdir -p /home/dev/.claude
     jq '{
       env: .env,
@@ -40,8 +40,8 @@ if [ -f /home/dev/.claude/settings.host.json ]; then
       theme: "dark",
       statusLine: .statusLine,
       enabledPlugins: .enabledPlugins
-    }' /home/dev/.claude/settings.host.json > /home/dev/.claude/settings.json
-    chown dev:dev /home/dev/.claude/settings.json
+    }' /home/dev/.claude-host-settings.json > /home/dev/.claude/settings.json
+    chown -R dev:dev /home/dev/.claude
 fi
 
 # Start PostgreSQL
