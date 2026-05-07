@@ -31,6 +31,18 @@ if [ -S /var/run/docker.sock ]; then
     usermod -aG "$DOCKER_GROUP" dev
 fi
 
+# Generate Docker-specific Claude settings (yolo mode, no macOS hooks)
+if [ -f /home/dev/.claude/settings.host.json ]; then
+    mkdir -p /home/dev/.claude
+    jq '{
+      env: .env,
+      permissions: {allow: ["*"]},
+      statusLine: .statusLine,
+      enabledPlugins: .enabledPlugins
+    }' /home/dev/.claude/settings.host.json > /home/dev/.claude/settings.json
+    chown dev:dev /home/dev/.claude/settings.json
+fi
+
 # Start PostgreSQL
 pg_ctlcluster 16 main start 2>/dev/null || true
 

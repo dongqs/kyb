@@ -28,7 +28,7 @@ docker run -d \
     -e HOST_GID="$(id -g)" \
     -v "$HOME/.ssh:/home/dev/.ssh:ro" \
     -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
-    -v "$HOME/.claude/settings.json:/home/dev/.claude/settings.json:ro" \
+    -v "$HOME/.claude/settings.json:/home/dev/.claude/settings.host.json:ro" \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$HOME/projects:/home/dev/projects" \
     "$IMAGE_NAME"
