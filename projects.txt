@@ -4,3 +4,4 @@
 
 git@git.leyantech.com:training/hamilton.git
 git@git.leyantech.com:leyantech/click.git
+git@git.leyantech.com:base-service/Norland.git

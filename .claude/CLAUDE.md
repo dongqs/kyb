@@ -31,6 +31,34 @@ OrbStack AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环
 1. 编辑 `projects.txt`，加一行 git clone URL
 2. 重建沙箱，或手动 `docker exec` 进入 `git clone`
 
+## 沙箱环境
+
+- **PostgreSQL 16** — 随容器启动，trust 认证，时区 Asia/Shanghai
+- **mig25** — 从 Nexus 安装，DSN 配在项目 `.env` 里
+- **Node LTS** — 通过 mise 管理
+- **Claude Code** — npm 全局安装
+
+## Norland / mig25 项目
+
+`projects/Norland/` 是 PostgreSQL schema-only 项目（乐言电商订单/店铺表结构）。
+
+```bash
+# 进入沙箱
+~/orb/bin/enter-sandbox
+
+# 初始化（首次）
+cd ~/projects/Norland
+echo 'MIG25_DSN=postgresql://postgres:postgres@127.0.0.1:5432/postgres' > .env
+echo y | mig25 init
+
+# 日常操作
+mig25 list        # 查看 migration 状态
+mig25 upgrade     # 执行待应用的 migration
+mig25 boomerang   # 完整 CI 验证：建库 → 全量 migration → 测试 → 拆库
+```
+
+mig25 要求 PG 时区为 Asia/Shanghai，已在 Dockerfile 中预设。
+
 ## 宿主机挂载
 
 - `~/.ssh` → 容器内 `/home/dev/.ssh` (只读)
