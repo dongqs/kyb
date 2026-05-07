@@ -1,0 +1,5 @@
+.git
+cloud-init.yaml
+cloud-init.generated.yaml
+bin/create-machine
+*.md

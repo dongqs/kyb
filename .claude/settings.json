@@ -1,10 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(orb *)",
-      "Bash(orbctl *)",
-      "Bash(~/orb/bin/*)",
-      "Bash(docker *)"
+      "Bash(docker *)",
+      "Bash(~/orb/bin/*)"
     ]
   }
 }

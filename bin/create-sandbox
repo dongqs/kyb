@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Build Docker image, start container, clone projects
+set -euo pipefail
+
+CONTAINER_NAME="${1:-dev-sandbox}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+IMAGE_NAME="dev-sandbox"
+USER_NAME=$(whoami)
+
+echo "==> Building Docker image: $IMAGE_NAME"
+docker build -t "$IMAGE_NAME" "$REPO_DIR"
+
+# Stop and remove existing container
+if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+    echo "==> Removing existing container: $CONTAINER_NAME"
+    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1
+fi
+
+# Ensure mount sources exist
+touch "$HOME/.gitconfig"
+
+echo "==> Starting container: $CONTAINER_NAME"
+docker run -d \
+    --name "$CONTAINER_NAME" \
+    --hostname dev-sandbox \
+    -e HOST_UID="$(id -u)" \
+    -e HOST_GID="$(id -g)" \
+    -v "$HOME/.ssh:/home/dev/.ssh:ro" \
+    -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
+    -v "$HOME/.claude/settings.json:/home/dev/.claude/settings.json:ro" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "$HOME/projects:/home/dev/projects" \
+    "$IMAGE_NAME"
+
+# Clone projects
+echo "==> Cloning projects..."
+while IFS= read -r url; do
+    [[ -z "$url" || "$url" =~ ^# ]] && continue
+    repo_name=$(basename "$url" .git)
+    echo "  -> $repo_name"
+    docker exec -u dev "$CONTAINER_NAME" \
+        git clone "$url" "/home/dev/projects/$repo_name" 2>&1 || \
+        echo "  [skip] clone failed, may already exist"
+done < "$REPO_DIR/projects.txt"
+
+echo ""
+echo "==> Done! Enter the sandbox:"
+echo "    ~/orb/bin/enter-sandbox"
+echo "    docker exec -it -u dev -w /home/dev $CONTAINER_NAME bash"
+echo ""
+echo "    Inside: cd ~/projects/<project> && claude"
