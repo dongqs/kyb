@@ -158,18 +158,15 @@ runcmd:
   # 5. Install mise (retry for network readiness)
   - su - __USER__ -c 'for i in 1 2 3 4 5; do curl -sSL https://mise.run | sh && exit 0; sleep 5; done'
 
-  # 6. Install Node LTS via mise
-  - su - __USER__ -c '/home/__USER__/.local/bin/mise use -g node@lts'
+  # 6. Install Node LTS via mise and trust config
+  - su - __USER__ -c '/home/__USER__/.local/bin/mise use -g node@lts && /home/__USER__/.local/bin/mise trust'
 
-  # 7. Trust mise config
-  - su - __USER__ -c '/home/__USER__/.local/bin/mise trust'
-
-  # 8. Install Claude Code (use mise shim PATH)
+  # 7. Install Claude Code (use mise shim PATH)
   - su - __USER__ -c 'PATH="$HOME/.local/share/mise/shims:$PATH" npm install -g @anthropic-ai/claude-code'
 
-  # 9. Create projects directory
+  # 8. Create projects directory
   - mkdir -p /home/__USER__/projects
   - chown __USER__:__USER__ /home/__USER__/projects
 
-  # 10. Add user to docker group
+  # 9. Add user to docker group
   - usermod -aG docker __USER__
