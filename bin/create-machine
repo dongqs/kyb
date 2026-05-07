@@ -56,7 +56,7 @@ while IFS= read -r url; do
   [[ -z "$url" || "$url" =~ ^# ]] && continue
   repo_name=$(basename "$url" .git)
   echo "  -> $repo_name"
-  orb -m "$MACHINE_NAME" su - "$USER_NAME" -c "cd ~/projects && git clone $url" 2>&1 || echo "  [skip] clone failed, may already exist"
+  orb -m "$MACHINE_NAME" git clone "$url" "/home/$USER_NAME/projects/$(basename "$url" .git)" 2>&1 || echo "  [skip] clone failed, may already exist"
 done < "$REPO_DIR/projects.txt"
 
 echo ""
