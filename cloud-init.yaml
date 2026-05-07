@@ -149,8 +149,7 @@ runcmd:
   # 2. Restart docker with mirror config
   - systemctl restart docker
 
-  # 3. Add mise activation to bashrc (MISE_CONFIG_DIR avoids macOS mount conflict)
-  - echo 'export MISE_CONFIG_DIR="$HOME/.config/mise"' >> /home/__USER__/.bashrc
+  # 3. Add mise activation to bashrc
   - echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> /home/__USER__/.bashrc
 
   # 4. Fix home ownership (must be before any su - USER commands)
