@@ -149,7 +149,8 @@ runcmd:
   # 2. Restart docker with mirror config
   - systemctl restart docker
 
-  # 3. Add mise activation to bashrc (.bash_profile already sources it)
+  # 3. Add mise activation to bashrc (MISE_CONFIG_DIR avoids macOS mount conflict)
+  - echo 'export MISE_CONFIG_DIR="$HOME/.config/mise"' >> /home/__USER__/.bashrc
   - echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> /home/__USER__/.bashrc
 
   # 4. Fix home ownership (must be before any su - USER commands)
@@ -158,8 +159,8 @@ runcmd:
   # 5. Install mise (retry for network readiness)
   - su - __USER__ -c 'for i in 1 2 3 4 5; do curl -sSL https://mise.run | sh && exit 0; sleep 5; done'
 
-  # 6. Install Node LTS via mise and trust config
-  - su - __USER__ -c '/home/__USER__/.local/bin/mise use -g node@lts && /home/__USER__/.local/bin/mise trust'
+  # 6. Install Node LTS via mise and trust both configs (Linux + macOS mount)
+  - su - __USER__ -c '/home/__USER__/.local/bin/mise use -g node@lts && /home/__USER__/.local/bin/mise trust && /home/__USER__/.local/bin/mise trust /Users/__USER__/.config/mise/config.toml || true'
 
   # 7. Install Claude Code (use mise shim PATH)
   - su - __USER__ -c 'PATH="$HOME/.local/share/mise/shims:$PATH" npm install -g @anthropic-ai/claude-code'
