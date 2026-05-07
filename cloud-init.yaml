@@ -1,0 +1,98 @@
+#cloud-config
+# OrbStack Machine cloud-init for AI dev sandbox
+# Usage: bin/create-machine
+
+hostname: dev-sandbox
+timezone: Asia/Shanghai
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - build-essential
+  - libpq-dev
+  - libssl-dev
+  - libreadline-dev
+  - zlib1g-dev
+  - curl
+  - wget
+  - vim
+  - tmux
+  - htop
+  - ca-certificates
+  - gnupg
+  - unzip
+  - jq
+  - docker-compose-v2
+
+write_files:
+  - path: /home/__USER__/.ssh/id_rsa
+    permissions: "0600"
+    content: __SSH_PRIVATE_KEY__
+
+  - path: /home/__USER__/.ssh/id_rsa.pub
+    permissions: "0644"
+    content: __SSH_PUBLIC_KEY__
+
+  - path: /home/__USER__/.ssh/config
+    permissions: "0644"
+    content: |
+      Host git.leyantech.com
+        HostName git.leyantech.com
+        User git
+        IdentityFile ~/.ssh/id_rsa
+        StrictHostKeyChecking accept-new
+
+  - path: /home/__USER__/.gitconfig
+    permissions: "0644"
+    content: |
+      [user]
+        name = __GIT_NAME__
+        email = __GIT_EMAIL__
+      [url "git@git.leyantech.com:"]
+        insteadOf = https://git.leyantech.com/
+
+  - path: /home/__USER__/.claude/settings.json
+    permissions: "0644"
+    content: |
+      {
+        "env": {
+          "ANTHROPIC_AUTH_TOKEN": "__ANTHROPIC_AUTH_TOKEN__",
+          "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+          "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+          "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+          "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+          "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
+          "ANTHROPIC_REASONING_MODEL": "deepseek-v4-pro[1m]"
+        },
+        "permissions": {
+          "allow": ["*"]
+        }
+      }
+
+runcmd:
+  # Ensure correct ownership of home
+  - chown -R __USER__:__USER__ /home/__USER__
+
+  # Install mise
+  - su - __USER__ -c 'curl -sSL https://mise.run | sh'
+
+  # Add mise to bashrc
+  - echo 'eval "$(~/.local/bin/mise activate bash)"' >> /home/__USER__/.bashrc
+
+  # Install Node LTS via mise
+  - su - __USER__ -c '/home/__USER__/.local/bin/mise use -g node@lts'
+
+  # Install Claude Code
+  - su - __USER__ -c 'npm install -g @anthropic-ai/claude-code'
+
+  # Create projects directory
+  - mkdir -p /home/__USER__/projects
+  - chown __USER__:__USER__ /home/__USER__/projects
+
+  # Add docker group
+  - usermod -aG docker __USER__
+
+power_state:
+  mode: reboot

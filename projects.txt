@@ -1,0 +1,9 @@
+# Projects to clone into the dev sandbox
+# Format: one git clone URL per line
+# Lines starting with # are ignored
+
+git@git.leyantech.com:training/hamilton-sdk.git
+git@git.leyantech.com:training/hamilton.git
+git@git.leyantech.com:leyantech/doudian-isv-eva.git
+git@git.leyantech.com:leyantech/norland.git
+git@git.leyantech.com:leyantech/db-click.git
