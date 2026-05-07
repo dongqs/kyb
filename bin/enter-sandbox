@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-exec docker exec -it -u dev -w /home/dev "${1:-dev-sandbox}" bash
+exec docker exec -it -u dev -w /home/dev "${1:-dev-sandbox}" claude --dangerously-skip-permissions
