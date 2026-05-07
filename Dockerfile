@@ -47,12 +47,15 @@ RUN echo '[ -f ~/.bashrc ] && . ~/.bashrc' > ~/.bash_profile
 # mise activation in bashrc
 RUN echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> ~/.bashrc
 
+# mise global config — edit mise.toml to add/change tools
+COPY --chown=dev:dev mise.toml /home/dev/.config/mise/config.toml
+
 # Switch to bash — mise activate outputs bash-specific syntax
 SHELL ["/bin/bash", "-c"]
 
-# Node LTS via mise
+# Node LTS via mise (reads from mise.toml)
 RUN eval "$($HOME/.local/bin/mise activate bash)" && \
-    mise use -g node@lts
+    mise install
 
 # Claude Code
 RUN eval "$($HOME/.local/bin/mise activate bash)" && \
