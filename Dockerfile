@@ -8,7 +8,7 @@ RUN apt-get update && apt-get upgrade -y && \
     ca-certificates curl wget git build-essential \
     libpq-dev libssl-dev libreadline-dev zlib1g-dev \
     vim tmux htop gnupg unzip jq docker-compose-v2 \
-    docker.io sudo postgresql postgresql-client python3-pip \
+    docker.io sudo postgresql postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # PostgreSQL: trust local connections (dev sandbox)
@@ -53,13 +53,13 @@ COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
 # Switch to bash — mise activate outputs bash-specific syntax
 SHELL ["/bin/bash", "-c"]
 
-# Install tools declared in config.toml
+# Install tools declared in config.toml (node, python, claude-code)
 RUN eval "$($HOME/.local/bin/mise activate bash)" && \
     mise install
 
-# Claude Code
+# mig25 — PostgreSQL migration toolkit (from Leyan Nexus, via mise Python)
 RUN eval "$($HOME/.local/bin/mise activate bash)" && \
-    npm install -g @anthropic-ai/claude-code
+    pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 -U
 
 # Back to sh for remaining steps
 SHELL ["/bin/sh", "-c"]
@@ -69,9 +69,6 @@ RUN mkdir -p ~/.pip && \
     echo 'registry=https://registry.npmmirror.com' > ~/.npmrc && \
     printf '%s\n' '---' 'sources:' '  - https://gems.ruby-china.com' > ~/.gemrc && \
     printf '%s\n' '[global]' 'index-url = https://mirrors.aliyun.com/pypi/simple/' > ~/.pip/pip.conf
-
-# mig25 — PostgreSQL migration toolkit (from Leyan Nexus)
-RUN pip3 install --break-system-packages -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 -U
 
 COPY entrypoint.sh /usr/local/bin/
 USER root
