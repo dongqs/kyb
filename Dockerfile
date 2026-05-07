@@ -17,7 +17,7 @@ RUN echo 'local all all trust' > /etc/postgresql/16/main/pg_hba.conf && \
     echo 'host all all ::1/128 trust' >> /etc/postgresql/16/main/pg_hba.conf
 
 # PostgreSQL: Asia/Shanghai timezone (required by mig25)
-RUN echo "ALTER SYSTEM SET timezone = 'Asia/Shanghai';" | su - postgres -c 'psql' 2>/dev/null || true
+RUN echo "timezone = 'Asia/Shanghai'" >> /etc/postgresql/16/main/postgresql.conf
 
 # Proxy: socks5 via OrbStack host, bypass intranet
 ENV ALL_PROXY=socks5://host.orb.internal:2080 \
