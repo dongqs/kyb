@@ -149,24 +149,26 @@ runcmd:
   # 2. Restart docker with mirror config
   - systemctl restart docker
 
-  # 3. Fix home ownership (before su commands)
-  - chown -R __USER__:__USER__ /home/__USER__
-
-  # 4. Install mise (retry for network readiness)
+  # 3. Install mise (retry for network readiness)
   - su - __USER__ -c 'for i in 1 2 3 4 5; do curl -sSL https://mise.run | sh && exit 0; sleep 5; done'
 
-  # 5. Add mise activation to bashrc
+  # 4. Add mise activation to bashrc (.bash_profile already sources it, from write_files)
   - echo 'eval "$(~/.local/bin/mise activate bash)"' >> /home/__USER__/.bashrc
 
-  # 6. Install Node LTS via mise
+  # 5. Install Node LTS via mise
   - su - __USER__ -c '/home/__USER__/.local/bin/mise use -g node@lts'
+
+  # 6. Trust mise config
+  - su - __USER__ -c '/home/__USER__/.local/bin/mise trust'
 
   # 7. Install Claude Code (use mise shim PATH)
   - su - __USER__ -c 'PATH="$HOME/.local/share/mise/shims:$PATH" npm install -g @anthropic-ai/claude-code'
 
   # 8. Create projects directory
   - mkdir -p /home/__USER__/projects
-  - chown __USER__:__USER__ /home/__USER__/projects
 
-  # 9. Add user to docker group
+  # 9. Fix all home ownership
+  - chown -R __USER__:__USER__ /home/__USER__
+
+  # 10. Add user to docker group
   - usermod -aG docker __USER__
