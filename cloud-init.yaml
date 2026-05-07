@@ -5,6 +5,14 @@
 hostname: dev-sandbox
 timezone: Asia/Shanghai
 
+# Create default user before write_files/runcmd need it
+users:
+  - name: __USER__
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    home: /home/__USER__
+
 # Aliyun mirror for Ubuntu ARM (ports)
 apt:
   primary:
