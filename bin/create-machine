@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
 # --- Read secrets from host ---
-SSH_PRIVATE_KEY=$(cat "$HOME/.ssh/id_rsa")
+SSH_PRIVATE_KEY_B64=$(base64 < "$HOME/.ssh/id_rsa" | tr -d '\n')
 SSH_PUBLIC_KEY=$(cat "$HOME/.ssh/id_rsa.pub")
 ANTHROPIC_AUTH_TOKEN=$(jq -r '.env.ANTHROPIC_AUTH_TOKEN' "$HOME/.claude/settings.json")
 GIT_NAME=$(git config --global user.name)
@@ -21,7 +21,7 @@ echo "==> Generating cloud-init for user: $USER_NAME"
 
 sed \
   -e "s|__USER__|${USER_NAME}|g" \
-  -e "s|__SSH_PRIVATE_KEY__|${SSH_PRIVATE_KEY}|g" \
+  -e "s|__SSH_PRIVATE_KEY_B64__|${SSH_PRIVATE_KEY_B64}|g" \
   -e "s|__SSH_PUBLIC_KEY__|${SSH_PUBLIC_KEY}|g" \
   -e "s|__ANTHROPIC_AUTH_TOKEN__|${ANTHROPIC_AUTH_TOKEN}|g" \
   -e "s|__GIT_NAME__|${GIT_NAME}|g" \
@@ -38,7 +38,7 @@ fi
 
 # --- Create Machine ---
 echo "==> Creating Machine: $MACHINE_NAME"
-orb create ubuntu "$MACHINE_NAME" --cloud-init "$CLOUD_INIT"
+orb create ubuntu "$MACHINE_NAME" -c "$CLOUD_INIT"
 
 # --- Wait for Machine SSH ready (handles cloud-init reboot) ---
 echo "==> Waiting for Machine to be ready..."
