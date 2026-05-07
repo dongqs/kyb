@@ -26,6 +26,7 @@ docker run -d \
     --hostname dev-sandbox \
     -e HOST_UID="$(id -u)" \
     -e HOST_GID="$(id -g)" \
+    -e GITLAB_TOKEN="$(awk '/^[[:space:]]*token:/{print $2; exit}' "$HOME/Library/Application Support/glab-cli/config.yml" 2>/dev/null || true)" \
     -v "$HOME/.ssh:/home/dev/.ssh:ro" \
     -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
     -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \

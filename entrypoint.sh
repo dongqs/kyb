@@ -44,6 +44,24 @@ if [ ! -f /home/dev/.claude/settings.json ] && [ -f /home/dev/.claude-host-setti
     chown -R dev:dev /home/dev/.claude
 fi
 
+# Configure glab on first run
+if [ -n "${GITLAB_TOKEN:-}" ] && [ ! -f /home/dev/.config/glab-cli/config.yml ]; then
+    mkdir -p /home/dev/.config/glab-cli
+    cat > /home/dev/.config/glab-cli/config.yml << YAML
+git_protocol: ssh
+host: git.leyantech.com
+hosts:
+    git.leyantech.com:
+        api_host: git.leyantech.com
+        git_protocol: ssh
+        api_protocol: https
+        user: dongqs
+        token: ${GITLAB_TOKEN}
+YAML
+    chown -R dev:dev /home/dev/.config/glab-cli
+    chmod 600 /home/dev/.config/glab-cli/config.yml
+fi
+
 # Start PostgreSQL
 pg_ctlcluster 16 main start 2>/dev/null || true
 
