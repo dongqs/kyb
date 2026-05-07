@@ -37,6 +37,7 @@ if [ -f /home/dev/.claude/settings.host.json ]; then
     jq '{
       env: .env,
       permissions: {allow: ["*"]},
+      theme: "dark",
       statusLine: .statusLine,
       enabledPlugins: .enabledPlugins
     }' /home/dev/.claude/settings.host.json > /home/dev/.claude/settings.json
