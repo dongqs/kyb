@@ -40,8 +40,15 @@ fi
 echo "==> Creating Machine: $MACHINE_NAME"
 orb create ubuntu "$MACHINE_NAME" --cloud-init "$CLOUD_INIT"
 
+# --- Wait for Machine SSH ready (handles cloud-init reboot) ---
 echo "==> Waiting for Machine to be ready..."
-sleep 3
+for i in $(seq 1 30); do
+  if orb -m "$MACHINE_NAME" true 2>/dev/null; then
+    echo "==> Machine is ready"
+    break
+  fi
+  sleep 2
+done
 
 # --- Clone projects ---
 echo "==> Cloning projects..."
@@ -49,7 +56,7 @@ while IFS= read -r url; do
   [[ -z "$url" || "$url" =~ ^# ]] && continue
   repo_name=$(basename "$url" .git)
   echo "  -> $repo_name"
-  orb -m "$MACHINE_NAME" su - "$USER_NAME" -c "cd ~/projects && git clone $url" 2>&1 | tail -1
+  orb -m "$MACHINE_NAME" su - "$USER_NAME" -c "cd ~/projects && git clone $url" 2>&1 || echo "  [skip] clone failed, may already exist"
 done < "$REPO_DIR/projects.txt"
 
 echo ""

@@ -5,28 +5,37 @@
 hostname: dev-sandbox
 timezone: Asia/Shanghai
 
-package_update: true
-package_upgrade: true
-
-packages:
-  - git
-  - build-essential
-  - libpq-dev
-  - libssl-dev
-  - libreadline-dev
-  - zlib1g-dev
-  - curl
-  - wget
-  - vim
-  - tmux
-  - htop
-  - ca-certificates
-  - gnupg
-  - unzip
-  - jq
-  - docker-compose-v2
-
 write_files:
+  # --- apt mirror: Aliyun ---
+  - path: /etc/apt/sources.list
+    permissions: "0644"
+    content: |
+      deb https://mirrors.aliyun.com/ubuntu/ noble main restricted universe multiverse
+      deb https://mirrors.aliyun.com/ubuntu/ noble-updates main restricted universe multiverse
+      deb https://mirrors.aliyun.com/ubuntu/ noble-backports main restricted universe multiverse
+      deb https://mirrors.aliyun.com/ubuntu/ noble-security main restricted universe multiverse
+
+  # --- Proxy: ALL_PROXY for socks5, NO_PROXY bypasses intranet ---
+  - path: /etc/environment
+    permissions: "0644"
+    content: |
+      ALL_PROXY=socks5://host.orb.internal:2080
+      all_proxy=socks5://host.orb.internal:2080
+      NO_PROXY=git.leyantech.com,localhost,127.0.0.1,host.orb.internal,.local,.internal
+      no_proxy=git.leyantech.com,localhost,127.0.0.1,host.orb.internal,.local,.internal
+
+  # --- Docker daemon with registry mirror ---
+  - path: /etc/docker/daemon.json
+    permissions: "0644"
+    content: |
+      {
+        "registry-mirrors": [
+          "https://docker.1ms.run",
+          "https://docker.xuanyuan.me"
+        ]
+      }
+
+  # --- SSH ---
   - path: /home/__USER__/.ssh/id_rsa
     permissions: "0600"
     content: __SSH_PRIVATE_KEY__
@@ -44,6 +53,7 @@ write_files:
         IdentityFile ~/.ssh/id_rsa
         StrictHostKeyChecking accept-new
 
+  # --- Git ---
   - path: /home/__USER__/.gitconfig
     permissions: "0644"
     content: |
@@ -52,7 +62,31 @@ write_files:
         email = __GIT_EMAIL__
       [url "git@git.leyantech.com:"]
         insteadOf = https://git.leyantech.com/
+      [http]
+        proxy = socks5://host.orb.internal:2080
 
+  # --- npm ---
+  - path: /home/__USER__/.npmrc
+    permissions: "0644"
+    content: |
+      registry=https://registry.npmmirror.com
+
+  # --- Ruby ---
+  - path: /home/__USER__/.gemrc
+    permissions: "0644"
+    content: |
+      ---
+      sources:
+        - https://gems.ruby-china.com
+
+  # --- pip ---
+  - path: /home/__USER__/.pip/pip.conf
+    permissions: "0644"
+    content: |
+      [global]
+      index-url = https://mirrors.aliyun.com/pypi/simple/
+
+  # --- Claude Code ---
   - path: /home/__USER__/.claude/settings.json
     permissions: "0644"
     content: |
@@ -72,26 +106,33 @@ write_files:
       }
 
 runcmd:
-  # Ensure correct ownership of home
+  # 1. Update apt from Aliyun mirror and install packages
+  - apt-get update
+  - apt-get install -y ca-certificates curl wget git build-essential libpq-dev libssl-dev libreadline-dev zlib1g-dev vim tmux htop gnupg unzip jq docker-compose-v2
+
+  # 2. Reload docker with mirror config
+  - systemctl restart docker
+
+  # 3. Ensure home ownership
   - chown -R __USER__:__USER__ /home/__USER__
 
-  # Install mise
+  # 4. Install mise
   - su - __USER__ -c 'curl -sSL https://mise.run | sh'
 
-  # Add mise to bashrc
+  # 5. Add mise to bashrc
   - echo 'eval "$(~/.local/bin/mise activate bash)"' >> /home/__USER__/.bashrc
 
-  # Install Node LTS via mise
+  # 6. Install Node LTS via mise (uses npmmirror)
   - su - __USER__ -c '/home/__USER__/.local/bin/mise use -g node@lts'
 
-  # Install Claude Code
+  # 7. Install Claude Code
   - su - __USER__ -c 'npm install -g @anthropic-ai/claude-code'
 
-  # Create projects directory
+  # 8. Create projects directory
   - mkdir -p /home/__USER__/projects
   - chown __USER__:__USER__ /home/__USER__/projects
 
-  # Add docker group
+  # 9. Add user to docker group
   - usermod -aG docker __USER__
 
 power_state:
