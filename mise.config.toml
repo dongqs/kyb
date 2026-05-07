@@ -1,4 +1,5 @@
 [tools]
 node = "lts"
 python = "3.12"
+glab = "latest"
 "npm:@anthropic-ai/claude-code" = "latest"
