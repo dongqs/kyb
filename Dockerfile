@@ -9,6 +9,7 @@ RUN apt-get update && apt-get upgrade -y && \
     libpq-dev libssl-dev libreadline-dev zlib1g-dev \
     vim tmux htop gnupg unzip jq docker-compose-v2 \
     docker.io sudo postgresql postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 # PostgreSQL: trust local connections (dev sandbox)
 RUN echo 'local all all trust' > /etc/postgresql/16/main/pg_hba.conf && \
@@ -68,6 +69,9 @@ RUN mkdir -p ~/.pip && \
     echo 'registry=https://registry.npmmirror.com' > ~/.npmrc && \
     printf '%s\n' '---' 'sources:' '  - https://gems.ruby-china.com' > ~/.gemrc && \
     printf '%s\n' '[global]' 'index-url = https://mirrors.aliyun.com/pypi/simple/' > ~/.pip/pip.conf
+
+# Sandbox network & service reference (for Claude Code)
+COPY CLAUDE.sandbox.md /home/dev/CLAUDE.md
 
 COPY entrypoint.sh /usr/local/bin/
 USER root
