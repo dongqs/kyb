@@ -31,7 +31,7 @@ docker run -d \
     -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
     -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \
     -v dev-sandbox-claude:/home/dev/.claude \
-    -v "$HOME/.claude/skills:/home/dev/.claude/skills:ro" \
+    -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$HOME/projects:/home/dev/projects" \
     "$IMAGE_NAME"

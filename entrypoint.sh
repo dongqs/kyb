@@ -62,6 +62,11 @@ YAML
     chmod 600 /home/dev/.config/glab-cli/config.yml
 fi
 
+# Symlink host skills into Claude directory
+if [ -d /home/dev/.claude-skills-host ] && [ ! -L /home/dev/.claude/skills ]; then
+    ln -s /home/dev/.claude-skills-host /home/dev/.claude/skills
+fi
+
 # Start PostgreSQL
 pg_ctlcluster 16 main start 2>/dev/null || true
 
