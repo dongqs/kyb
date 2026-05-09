@@ -70,10 +70,19 @@ fi
 # Append projects list to CLAUDE.md (from projects.txt)
 if [ -f /home/dev/projects.txt ] && ! grep -q '## 项目列表' /home/dev/CLAUDE.md 2>/dev/null; then
     printf '\n## 项目列表\n\n' >> /home/dev/CLAUDE.md
+    desc=""
     while IFS= read -r line; do
-        [[ -z "$line" || "$line" =~ ^# ]] && continue
-        repo_name=$(basename "$line" .git)
-        echo "- **${repo_name}** — \`${line}\`" >> /home/dev/CLAUDE.md
+        if [[ "$line" =~ ^#[[:space:]]*desc:[[:space:]]*(.*) ]]; then
+            desc="${BASH_REMATCH[1]}"
+        elif [[ -n "$line" && ! "$line" =~ ^# ]]; then
+            repo_name=$(basename "$line" .git)
+            if [ -n "$desc" ]; then
+                echo "- **${repo_name}** — ${desc} (\`${line}\`)" >> /home/dev/CLAUDE.md
+            else
+                echo "- **${repo_name}** — \`${line}\`" >> /home/dev/CLAUDE.md
+            fi
+            desc=""
+        fi
     done < /home/dev/projects.txt
     echo "" >> /home/dev/CLAUDE.md
 fi
