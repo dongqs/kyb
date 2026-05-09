@@ -40,3 +40,8 @@
 | mig25 | pip (Nexus) | PostgreSQL 迁移 |
 | glab | mise | GitLab CLI |
 | psql | apt | PostgreSQL CLI |
+
+## 权限
+
+- `dev` 用户免密码 sudo：`sudo <cmd>` 即可提权 root
+- apt install / 修改系统配置等需要 root 的操作前加 sudo
