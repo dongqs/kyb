@@ -46,10 +46,13 @@ RUN echo '[ -f ~/.bashrc ] && . ~/.bashrc' > ~/.bash_profile && \
 # mise global config
 COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
 
-# Install mise tools + mig25 (both need mise-activated Python)
+# Install mise tools (node, python, claude-code, clickhouse, glab)
 SHELL ["/bin/bash", "-c"]
 RUN eval "$($HOME/.local/bin/mise activate bash)" && \
-    mise install && \
+    mise install
+
+# mig25 — PostgreSQL migration toolkit (needs mise Python on PATH)
+RUN eval "$($HOME/.local/bin/mise activate bash)" && \
     pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 -U
 
 # Mirror configs for package managers
