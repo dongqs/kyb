@@ -64,7 +64,7 @@ RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     mkdir -p /home/dev/.local/share/mise/downloads /home/dev/.cache/pip && \
     sudo chown -R dev:dev /home/dev/.local/share/mise /home/dev/.cache/pip && \
     eval "$($HOME/.local/bin/mise activate bash)" && \
-    pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen -U
+    pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]' -U
 
 # Gradle Nexus credentials (same readonly user as pip)
 RUN mkdir -p ~/.gradle && \
