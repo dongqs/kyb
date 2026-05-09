@@ -69,6 +69,8 @@ RUN mkdir -p ~/.pip && \
     printf '%s\n' '---' 'sources:' '  - https://gems.ruby-china.com' > ~/.gemrc && \
     printf '%s\n' '[global]' 'index-url = https://mirrors.aliyun.com/pypi/simple/' > ~/.pip/pip.conf
 
+RUN mkdir -p /home/dev/projects
+
 # Sandbox reference (for Claude Code inside container)
 COPY CLAUDE.sandbox.md /home/dev/CLAUDE.md
 
