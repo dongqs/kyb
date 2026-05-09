@@ -1,2 +1,4 @@
 #!/usr/bin/env bash
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+"$SCRIPT_DIR/sync-bare-repos"
 exec docker exec -it -u dev -w /home/dev "${1:-dev-sandbox}" bash -ic 'claude --dangerously-skip-permissions; bash'
