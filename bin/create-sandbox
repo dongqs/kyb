@@ -27,6 +27,8 @@ docker run -d \
     -e HOST_UID="$(id -u)" \
     -e HOST_GID="$(id -g)" \
     -e GITLAB_TOKEN="$(awk '/^[[:space:]]*token:/{print $2; exit}' "$HOME/Library/Application Support/glab-cli/config.yml" 2>/dev/null || true)" \
+    -e CLAUDE_CODE_ATTRIBUTION_HEADER="${CLAUDE_CODE_ATTRIBUTION_HEADER:-}" \
+    -e CLAUDE_CODE_EFFORT_LEVEL="${CLAUDE_CODE_EFFORT_LEVEL:-}" \
     -v "$HOME/.ssh:/home/dev/.ssh:ro" \
     -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
     -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \
