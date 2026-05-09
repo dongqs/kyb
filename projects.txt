@@ -6,3 +6,4 @@ git@git.leyantech.com:training/hamilton.git
 git@git.leyantech.com:quick-n-dirty/click.git
 git@git.leyantech.com:base-service/Norland.git
 git@git.leyantech.com:quick-n-dirty/item-structure.git
+git@github.com:dongqs/niao.git
