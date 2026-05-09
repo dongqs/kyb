@@ -4,3 +4,6 @@ python = "3.12"
 glab = "latest"
 clickhouse = "latest"
 "npm:@anthropic-ai/claude-code" = "latest"
+
+[settings]
+python.github_attestations = false
