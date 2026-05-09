@@ -12,3 +12,5 @@ git@git.leyantech.com:base-service/Norland.git
 git@git.leyantech.com:quick-n-dirty/item-structure.git
 # desc: 个人项目
 git@github.com:dongqs/niao.git
+# desc: NTSB
+git@git.leyantech.com:quick-n-dirty/ntsb.git
