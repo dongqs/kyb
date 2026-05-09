@@ -47,12 +47,16 @@ RUN echo '[ -f ~/.bashrc ] && . ~/.bashrc' > ~/.bash_profile && \
 COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
 
 # Install mise tools (node, python, claude-code, clickhouse, glab)
+# Cache mount persists mise downloads/installs across builds
 SHELL ["/bin/bash", "-c"]
-RUN eval "$($HOME/.local/bin/mise activate bash)" && \
+RUN --mount=type=cache,target=/home/dev/.local/share/mise,uid=1000,gid=1000 \
+    eval "$($HOME/.local/bin/mise activate bash)" && \
     mise install
 
 # mig25 — PostgreSQL migration toolkit (needs mise Python on PATH)
-RUN eval "$($HOME/.local/bin/mise activate bash)" && \
+RUN --mount=type=cache,target=/home/dev/.local/share/mise,uid=1000,gid=1000 \
+    --mount=type=cache,target=/home/dev/.cache/pip,uid=1000,gid=1000 \
+    eval "$($HOME/.local/bin/mise activate bash)" && \
     pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 -U
 
 # Mirror configs for package managers
