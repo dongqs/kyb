@@ -64,6 +64,7 @@ RUN mkdir -p ~/.pip && \
 # Sandbox reference (for Claude Code inside container)
 COPY CLAUDE.sandbox.md /home/dev/CLAUDE.md
 
+USER root
 COPY --chmod=+x entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["sleep", "infinity"]
