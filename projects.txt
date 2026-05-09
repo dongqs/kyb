@@ -3,5 +3,5 @@
 # Lines starting with # are ignored
 
 git@git.leyantech.com:training/hamilton.git
-git@git.leyantech.com:leyantech/click.git
+git@git.leyantech.com:quick-n-dirty/click.git
 git@git.leyantech.com:base-service/Norland.git
