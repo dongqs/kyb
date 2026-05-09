@@ -11,13 +11,11 @@ RUN apt-get update && apt-get upgrade -y && \
     docker.io sudo postgresql postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# PostgreSQL: trust local connections (dev sandbox)
+# PostgreSQL: trust local connections + Asia/Shanghai timezone (mig25 requirement)
 RUN echo 'local all all trust' > /etc/postgresql/16/main/pg_hba.conf && \
     echo 'host all all 127.0.0.1/32 trust' >> /etc/postgresql/16/main/pg_hba.conf && \
-    echo 'host all all ::1/128 trust' >> /etc/postgresql/16/main/pg_hba.conf
-
-# PostgreSQL: Asia/Shanghai timezone (required by mig25)
-RUN echo "timezone = 'Asia/Shanghai'" >> /etc/postgresql/16/main/postgresql.conf
+    echo 'host all all ::1/128 trust' >> /etc/postgresql/16/main/pg_hba.conf && \
+    echo "timezone = 'Asia/Shanghai'" >> /etc/postgresql/16/main/postgresql.conf
 
 # Proxy: socks5 via OrbStack host, bypass intranet
 ENV ALL_PROXY=socks5://host.orb.internal:2080 \
@@ -41,40 +39,28 @@ RUN for i in 1 2 3 4 5; do \
       sleep 5; \
     done
 
-# bash_profile sources bashrc for login shells (mise activation)
-RUN echo '[ -f ~/.bashrc ] && . ~/.bashrc' > ~/.bash_profile
+# bash_profile / bashrc for mise activation
+RUN echo '[ -f ~/.bashrc ] && . ~/.bashrc' > ~/.bash_profile && \
+    echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> ~/.bashrc
 
-# mise activation in bashrc
-RUN echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> ~/.bashrc
-
-# mise global config — edit mise.config.toml to add/change tools
+# mise global config
 COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
 
-# Switch to bash — mise activate outputs bash-specific syntax
+# Install mise tools + mig25 (both need mise-activated Python)
 SHELL ["/bin/bash", "-c"]
-
-# Install tools declared in config.toml (node, python, claude-code)
 RUN eval "$($HOME/.local/bin/mise activate bash)" && \
-    mise install
-
-# mig25 — PostgreSQL migration toolkit (from Leyan Nexus, via mise Python)
-RUN eval "$($HOME/.local/bin/mise activate bash)" && \
+    mise install && \
     pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 -U
 
-# Back to sh for remaining steps
-SHELL ["/bin/sh", "-c"]
-
-# Mirror configs
+# Mirror configs for package managers
 RUN mkdir -p ~/.pip && \
     echo 'registry=https://registry.npmmirror.com' > ~/.npmrc && \
     printf '%s\n' '---' 'sources:' '  - https://gems.ruby-china.com' > ~/.gemrc && \
     printf '%s\n' '[global]' 'index-url = https://mirrors.aliyun.com/pypi/simple/' > ~/.pip/pip.conf
 
-# Sandbox network & service reference (for Claude Code)
+# Sandbox reference (for Claude Code inside container)
 COPY CLAUDE.sandbox.md /home/dev/CLAUDE.md
 
-COPY entrypoint.sh /usr/local/bin/
-USER root
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY --chmod=+x entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["sleep", "infinity"]
