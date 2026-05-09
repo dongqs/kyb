@@ -8,3 +8,4 @@ clickhouse = "26"
 
 [settings]
 python.github_attestations = false
+ruby.compile = false

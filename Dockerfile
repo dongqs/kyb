@@ -6,7 +6,7 @@ RUN sed -i 's|http://ports.ubuntu.com/ubuntu-ports|http://mirrors.aliyun.com/ubu
 RUN apt-get update && apt-get upgrade -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ca-certificates curl wget git build-essential \
-    libpq-dev libssl-dev libreadline-dev zlib1g-dev \
+    libpq-dev libssl-dev libreadline-dev zlib1g-dev libffi-dev libyaml-dev \
     vim tmux htop gnupg unzip jq docker-compose-v2 \
     docker.io sudo postgresql postgresql-client \
     && rm -rf /var/lib/apt/lists/*
