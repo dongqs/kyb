@@ -73,6 +73,7 @@ RUN mkdir -p /home/dev/projects
 
 # Sandbox reference (for Claude Code inside container)
 COPY CLAUDE.sandbox.md /home/dev/CLAUDE.md
+COPY projects.txt /home/dev/projects.txt
 
 USER root
 COPY --chmod=+x entrypoint.sh /usr/local/bin/
