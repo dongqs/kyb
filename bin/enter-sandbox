@@ -1,4 +1,72 @@
 #!/usr/bin/env bash
+# Enter dev sandbox. Optionally sync & clone projects.
+#
+#   enter-sandbox              just enter
+#   enter-sandbox all          sync & clone all projects, then enter
+#   enter-sandbox click        sync & clone click, then enter
+#   enter-sandbox a b c        sync & clone a, b, c, then enter
+set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-"$SCRIPT_DIR/sync-bare-repos"
-exec docker exec -it -u dev -w /home/dev "${1:-dev-sandbox}" bash -ic 'claude --dangerously-skip-permissions; bash'
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+CONTAINER_NAME="dev-sandbox"
+BARE_DIR="$HOME/projects/.bare"
+PROJECTS_TXT="$REPO_DIR/projects.txt"
+
+# Resolve URL from projects.txt by project name
+url_of() {
+    local name="$1"
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" =~ ^# ]] && continue
+        [[ "$(basename "$line" .git)" = "$name" ]] && echo "$line" && return 0
+    done < "$PROJECTS_TXT"
+    return 1
+}
+
+# Sync bare repo on host and clone into container if needed
+sync_project() {
+    local name="$1"
+    local url
+    url=$(url_of "$name") || { echo "  [skip] $name: unknown project"; return; }
+
+    local bare_path="$BARE_DIR/${name}.git"
+    mkdir -p "$BARE_DIR"
+
+    if [ -d "$bare_path" ]; then
+        echo "  -> $name (fetch bare)"
+        git -C "$bare_path" fetch --all --prune 2>&1 | sed 's/^/     /' || true
+    else
+        echo "  -> $name (clone bare)"
+        git clone --bare "$url" "$bare_path" 2>&1 | sed 's/^/     /' || true
+    fi
+
+    # Clone into container if not already there
+    if ! docker exec -u dev "$CONTAINER_NAME" test -d "/home/dev/projects/$name" 2>/dev/null; then
+        echo "  -> $name (clone project)"
+        docker exec -u dev "$CONTAINER_NAME" \
+            git clone "/home/dev/bare-repos/${name}.git" "/home/dev/projects/$name" 2>&1 | sed 's/^/     /' || true
+        docker exec -u dev "$CONTAINER_NAME" \
+            git -C "/home/dev/projects/$name" remote set-url origin "$url" 2>&1 || true
+    else
+        echo "  -> $name (exists)"
+    fi
+}
+
+# --- main ---
+
+if [ $# -gt 0 ]; then
+    echo "==> Syncing projects..."
+    for arg in "$@"; do
+        if [ "$arg" = "all" ]; then
+            while IFS= read -r line; do
+                [[ -z "$line" || "$line" =~ ^# ]] && continue
+                sync_project "$(basename "$line" .git)"
+            done < "$PROJECTS_TXT"
+        else
+            sync_project "$arg"
+        fi
+    done
+    echo ""
+fi
+
+exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" bash -ic 'claude --dangerously-skip-permissions; bash'

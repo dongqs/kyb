@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Build Docker image, start container, clone projects
+# Build Docker image, start container
 set -euo pipefail
 
 CONTAINER_NAME="${1:-dev-sandbox}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 IMAGE_NAME="dev-sandbox"
-USER_NAME=$(whoami)
 
 echo "==> Building Docker image: $IMAGE_NAME"
 docker build -t "$IMAGE_NAME" "$REPO_DIR"
@@ -20,10 +19,6 @@ fi
 # Ensure mount sources exist
 mkdir -p "$HOME/projects/.bare"
 touch "$HOME/.gitconfig"
-
-# Sync bare repos (local cache for fast cloning)
-echo "==> Syncing bare repos..."
-"$SCRIPT_DIR/sync-bare-repos"
 
 echo "==> Starting container: $CONTAINER_NAME"
 docker run -d \
@@ -40,25 +35,11 @@ docker run -d \
     -v dev-sandbox-claude:/home/dev/.claude \
     -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
     -v /var/run/docker.sock:/var/run/docker.sock \
-	    -v "$HOME/projects/.bare:/home/dev/bare-repos:ro" \
+    -v "$HOME/projects/.bare:/home/dev/bare-repos:ro" \
     "$IMAGE_NAME"
-
-# Clone projects from local bare repos (fast, no network)
-echo "==> Cloning projects..."
-while IFS= read -r url; do
-    [[ -z "$url" || "$url" =~ ^# ]] && continue
-    repo_name=$(basename "$url" .git)
-    echo "  -> $repo_name"
-    docker exec -u dev "$CONTAINER_NAME" \
-        git clone "/home/dev/bare-repos/${repo_name}.git" "/home/dev/projects/$repo_name" 2>&1 && \
-        docker exec -u dev "$CONTAINER_NAME" \
-            git -C "/home/dev/projects/$repo_name" remote set-url origin "$url" 2>&1 || \
-        echo "  [skip] clone failed"
-done < "$REPO_DIR/projects.txt"
 
 echo ""
 echo "==> Done! Enter the sandbox:"
-echo "    ~/orb/bin/enter-sandbox"
-echo "    docker exec -it -u dev -w /home/dev $CONTAINER_NAME bash"
-echo ""
-echo "    Inside: cd ~/projects/<project> && claude"
+echo "    ~/orb/bin/enter-sandbox all    # sync & clone all projects"
+echo "    ~/orb/bin/enter-sandbox click  # sync & clone a specific project"
+echo "    ~/orb/bin/enter-sandbox        # just enter, no sync"
