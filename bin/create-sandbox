@@ -18,7 +18,12 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
 fi
 
 # Ensure mount sources exist
+mkdir -p "$HOME/projects/.bare"
 touch "$HOME/.gitconfig"
+
+# Sync bare repos (local cache for fast cloning)
+echo "==> Syncing bare repos..."
+"$SCRIPT_DIR/sync-bare-repos"
 
 echo "==> Starting container: $CONTAINER_NAME"
 docker run -d \
@@ -35,17 +40,20 @@ docker run -d \
     -v dev-sandbox-claude:/home/dev/.claude \
     -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
     -v /var/run/docker.sock:/var/run/docker.sock \
+	    -v "$HOME/projects/.bare:/home/dev/bare-repos:ro" \
     "$IMAGE_NAME"
 
-# Clone projects
+# Clone projects from local bare repos (fast, no network)
 echo "==> Cloning projects..."
 while IFS= read -r url; do
     [[ -z "$url" || "$url" =~ ^# ]] && continue
     repo_name=$(basename "$url" .git)
     echo "  -> $repo_name"
     docker exec -u dev "$CONTAINER_NAME" \
-        git clone "$url" "/home/dev/projects/$repo_name" 2>&1 || \
-        echo "  [skip] clone failed, may already exist"
+        git clone "/home/dev/bare-repos/${repo_name}.git" "/home/dev/projects/$repo_name" 2>&1 && \
+        docker exec -u dev "$CONTAINER_NAME" \
+            git -C "/home/dev/projects/$repo_name" remote set-url origin "$url" 2>&1 || \
+        echo "  [skip] clone failed"
 done < "$REPO_DIR/projects.txt"
 
 echo ""
