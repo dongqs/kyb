@@ -35,7 +35,6 @@ docker run -d \
     -v dev-sandbox-claude:/home/dev/.claude \
     -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    -v "$HOME/projects:/home/dev/projects" \
     "$IMAGE_NAME"
 
 # Clone projects
