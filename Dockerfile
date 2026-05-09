@@ -17,6 +17,9 @@ RUN echo 'local all all trust' > /etc/postgresql/16/main/pg_hba.conf && \
     echo 'host all all ::1/128 trust' >> /etc/postgresql/16/main/pg_hba.conf && \
     echo "timezone = 'Asia/Shanghai'" >> /etc/postgresql/16/main/postgresql.conf
 
+# UTF-8 locale (required by Ruby TOML parsing etc.)
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+
 # Proxy: socks5 via OrbStack host, bypass intranet
 ENV ALL_PROXY=socks5://host.orb.internal:2080 \
     all_proxy=socks5://host.orb.internal:2080 \
