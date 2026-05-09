@@ -54,19 +54,34 @@ sync_project() {
 
 # --- main ---
 
+PROJECTS=()
 if [ $# -gt 0 ]; then
     echo "==> Syncing projects..."
     for arg in "$@"; do
         if [ "$arg" = "all" ]; then
             while IFS= read -r line; do
                 [[ -z "$line" || "$line" =~ ^# ]] && continue
-                sync_project "$(basename "$line" .git)"
+                name=$(basename "$line" .git)
+                sync_project "$name"
+                PROJECTS+=("$name")
             done < "$PROJECTS_TXT"
         else
             sync_project "$arg"
+            PROJECTS+=("$arg")
         fi
     done
     echo ""
 fi
 
-exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" bash -ic 'claude --dangerously-skip-permissions; bash'
+# Build the shell command with project context
+if [ ${#PROJECTS[@]} -eq 1 ]; then
+    PROJ_NAME="${PROJECTS[0]}"
+    CMD="cd ~/projects/${PROJ_NAME} && claude --dangerously-skip-permissions; bash"
+elif [ ${#PROJECTS[@]} -gt 1 ]; then
+    LIST=$(IFS=', '; echo "${PROJECTS[*]}")
+    CMD="echo 'Synced: ${LIST}'; claude --dangerously-skip-permissions; bash"
+else
+    CMD="claude --dangerously-skip-permissions; bash"
+fi
+
+exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" bash -ic "$CMD"
