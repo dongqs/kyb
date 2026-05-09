@@ -47,16 +47,18 @@ RUN echo '[ -f ~/.bashrc ] && . ~/.bashrc' > ~/.bash_profile && \
 COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
 
 # Install mise tools (node, python, claude-code, clickhouse, glab)
-# Cache mount persists mise downloads/installs across builds
+# Cache mount only covers downloads — installs/shim go into the image layer
 SHELL ["/bin/bash", "-c"]
-RUN --mount=type=cache,target=/home/dev/.local/share/mise \
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    mkdir -p /home/dev/.local/share/mise/downloads && \
     sudo chown -R dev:dev /home/dev/.local/share/mise && \
     eval "$($HOME/.local/bin/mise activate bash)" && \
     mise install
 
 # mig25 — PostgreSQL migration toolkit (needs mise Python on PATH)
-RUN --mount=type=cache,target=/home/dev/.local/share/mise \
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     --mount=type=cache,target=/home/dev/.cache/pip \
+    mkdir -p /home/dev/.local/share/mise/downloads /home/dev/.cache/pip && \
     sudo chown -R dev:dev /home/dev/.local/share/mise /home/dev/.cache/pip && \
     eval "$($HOME/.local/bin/mise activate bash)" && \
     pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 -U
