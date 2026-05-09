@@ -1,10 +1,10 @@
 [tools]
-ruby = "latest"
-node = "lts"
-python = "3.12"
-glab = "latest"
-clickhouse = "latest"
-"npm:@anthropic-ai/claude-code" = "latest"
+ruby = "3.3"
+node = "25"
+python = "3.10"
+glab = "1.92"
+clickhouse = "26"
+"npm:@anthropic-ai/claude-code" = "2"
 
 [settings]
 python.github_attestations = false
