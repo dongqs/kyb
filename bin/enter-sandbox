@@ -101,14 +101,16 @@ elif [ ${#PROJECTS[@]} -gt 1 ]; then
     LIST=$(IFS=', '; echo "${PROJECTS[*]}")
     CMD="echo 'Synced: ${LIST}'; claude --dangerously-skip-permissions; bash"
 else
-    CMD="bash"
+    CMD=""
 fi
 
 # Attach to existing tmux session, or create one
 SESSION="dev"
 if docker exec -u dev "$CONTAINER_NAME" tmux has-session -t "$SESSION" 2>/dev/null; then
     exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" tmux attach-session -t "$SESSION"
-else
+elif [ -n "$CMD" ]; then
     exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" tmux new-session -s "$SESSION" \; send-keys "$CMD" Enter
+else
+    exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" tmux new-session -s "$SESSION"
 fi
 
