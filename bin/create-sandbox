@@ -33,6 +33,9 @@ create_container() {
     # Remove existing container
     docker rm -f "$container" 2>/dev/null || true
 
+    # Ensure host .kimi dir exists (otherwise Docker creates as root)
+    mkdir -p "$HOME/.kimi"
+
     # Build port mapping args
     local PORT_ARGS=()
     if [ -n "${ports:-}" ]; then
@@ -53,6 +56,7 @@ create_container() {
         -e "CLAUDE_CODE_EFFORT_LEVEL=${CLAUDE_CODE_EFFORT_LEVEL:-}" \
         -e "KIMI_API_KEY=${KIMI_API_KEY:-}" \
         -v "$HOME/.ssh:/home/dev/.ssh:ro" \
+        -v "$HOME/.kimi:/home/dev/.kimi" \
         -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
         -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \
         -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
