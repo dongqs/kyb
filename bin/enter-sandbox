@@ -53,7 +53,8 @@ sync_project() {
 
     if [ -d "$bare_path" ]; then
         echo "  -> $name (fetch bare)"
-        git -C "$bare_path" fetch --all --prune 2>&1 | sed 's/^/     /' || true
+        git -C "$bare_path" config remote.origin.fetch '+refs/heads/*:refs/heads/*' 2>/dev/null || true
+        git -C "$bare_path" fetch origin --prune 2>&1 | sed 's/^/     /' || true
     else
         echo "  -> $name (clone bare)"
         git clone --bare "$url" "$bare_path" 2>&1 | sed 's/^/     /' || true
