@@ -2,19 +2,27 @@
 # Enter a project sandbox container via tmux
 set -euo pipefail
 
-CONTAINER="dev-${1:-sandbox}"
+PROJ="${1:-}"
+CONTAINER="dev-${PROJ:-sandbox}"
 SESSION="dev"
 
 # Check if container is running
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
     echo "ERROR: container '$CONTAINER' is not running"
-    echo "Run: ~/orb/bin/create-sandbox"
+    echo "Run: ~/orb/bin/create-sandbox${PROJ:+ $PROJ}"
     exit 1
+fi
+
+# Build startup command for new sessions
+if [ -n "$PROJ" ]; then
+    CMD="cd ~/projects/$PROJ && mise trust && claude"
+else
+    CMD="claude"
 fi
 
 # Attach to existing tmux session, or create one
 if docker exec -u dev "$CONTAINER" tmux has-session -t "$SESSION" 2>/dev/null; then
     exec docker exec -it -u dev -w /home/dev "$CONTAINER" tmux attach-session -t "$SESSION"
 else
-    exec docker exec -it -u dev -w /home/dev "$CONTAINER" tmux new-session -s "$SESSION"
+    exec docker exec -it -u dev -w /home/dev "$CONTAINER" tmux new-session -s "$SESSION" \; send-keys "$CMD" Enter
 fi

@@ -44,7 +44,8 @@ RUN for i in 1 2 3 4 5; do \
 
 # bash_profile / bashrc for mise activation
 RUN echo '[ -f ~/.bashrc ] && . ~/.bashrc' > ~/.bash_profile && \
-    echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> ~/.bashrc
+    echo 'eval "$($HOME/.local/bin/mise activate bash)"' >> ~/.bashrc && \
+    echo "alias claude='claude --dangerously-skip-permissions'" >> ~/.bashrc
 
 # mise global config
 COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
