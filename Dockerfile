@@ -73,6 +73,9 @@ RUN --mount=type=cache,target=/home/dev/.cache/uv \
     sudo chown -R dev:dev /home/dev/.cache/uv /home/dev/.local/share && \
     curl -fsSL https://code.kimi.com/install.sh | bash
 
+# Overwrite uv-managed kimi symlink with wrapper that sanitizes NO_PROXY
+COPY --chown=dev:dev --chmod=+x kimi-wrapper /home/dev/.local/bin/kimi
+
 # Gradle Nexus credentials (same readonly user as pip)
 RUN mkdir -p ~/.gradle && \
     printf 'nexusUser=readonlyuser\nnexusPassword=mimashishiliuwei\n' > ~/.gradle/gradle.properties

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Kimi CLI wrapper — sanitize NO_PROXY before running kimi
+# OrbStack injects IPv6 CIDR entries that httpx can't parse
+
+clean_proxy() {
+  echo "$1" | sed -E 's/,?[^,]*:[^,:]*\/[0-9]+,?/,/g; s/,,/,/g; s/^,//; s/,$//'
+}
+
+NO_PROXY=$(clean_proxy "${NO_PROXY:-}")
+no_proxy=$(clean_proxy "${no_proxy:-}")
+
+exec /home/dev/.local/share/uv/tools/kimi-cli/bin/kimi "$@"
