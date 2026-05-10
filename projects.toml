@@ -4,6 +4,7 @@
 
 [projects.niao]
 path = "~/github/niao"
+ports = ["3000:3000"]
 
 [projects.hamilton]
 path = "~/projects/hamilton"

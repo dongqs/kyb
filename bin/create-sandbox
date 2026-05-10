@@ -18,7 +18,7 @@ build_base() {
 }
 
 create_container() {
-    local name="$1" path="$2" df="$3"
+    local name="$1" path="$2" df="$3" ports="$4"
 
     local CONTAINER="dev-${name}"
     local PROJ_MOUNT="/home/dev/projects/${name}"
@@ -34,6 +34,13 @@ create_container() {
 
     # Remove existing container
     docker rm -f "$CONTAINER" 2>/dev/null || true
+
+    # Build port mapping args
+    local PORT_ARGS=()
+    IFS=',' read -ra PORT_LIST <<< "$ports"
+    for p in "${PORT_LIST[@]}"; do
+        [ -n "$p" ] && PORT_ARGS+=(-p "$p")
+    done
 
     echo "==> $name: starting container ($path -> $PROJ_MOUNT)"
     docker run -d \
@@ -53,6 +60,7 @@ create_container() {
         -v "dev-${name}-claude:/home/dev/.claude" \
         -v "${path}:${PROJ_MOUNT}" \
         -v "dev-${name}-node_modules:${PROJ_MOUNT}/node_modules" \
+        "${PORT_ARGS[@]}" \
         "$IMAGE"
 
     echo "     container=$CONTAINER  image=$IMAGE"
@@ -84,6 +92,8 @@ for name, p in projects.items():
     item = {"name": name, "path": os.path.expanduser(p["path"])}
     if "dockerfile" in p:
         item["dockerfile"] = p["dockerfile"]
+    ports = p.get("ports", [])
+    item["ports"] = ",".join(ports) if ports else ""
     print(json.dumps(item))
 ' "$CONFIG" "$PROJ_NAME"
 )
@@ -107,8 +117,9 @@ echo ""
 name=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')
 path=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["path"])')
 df=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("dockerfile",""))')
+ports=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ports",""))')
 
-create_container "$name" "$path" "$df"
+create_container "$name" "$path" "$df" "$ports"
 
 echo ""
 echo "==> Done! Enter:"
