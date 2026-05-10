@@ -80,6 +80,7 @@ while IFS= read -r line; do
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v "dev-${name}-claude:/home/dev/.claude" \
         -v "${path}:${PROJ_MOUNT}" \
+        -v "dev-${name}-node_modules:${PROJ_MOUNT}/node_modules" \
         "$IMAGE"
 
     echo "     container=$CONTAINER  image=$IMAGE"
