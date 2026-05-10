@@ -43,19 +43,6 @@ setup_worktree() {
     echo "$wt_path"
 }
 
-setup_symlinks() {
-    local primary="$1" wt_path="$2" symlinks="$3"
-
-    if [ -n "${symlinks:-}" ]; then
-        IFS=',' read -ra LINKS <<< "$symlinks"
-        for link in "${LINKS[@]}"; do
-            [ -z "$link" ] && continue
-            echo "     ln -sf $primary/$link -> worktree/$link"
-            ln -sf "${primary}/${link}" "${wt_path}/${link}"
-        done
-    fi
-}
-
 setup_env() {
     local primary="$1" wt_path="$2" env_template="$3"
 
@@ -207,7 +194,6 @@ else
 fi
 
 WORKTREE=$(setup_worktree "$name" "$path" "$base_branch" "$CONTAINER")
-setup_symlinks "$path" "$WORKTREE" "$symlinks"
 setup_env "$path" "$WORKTREE" "$env_template"
 create_container "$name" "$path" "$WORKTREE" "$df" "$PORTS" "$symlinks" "$CONTAINER"
 
