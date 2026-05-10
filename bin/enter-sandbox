@@ -93,7 +93,7 @@ if [ $# -gt 0 ]; then
     echo ""
 fi
 
-# Build the shell command with project context
+# Build the shell command for first session creation
 if [ ${#PROJECTS[@]} -eq 1 ]; then
     PROJ_NAME="${PROJECTS[0]}"
     CMD="cd ~/projects/${PROJ_NAME} && claude --dangerously-skip-permissions; bash"
@@ -101,7 +101,14 @@ elif [ ${#PROJECTS[@]} -gt 1 ]; then
     LIST=$(IFS=', '; echo "${PROJECTS[*]}")
     CMD="echo 'Synced: ${LIST}'; claude --dangerously-skip-permissions; bash"
 else
-    CMD="claude --dangerously-skip-permissions; bash"
+    CMD="bash"
 fi
 
-exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" bash -ic "$CMD"
+# Attach to existing tmux session, or create one
+SESSION="dev"
+if docker exec -u dev "$CONTAINER_NAME" tmux has-session -t "$SESSION" 2>/dev/null; then
+    exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" tmux attach-session -t "$SESSION"
+else
+    exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" tmux new-session -s "$SESSION" \; send-keys "$CMD" Enter
+fi
+
