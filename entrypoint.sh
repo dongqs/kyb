@@ -72,13 +72,14 @@ pg_ctlcluster 16 main start 2>/dev/null || true
 
 # Project setup: mise trust, npm install on first run
 if [ -n "${SANDBOX_PROJECT:-}" ] && [ -d "/home/dev/projects/${SANDBOX_PROJECT}" ]; then
-    runuser -u dev -- bash -l -c "
+    runuser -u dev -- bash -l << EOF
         cd /home/dev/projects/${SANDBOX_PROJECT}
-        mise trust 2>/dev/null || true
-        if [ ! -d node_modules ] && [ -f package.json ]; then
-            npm install
+        ~/.local/bin/mise trust 2>/dev/null || true
+        eval "\$(~/.local/bin/mise activate bash)"
+        if [ -f package.json ] && [ ! -d node_modules -o -z "\$(ls -A node_modules 2>/dev/null)" ]; then
+            npm install || true
         fi
-    "
+EOF
 fi
 
 exec runuser -u dev -- "$@"
