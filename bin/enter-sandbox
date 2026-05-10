@@ -31,7 +31,10 @@ _post_clone_setup() {
     # Trust mise config if present
     if docker exec -u dev "$CONTAINER_NAME" test -f "$proj/mise.toml" 2>/dev/null; then
         echo "  -> $name (mise trust)"
-        docker exec -u dev "$CONTAINER_NAME" bash -ic "cd $proj && mise trust" 2>&1 | sed 's/^/     /' || true
+        docker exec -u dev "$CONTAINER_NAME" \
+            bash -ic "cd $proj && mise trust" 2>&1 | \
+            grep -v 'cannot set terminal process group\|no job control in this shell' | \
+            sed 's/^/     /' || true
     fi
 
     # Symlink tiles for niao project (mounted read-only from host)
@@ -45,7 +48,10 @@ _post_clone_setup() {
     if docker exec -u dev "$CONTAINER_NAME" test -f "$proj/package.json" 2>/dev/null && \
        ! docker exec -u dev "$CONTAINER_NAME" test -d "$proj/node_modules" 2>/dev/null; then
         echo "  -> $name (npm install)"
-        docker exec -u dev "$CONTAINER_NAME" bash -ic "cd $proj && npm install" 2>&1 | sed 's/^/     /' || true
+        docker exec -u dev "$CONTAINER_NAME" \
+            bash -ic "cd $proj && npm install" 2>&1 | \
+            grep -v 'cannot set terminal process group\|no job control in this shell' | \
+            sed 's/^/     /' || true
     fi
 }
 
