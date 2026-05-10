@@ -23,6 +23,25 @@ url_of() {
     return 1
 }
 
+# Post-clone setup: install deps, trust mise config
+_post_clone_setup() {
+    local name="$1"
+    local proj="/home/dev/projects/$name"
+
+    # Trust mise config if present
+    if docker exec -u dev "$CONTAINER_NAME" test -f "$proj/mise.toml" 2>/dev/null; then
+        echo "  -> $name (mise trust)"
+        docker exec -u dev "$CONTAINER_NAME" bash -ic "cd $proj && mise trust" 2>&1 | sed 's/^/     /' || true
+    fi
+
+    # npm install if package.json exists and node_modules missing
+    if docker exec -u dev "$CONTAINER_NAME" test -f "$proj/package.json" 2>/dev/null && \
+       ! docker exec -u dev "$CONTAINER_NAME" test -d "$proj/node_modules" 2>/dev/null; then
+        echo "  -> $name (npm install)"
+        docker exec -u dev "$CONTAINER_NAME" bash -ic "cd $proj && npm install" 2>&1 | sed 's/^/     /' || true
+    fi
+}
+
 # Sync bare repo on host and clone into container if needed
 sync_project() {
     local name="$1"
@@ -47,6 +66,7 @@ sync_project() {
             git clone "/home/dev/bare-repos/${name}.git" "/home/dev/projects/$name" 2>&1 | sed 's/^/     /' || true
         docker exec -u dev "$CONTAINER_NAME" \
             git -C "/home/dev/projects/$name" remote set-url origin "$url" 2>&1 || true
+        _post_clone_setup "$name"
     else
         echo "  -> $name (exists)"
     fi
