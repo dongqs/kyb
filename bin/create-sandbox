@@ -51,6 +51,7 @@ create_container() {
         -e "GITLAB_TOKEN=${GITLAB_TOKEN:-}" \
         -e "CLAUDE_CODE_ATTRIBUTION_HEADER=${CLAUDE_CODE_ATTRIBUTION_HEADER:-}" \
         -e "CLAUDE_CODE_EFFORT_LEVEL=${CLAUDE_CODE_EFFORT_LEVEL:-}" \
+        -e "KIMI_API_KEY=${KIMI_API_KEY:-}" \
         -v "$HOME/.ssh:/home/dev/.ssh:ro" \
         -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
         -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \

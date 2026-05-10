@@ -33,7 +33,11 @@ fi
 
 # Attach to existing tmux session, or create one
 if docker exec -u dev "$CONTAINER" tmux has-session -t "$SESSION" 2>/dev/null; then
-    exec docker exec -it -u dev -w /home/dev "$CONTAINER" tmux attach-session -t "$SESSION"
+    DOCKER_EXEC=(docker exec -it -u dev -w /home/dev)
+    [ -n "${KIMI_API_KEY:-}" ] && DOCKER_EXEC+=(-e "KIMI_API_KEY=$KIMI_API_KEY")
+    exec "${DOCKER_EXEC[@]}" "$CONTAINER" tmux attach-session -t "$SESSION"
 else
-    exec docker exec -it -u dev -w /home/dev "$CONTAINER" tmux new-session -s "$SESSION" \; send-keys "$CMD" Enter
+    DOCKER_EXEC=(docker exec -it -u dev -w /home/dev)
+    [ -n "${KIMI_API_KEY:-}" ] && DOCKER_EXEC+=(-e "KIMI_API_KEY=$KIMI_API_KEY")
+    exec "${DOCKER_EXEC[@]}" "$CONTAINER" tmux new-session -s "$SESSION" \; send-keys "$CMD" Enter
 fi
