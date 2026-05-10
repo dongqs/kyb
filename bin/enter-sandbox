@@ -34,6 +34,13 @@ _post_clone_setup() {
         docker exec -u dev "$CONTAINER_NAME" bash -ic "cd $proj && mise trust" 2>&1 | sed 's/^/     /' || true
     fi
 
+    # Symlink tiles for niao project (mounted read-only from host)
+    if [ "$name" = "niao" ] && docker exec -u dev "$CONTAINER_NAME" test -d /home/dev/niao-tiles 2>/dev/null && \
+       ! docker exec -u dev "$CONTAINER_NAME" test -L "$proj/tiles" 2>/dev/null; then
+        echo "  -> $name (tiles symlink)"
+        docker exec -u dev "$CONTAINER_NAME" ln -s /home/dev/niao-tiles "$proj/tiles" 2>&1 || true
+    fi
+
     # npm install if package.json exists and node_modules missing
     if docker exec -u dev "$CONTAINER_NAME" test -f "$proj/package.json" 2>/dev/null && \
        ! docker exec -u dev "$CONTAINER_NAME" test -d "$proj/node_modules" 2>/dev/null; then

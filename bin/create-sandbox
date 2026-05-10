@@ -37,6 +37,7 @@ docker run -d \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$HOME/projects/.bare:/home/dev/bare-repos:ro" \
 	    -v "$REPO_DIR/projects.txt:/home/dev/projects.txt:ro" \
+    -v "$HOME/github/niao/tiles:/home/dev/niao-tiles:ro" \
     -p 3000:3000 \
     "$IMAGE_NAME"
 
