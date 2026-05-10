@@ -7,7 +7,7 @@ path = "~/github/niao"
 ports = ["3000:3000"]
 
 [projects.hamilton]
-path = "~/projects/hamilton"
+path = "~/leyan/training/hamilton"
 
 [projects.click]
 path = "~/projects/click"

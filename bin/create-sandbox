@@ -35,7 +35,7 @@ create_container() {
 
     # Build port mapping args
     local PORT_ARGS=()
-    if [ -n "$ports" ]; then
+    if [ -n "${ports:-}" ]; then
         IFS=',' read -ra PORT_LIST <<< "$ports"
         for p in "${PORT_LIST[@]}"; do
             [ -n "$p" ] && PORT_ARGS+=(-p "$p")
@@ -60,7 +60,7 @@ create_container() {
         -v "${container}-claude:/home/dev/.claude" \
         -v "${path}:/home/dev/projects/${name}" \
         -v "${container}-node_modules:/home/dev/projects/${name}/node_modules" \
-        "${PORT_ARGS[@]}" \
+        ${PORT_ARGS:+"${PORT_ARGS[@]}"} \
         "$IMAGE"
 
     echo "     container=$container  image=$IMAGE  ports=${ports:-none}"
