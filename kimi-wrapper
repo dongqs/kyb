@@ -3,7 +3,7 @@
 # OrbStack injects IPv6 CIDR entries that httpx can't parse
 
 clean_proxy() {
-  echo "$1" | sed -E 's/,?[^,]*:[^,:]*\/[0-9]+,?/,/g; s/,,/,/g; s/^,//; s/,$//'
+  echo "$1" | sed -E 's/,?[^,]*:[^,]*,?/,/g; s/,,/,/g; s/^,//; s/,$//'
 }
 
 NO_PROXY=$(clean_proxy "${NO_PROXY:-}")
