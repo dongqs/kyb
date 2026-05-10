@@ -13,12 +13,6 @@ CONFIG="$REPO_DIR/projects.toml"
 # ---------- helpers ----------
 
 build_base() {
-    local img_id
-    img_id=$(docker images -q "$BASE_IMAGE" 2>/dev/null || true)
-    if [ -n "$img_id" ]; then
-        echo "==> Base image $BASE_IMAGE already exists (skip build)"
-        return
-    fi
     echo "==> Building base image: $BASE_IMAGE"
     docker build -t "$BASE_IMAGE" "$REPO_DIR"
 }
