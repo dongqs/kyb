@@ -1,19 +1,30 @@
 # Projects to run in dev sandbox containers
-# path: host directory (required), mounted at /home/dev/projects/{name}
+# path: host directory (required) — primary worktree for git operations
+# base_branch: (required) base branch to create sandbox worktrees from
+# ports: (optional) container port mappings
 # dockerfile: relative to path (optional), builds project-specific image
+# symlinks: (optional) directories/files symlinked from primary worktree to sandbox worktree
+# env_template: (optional) .env template copied from primary worktree
 
 [projects.niao]
 path = "~/github/niao"
+base_branch = "master"
 ports = ["3000:3000"]
+symlinks = ["tiles"]
 
 [projects.hamilton]
 path = "~/leyan/training/hamilton"
+base_branch = "master"
 
 [projects.click]
 path = "~/projects/click"
+base_branch = "master"
+env_template = ".env-sample"
 
 [projects.Norland]
 path = "~/projects/Norland"
+base_branch = "master"
 
 [projects.item-structure]
 path = "~/projects/item-structure"
+base_branch = "master"

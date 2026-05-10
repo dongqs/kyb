@@ -70,4 +70,15 @@ fi
 # Start PostgreSQL
 pg_ctlcluster 16 main start 2>/dev/null || true
 
+# Project setup: mise trust, npm install on first run
+if [ -n "${SANDBOX_PROJECT:-}" ] && [ -d "/home/dev/projects/${SANDBOX_PROJECT}" ]; then
+    runuser -u dev -- bash -l -c "
+        cd /home/dev/projects/${SANDBOX_PROJECT}
+        mise trust 2>/dev/null || true
+        if [ ! -d node_modules ] && [ -f package.json ]; then
+            npm install
+        fi
+    "
+fi
+
 exec runuser -u dev -- "$@"

@@ -4,12 +4,16 @@
 #   create-sandbox              build base image only
 #   create-sandbox niao         create dev-niao (TOML ports)
 #   create-sandbox niao 3000    create dev-niao-3000 (-p 3000:3000)
+#
+# Each container gets an isolated git worktree to avoid conflicts when
+# multiple instances share the same project.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 BASE_IMAGE="dev-sandbox-base"
 CONFIG="$REPO_DIR/projects.toml"
+WORKTREE_BASE="$HOME/.orb/worktrees"
 
 # ---------- helpers ----------
 
@@ -18,14 +22,57 @@ build_base() {
     docker build -t "$BASE_IMAGE" "$REPO_DIR"
 }
 
+setup_worktree() {
+    local name="$1" primary="$2" base_branch="$3" container="$4"
+    local wt_path="${WORKTREE_BASE}/${name}/${container}"
+
+    if [ -d "$wt_path" ]; then
+        echo "==> $name: worktree exists, reusing ($wt_path)"
+        echo "$wt_path"
+        return
+    fi
+
+    local branch="sandbox/${container#dev-}"
+    echo "==> $name: creating worktree from origin/$base_branch ($branch)"
+    mkdir -p "$(dirname "$wt_path")"
+
+    cd "$primary"
+    git fetch origin "$base_branch"
+    git worktree add "$wt_path" "origin/${base_branch}" -b "$branch"
+
+    echo "$wt_path"
+}
+
+setup_symlinks() {
+    local primary="$1" wt_path="$2" symlinks="$3"
+
+    if [ -n "${symlinks:-}" ]; then
+        IFS=',' read -ra LINKS <<< "$symlinks"
+        for link in "${LINKS[@]}"; do
+            [ -z "$link" ] && continue
+            echo "     ln -sf $primary/$link -> worktree/$link"
+            ln -sf "${primary}/${link}" "${wt_path}/${link}"
+        done
+    fi
+}
+
+setup_env() {
+    local primary="$1" wt_path="$2" env_template="$3"
+
+    if [ -n "${env_template:-}" ]; then
+        echo "     cp $primary/$env_template -> .env"
+        cp "${primary}/${env_template}" "${wt_path}/.env"
+    fi
+}
+
 create_container() {
-    local name="$1" path="$2" df="$3" ports="$4" container="$5"
+    local name="$1" primary="$2" worktree="$3" df="$4" ports="$5" container="$6"
 
     # Build project-specific image if Dockerfile specified
     if [ -n "$df" ]; then
         local IMAGE="dev-${name}"
         echo "==> $name: building project image (${df})"
-        docker build -t "$IMAGE" -f "${path}/${df}" "$path"
+        docker build -t "$IMAGE" -f "${primary}/${df}" "$primary"
     else
         local IMAGE="$BASE_IMAGE"
     fi
@@ -45,7 +92,7 @@ create_container() {
         done
     fi
 
-    echo "==> $container: starting ($path -> /home/dev/projects/$name)"
+    echo "==> $container: starting ($worktree -> /home/dev/projects/$name)"
     docker run -d \
         --name "$container" \
         --hostname "$container" \
@@ -55,6 +102,7 @@ create_container() {
         -e "CLAUDE_CODE_ATTRIBUTION_HEADER=${CLAUDE_CODE_ATTRIBUTION_HEADER:-}" \
         -e "CLAUDE_CODE_EFFORT_LEVEL=${CLAUDE_CODE_EFFORT_LEVEL:-}" \
         -e "KIMI_API_KEY=${KIMI_API_KEY:-}" \
+        -e "SANDBOX_PROJECT=${name}" \
         -v "$HOME/.ssh:/home/dev/.ssh:ro" \
         -v "$HOME/.kimi:/home/dev/.kimi" \
         -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
@@ -63,8 +111,8 @@ create_container() {
         -v "$HOME/.agents:/home/.agents:ro" \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v "${container}-claude:/home/dev/.claude" \
-        -v "${path}:/home/dev/projects/${name}" \
-        -v "${container}-node_modules:/home/dev/projects/${name}/node_modules" \
+        -v "${worktree}:/home/dev/projects/${name}" \
+        -v "${name}-node_modules:/home/dev/projects/${name}/node_modules" \
         ${PORT_ARGS:+"${PORT_ARGS[@]}"} \
         "$IMAGE"
 
@@ -104,11 +152,18 @@ projects = cfg.get("projects", {})
 for name, p in projects.items():
     if target and name != target:
         continue
-    item = {"name": name, "path": os.path.expanduser(p["path"])}
+    item = {
+        "name": name,
+        "path": os.path.expanduser(p["path"]),
+        "base_branch": p["base_branch"],
+    }
     if "dockerfile" in p:
         item["dockerfile"] = p["dockerfile"]
     ports = p.get("ports", [])
     item["ports"] = ",".join(ports) if ports else ""
+    symlinks = p.get("symlinks", [])
+    item["symlinks"] = ",".join(symlinks) if symlinks else ""
+    item["env_template"] = p.get("env_template", "")
     print(json.dumps(item))
 ' "$CONFIG" "$PROJ_NAME"
 )
@@ -118,22 +173,32 @@ if [ -z "$PROJECTS_JSON" ]; then
     exit 1
 fi
 
+extract() {
+    echo "$PROJECTS_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('$1',''))"
+}
+
+name=$(extract name)
+path=$(extract path)
+base_branch=$(extract base_branch)
+df=$(extract dockerfile)
+symlinks=$(extract symlinks)
+env_template=$(extract env_template)
+
 build_base
 echo ""
-
-name=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')
-path=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["path"])')
-df=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("dockerfile",""))')
 
 if [ -n "$HOST_PORT" ]; then
     CONTAINER="dev-${name}-${HOST_PORT}"
     PORTS="${HOST_PORT}:3000"
 else
     CONTAINER="dev-${name}"
-    PORTS=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ports",""))')
+    PORTS=$(extract ports)
 fi
 
-create_container "$name" "$path" "$df" "$PORTS" "$CONTAINER"
+WORKTREE=$(setup_worktree "$name" "$path" "$base_branch" "$CONTAINER")
+setup_symlinks "$path" "$WORKTREE" "$symlinks"
+setup_env "$path" "$WORKTREE" "$env_template"
+create_container "$name" "$path" "$WORKTREE" "$df" "$PORTS" "$CONTAINER"
 
 echo ""
 echo "==> Done! Enter:"
