@@ -6,15 +6,22 @@
 
 require 'sinatra/base'
 require 'json'
+require 'ipaddr'
 
 class TTSServer < Sinatra::Base
   set :port, 10666
   set :bind, '0.0.0.0'
   set :logging, true
   set :show_exceptions, false
-  set :protection, except: [:host_authorization]
+  set :host_authorization, permitted_hosts: [
+    'localhost',
+    '.localhost',
+    'host.docker.internal',
+    IPAddr.new('0.0.0.0/0'),
+    IPAddr.new('::/0'),
+  ]
 
-  DEFAULT_VOICE = 'Samantha'
+  DEFAULT_VOICE = 'Zarvox'
   DEFAULT_RATE  = 180
 
   # ---------- helpers ----------
@@ -29,7 +36,7 @@ class TTSServer < Sinatra::Base
 
   def voices
     @voices ||= begin
-      raw = `say -v '?' 2>/dev/null`
+      raw = `say -v '?' 2>/dev/null`.force_encoding('UTF-8')
       raw.lines.map do |line|
         parts = line.split('#')
         name, lang = parts[0].to_s.strip.split(/\s+/, 2)
@@ -114,6 +121,11 @@ class TTSServer < Sinatra::Base
     "  GET  /voices\n" \
     "  GET  /health\n"
   end
+end
+
+Thread.new do
+  sleep 2
+  system('say', '-v', DEFAULT_VOICE, '-r', DEFAULT_RATE.to_s, 'TTS server started')
 end
 
 TTSServer.run!
