@@ -34,7 +34,7 @@ docker run -d \
     -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \
     -v dev-sandbox-claude:/home/dev/.claude \
     -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
-    -v "$HOME/.agents:/home/dev/.agents:ro" \
+    -v "$HOME/.agents:/home/.agents:ro" \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$HOME/projects/.bare:/home/dev/bare-repos:ro" \
 	    -v "$REPO_DIR/projects.txt:/home/dev/projects.txt:ro" \
