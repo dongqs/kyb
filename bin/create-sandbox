@@ -2,7 +2,8 @@
 # Build base image, create per-project containers from projects.toml
 #
 #   create-sandbox              build base image only
-#   create-sandbox niao         build base (if needed) + create dev-niao
+#   create-sandbox niao         create dev-niao (TOML ports)
+#   create-sandbox niao 3000    create dev-niao-3000 (-p 3000:3000)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -18,10 +19,7 @@ build_base() {
 }
 
 create_container() {
-    local name="$1" path="$2" df="$3" ports="$4"
-
-    local CONTAINER="dev-${name}"
-    local PROJ_MOUNT="/home/dev/projects/${name}"
+    local name="$1" path="$2" df="$3" ports="$4" container="$5"
 
     # Build project-specific image if Dockerfile specified
     if [ -n "$df" ]; then
@@ -33,19 +31,21 @@ create_container() {
     fi
 
     # Remove existing container
-    docker rm -f "$CONTAINER" 2>/dev/null || true
+    docker rm -f "$container" 2>/dev/null || true
 
     # Build port mapping args
     local PORT_ARGS=()
-    IFS=',' read -ra PORT_LIST <<< "$ports"
-    for p in "${PORT_LIST[@]}"; do
-        [ -n "$p" ] && PORT_ARGS+=(-p "$p")
-    done
+    if [ -n "$ports" ]; then
+        IFS=',' read -ra PORT_LIST <<< "$ports"
+        for p in "${PORT_LIST[@]}"; do
+            [ -n "$p" ] && PORT_ARGS+=(-p "$p")
+        done
+    fi
 
-    echo "==> $name: starting container ($path -> $PROJ_MOUNT)"
+    echo "==> $container: starting ($path -> /home/dev/projects/$name)"
     docker run -d \
-        --name "$CONTAINER" \
-        --hostname "dev-${name}" \
+        --name "$container" \
+        --hostname "$container" \
         -e "HOST_UID=$(id -u)" \
         -e "HOST_GID=$(id -g)" \
         -e "GITLAB_TOKEN=${GITLAB_TOKEN:-}" \
@@ -57,13 +57,13 @@ create_container() {
         -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
         -v "$HOME/.agents:/home/.agents:ro" \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        -v "dev-${name}-claude:/home/dev/.claude" \
-        -v "${path}:${PROJ_MOUNT}" \
-        -v "dev-${name}-node_modules:${PROJ_MOUNT}/node_modules" \
+        -v "${container}-claude:/home/dev/.claude" \
+        -v "${path}:/home/dev/projects/${name}" \
+        -v "${container}-node_modules:/home/dev/projects/${name}/node_modules" \
         "${PORT_ARGS[@]}" \
         "$IMAGE"
 
-    echo "     container=$CONTAINER  image=$IMAGE"
+    echo "     container=$container  image=$IMAGE  ports=${ports:-none}"
 }
 
 # ---------- main ----------
@@ -77,8 +77,18 @@ touch "$HOME/.gitconfig"
 GITLAB_TOKEN="$(awk '/^[[:space:]]*token:/{print $2; exit}' "$HOME/Library/Application Support/glab-cli/config.yml" 2>/dev/null || true)"
 
 PROJ_NAME="${1:-}"
+HOST_PORT="${2:-}"
 
-# Parse projects.toml -> JSON
+if [ -z "$PROJ_NAME" ]; then
+    build_base
+    echo ""
+    echo "==> Done! Base image ready. Create containers with:"
+    echo "    ~/orb/bin/create-sandbox niao"
+    echo "    ~/orb/bin/create-sandbox niao 3000"
+    exit 0
+fi
+
+# Parse project from TOML
 PROJECTS_JSON=$(
     python3 -c '
 import toml, json, sys, os
@@ -98,14 +108,6 @@ for name, p in projects.items():
 ' "$CONFIG" "$PROJ_NAME"
 )
 
-if [ -z "$PROJ_NAME" ]; then
-    build_base
-    echo ""
-    echo "==> Done! Base image ready. Create containers with:"
-    echo "    ~/orb/bin/create-sandbox niao"
-    exit 0
-fi
-
 if [ -z "$PROJECTS_JSON" ]; then
     echo "ERROR: '$PROJ_NAME' not found in $CONFIG"
     exit 1
@@ -117,10 +119,17 @@ echo ""
 name=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')
 path=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["path"])')
 df=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("dockerfile",""))')
-ports=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ports",""))')
 
-create_container "$name" "$path" "$df" "$ports"
+if [ -n "$HOST_PORT" ]; then
+    CONTAINER="dev-${name}-${HOST_PORT}"
+    PORTS="${HOST_PORT}:3000"
+else
+    CONTAINER="dev-${name}"
+    PORTS=$(echo "$PROJECTS_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("ports",""))')
+fi
+
+create_container "$name" "$path" "$df" "$PORTS" "$CONTAINER"
 
 echo ""
 echo "==> Done! Enter:"
-echo "    ~/orb/bin/enter-sandbox $PROJ_NAME"
+echo "    ~/orb/bin/enter-sandbox $PROJ_NAME${HOST_PORT:+ $HOST_PORT}"

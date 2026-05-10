@@ -1,15 +1,26 @@
 #!/usr/bin/env bash
 # Enter a project sandbox container via tmux
+#
+#   enter-sandbox               default container
+#   enter-sandbox niao          dev-niao
+#   enter-sandbox niao 3000     dev-niao-3000
 set -euo pipefail
 
 PROJ="${1:-}"
-CONTAINER="dev-${PROJ:-sandbox}"
+PORT="${2:-}"
+if [ -n "$PROJ" ] && [ -n "$PORT" ]; then
+    CONTAINER="dev-${PROJ}-${PORT}"
+elif [ -n "$PROJ" ]; then
+    CONTAINER="dev-${PROJ}"
+else
+    CONTAINER="dev-sandbox"
+fi
 SESSION="dev"
 
 # Check if container is running
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
     echo "ERROR: container '$CONTAINER' is not running"
-    echo "Run: ~/orb/bin/create-sandbox${PROJ:+ $PROJ}"
+    echo "Run: ~/orb/bin/create-sandbox${PROJ:+ $PROJ}${PORT:+ $PORT}"
     exit 1
 fi
 
