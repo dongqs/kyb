@@ -89,7 +89,7 @@ create_container() {
         done
     fi
 
-    echo "==> $container: starting ($worktree -> /home/dev/projects/$name)"
+    echo "==> $container: starting ($worktree -> /home/dev/projects/$name, primary $primary)"
     docker run -d \
         --name "$container" \
         --hostname "$container" \
@@ -110,6 +110,7 @@ create_container() {
         -v "${container}-claude:/home/dev/.claude" \
         -v "${worktree}:/home/dev/projects/${name}" \
         -v "${name}-node_modules:/home/dev/projects/${name}/node_modules" \
+        -v "${primary}:${primary}" \
         ${LINK_ARGS:+"${LINK_ARGS[@]}"} \
         ${PORT_ARGS:+"${PORT_ARGS[@]}"} \
         "$IMAGE"
