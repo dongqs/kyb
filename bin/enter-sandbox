@@ -1,138 +1,20 @@
 #!/usr/bin/env bash
-# Enter dev sandbox. Optionally sync & clone projects.
-#
-#   enter-sandbox              just enter
-#   enter-sandbox all          sync & clone all projects, then enter
-#   enter-sandbox click        sync & clone click, then enter
-#   enter-sandbox a b c        sync & clone a, b, c, then enter
+# Enter a project sandbox container via tmux
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(dirname "$SCRIPT_DIR")"
-CONTAINER_NAME="dev-sandbox"
-BARE_DIR="$HOME/projects/.bare"
-PROJECTS_TXT="$REPO_DIR/projects.txt"
+CONTAINER="dev-${1:-sandbox}"
+SESSION="dev"
 
-# Resolve URL from projects.txt by project name
-url_of() {
-    local name="$1"
-    while IFS= read -r line; do
-        [[ -z "$line" || "$line" =~ ^# ]] && continue
-        [[ "$(basename "$line" .git)" = "$name" ]] && echo "$line" && return 0
-    done < "$PROJECTS_TXT"
-    return 1
-}
-
-# Post-clone setup: install deps, trust mise config
-_post_clone_setup() {
-    local name="$1"
-    local proj="/home/dev/projects/$name"
-
-    # Trust mise config if present
-    if docker exec -u dev "$CONTAINER_NAME" test -f "$proj/mise.toml" 2>/dev/null; then
-        echo "  -> $name (mise trust)"
-        docker exec -u dev "$CONTAINER_NAME" \
-            bash -ic "cd $proj && mise trust" 2>&1 | \
-            grep -v 'cannot set terminal process group\|no job control in this shell' | \
-            sed 's/^/     /' || true
-    fi
-
-    # Symlink tiles for niao project (mounted read-only from host)
-    if [ "$name" = "niao" ] && docker exec -u dev "$CONTAINER_NAME" test -d /home/dev/niao-tiles 2>/dev/null && \
-       ! docker exec -u dev "$CONTAINER_NAME" test -L "$proj/tiles" 2>/dev/null; then
-        echo "  -> $name (tiles symlink)"
-        docker exec -u dev "$CONTAINER_NAME" ln -s /home/dev/niao-tiles "$proj/tiles" 2>&1 || true
-    fi
-
-    # Symlink worktrees for niao project (mounted read-write from host)
-    if [ "$name" = "niao" ] && docker exec -u dev "$CONTAINER_NAME" test -d /home/dev/niao-worktrees 2>/dev/null && \
-       ! docker exec -u dev "$CONTAINER_NAME" test -L "$proj/.claude/worktrees" 2>/dev/null; then
-        echo "  -> $name (worktrees symlink)"
-        docker exec -u dev "$CONTAINER_NAME" mkdir -p "$proj/.claude" 2>/dev/null || true
-        docker exec -u dev "$CONTAINER_NAME" ln -s /home/dev/niao-worktrees "$proj/.claude/worktrees" 2>&1 || true
-    fi
-
-    # npm install if package.json exists and node_modules missing
-    if docker exec -u dev "$CONTAINER_NAME" test -f "$proj/package.json" 2>/dev/null && \
-       ! docker exec -u dev "$CONTAINER_NAME" test -d "$proj/node_modules" 2>/dev/null; then
-        echo "  -> $name (npm install)"
-        docker exec -u dev "$CONTAINER_NAME" \
-            bash -ic "cd $proj && npm install" 2>&1 | \
-            grep -v 'cannot set terminal process group\|no job control in this shell' | \
-            sed 's/^/     /' || true
-    fi
-}
-
-# Sync bare repo on host and clone into container if needed
-sync_project() {
-    local name="$1"
-    local url
-    url=$(url_of "$name") || { echo "  [skip] $name: unknown project"; return; }
-
-    local bare_path="$BARE_DIR/${name}.git"
-    mkdir -p "$BARE_DIR"
-
-    if [ -d "$bare_path" ]; then
-        echo "  -> $name (fetch bare)"
-        git -C "$bare_path" config remote.origin.fetch '+refs/heads/*:refs/heads/*' 2>/dev/null || true
-        git -C "$bare_path" fetch origin --prune 2>&1 | sed 's/^/     /' || true
-    else
-        echo "  -> $name (clone bare)"
-        git clone --bare "$url" "$bare_path" 2>&1 | sed 's/^/     /' || true
-    fi
-
-    # Clone into container if not already there
-    if ! docker exec -u dev "$CONTAINER_NAME" test -d "/home/dev/projects/$name" 2>/dev/null; then
-        echo "  -> $name (clone project)"
-        docker exec -u dev "$CONTAINER_NAME" \
-            git clone "/home/dev/bare-repos/${name}.git" "/home/dev/projects/$name" 2>&1 | sed 's/^/     /' || true
-        docker exec -u dev "$CONTAINER_NAME" \
-            git -C "/home/dev/projects/$name" remote set-url origin "$url" 2>&1 || true
-        _post_clone_setup "$name"
-    else
-        echo "  -> $name (exists)"
-    fi
-}
-
-# --- main ---
-
-PROJECTS=()
-if [ $# -gt 0 ]; then
-    echo "==> Syncing projects..."
-    for arg in "$@"; do
-        if [ "$arg" = "all" ]; then
-            while IFS= read -r line; do
-                [[ -z "$line" || "$line" =~ ^# ]] && continue
-                name=$(basename "$line" .git)
-                sync_project "$name"
-                PROJECTS+=("$name")
-            done < "$PROJECTS_TXT"
-        else
-            sync_project "$arg"
-            PROJECTS+=("$arg")
-        fi
-    done
-    echo ""
-fi
-
-# Build the shell command for first session creation
-if [ ${#PROJECTS[@]} -eq 1 ]; then
-    PROJ_NAME="${PROJECTS[0]}"
-    CMD="cd ~/projects/${PROJ_NAME} && claude --dangerously-skip-permissions; bash"
-elif [ ${#PROJECTS[@]} -gt 1 ]; then
-    LIST=$(IFS=', '; echo "${PROJECTS[*]}")
-    CMD="echo 'Synced: ${LIST}'; claude --dangerously-skip-permissions; bash"
-else
-    CMD=""
+# Check if container is running
+if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+    echo "ERROR: container '$CONTAINER' is not running"
+    echo "Run: ~/orb/bin/create-sandbox"
+    exit 1
 fi
 
 # Attach to existing tmux session, or create one
-SESSION="dev"
-if docker exec -u dev "$CONTAINER_NAME" tmux has-session -t "$SESSION" 2>/dev/null; then
-    exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" tmux attach-session -t "$SESSION"
-elif [ -n "$CMD" ]; then
-    exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" tmux new-session -s "$SESSION" \; send-keys "$CMD" Enter
+if docker exec -u dev "$CONTAINER" tmux has-session -t "$SESSION" 2>/dev/null; then
+    exec docker exec -it -u dev -w /home/dev "$CONTAINER" tmux attach-session -t "$SESSION"
 else
-    exec docker exec -it -u dev -w /home/dev "$CONTAINER_NAME" tmux new-session -s "$SESSION"
+    exec docker exec -it -u dev -w /home/dev "$CONTAINER" tmux new-session -s "$SESSION"
 fi
-

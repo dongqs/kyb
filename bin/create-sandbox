@@ -1,50 +1,92 @@
 #!/usr/bin/env bash
-# Build Docker image, start container
+# Build base image, create per-project containers from projects.toml
 set -euo pipefail
 
-CONTAINER_NAME="${1:-dev-sandbox}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-IMAGE_NAME="dev-sandbox"
+BASE_IMAGE="dev-sandbox-base"
+CONFIG="$REPO_DIR/projects.toml"
 
-echo "==> Building Docker image: $IMAGE_NAME"
-docker build -t "$IMAGE_NAME" "$REPO_DIR"
+# ---------- main ----------
 
-# Stop and remove existing container
-if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
-    echo "==> Removing existing container: $CONTAINER_NAME"
-    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1
+if [ ! -f "$CONFIG" ]; then
+    echo "ERROR: $CONFIG not found"
+    exit 1
 fi
 
-# Ensure mount sources exist
-mkdir -p "$HOME/projects/.bare"
 touch "$HOME/.gitconfig"
 
-echo "==> Starting container: $CONTAINER_NAME"
-docker run -d \
-    --name "$CONTAINER_NAME" \
-    --hostname dev-sandbox \
-    -e HOST_UID="$(id -u)" \
-    -e HOST_GID="$(id -g)" \
-    -e GITLAB_TOKEN="$(awk '/^[[:space:]]*token:/{print $2; exit}' "$HOME/Library/Application Support/glab-cli/config.yml" 2>/dev/null || true)" \
-    -e CLAUDE_CODE_ATTRIBUTION_HEADER="${CLAUDE_CODE_ATTRIBUTION_HEADER:-}" \
-    -e CLAUDE_CODE_EFFORT_LEVEL="${CLAUDE_CODE_EFFORT_LEVEL:-}" \
-    -v "$HOME/.ssh:/home/dev/.ssh:ro" \
-    -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
-    -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \
-    -v dev-sandbox-claude:/home/dev/.claude \
-    -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
-    -v "$HOME/.agents:/home/.agents:ro" \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v "$HOME/projects/.bare:/home/dev/bare-repos:ro" \
-	    -v "$REPO_DIR/projects.txt:/home/dev/projects.txt:ro" \
-    -v "$HOME/github/niao/tiles:/home/dev/niao-tiles:ro" \
-    -v "$HOME/github/niao/.claude/worktrees:/home/dev/niao-worktrees" \
-    -p 3000:3000 \
-    "$IMAGE_NAME"
-
+echo "==> Building base image: $BASE_IMAGE"
+docker build -t "$BASE_IMAGE" "$REPO_DIR"
 echo ""
-echo "==> Done! Enter the sandbox:"
-echo "    ~/orb/bin/enter-sandbox all    # sync & clone all projects"
-echo "    ~/orb/bin/enter-sandbox click  # sync & clone a specific project"
-echo "    ~/orb/bin/enter-sandbox        # just enter, no sync"
+
+# Parse projects.toml -> JSON (one object per line: {"name":"niao","path":"/Users/...",...})
+PROJECTS=$(
+    python3 -c '
+import toml, json, sys, os
+
+cfg = toml.load(sys.argv[1])
+projects = cfg.get("projects", {})
+for name, p in projects.items():
+    item = {"name": name, "path": os.path.expanduser(p["path"])}
+    if "dockerfile" in p:
+        item["dockerfile"] = p["dockerfile"]
+    print(json.dumps(item))
+' "$CONFIG"
+)
+
+# GitLab token (pass through to entrypoint)
+GITLAB_TOKEN="$(awk '/^[[:space:]]*token:/{print $2; exit}' "$HOME/Library/Application Support/glab-cli/config.yml" 2>/dev/null || true)"
+
+COUNT=0
+while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    COUNT=$((COUNT + 1))
+
+    name=$(echo "$line" | python3 -c 'import json,sys; print(json.load(sys.stdin)["name"])')
+    path=$(echo "$line" | python3 -c 'import json,sys; print(json.load(sys.stdin)["path"])')
+    df=$(echo "$line" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("dockerfile",""))')
+
+    CONTAINER="dev-${name}"
+    PROJ_MOUNT="/home/dev/projects/${name}"
+
+    # Build project-specific image if Dockerfile specified
+    if [ -n "$df" ]; then
+        IMAGE="dev-${name}"
+        echo "==> $name: building project image (${df})"
+        docker build -t "$IMAGE" -f "${path}/${df}" "$path"
+    else
+        IMAGE="$BASE_IMAGE"
+    fi
+
+    # Remove existing container
+    docker rm -f "$CONTAINER" 2>/dev/null || true
+
+    # Start container
+    echo "==> $name: starting container ($path -> $PROJ_MOUNT)"
+    docker run -d \
+        --name "$CONTAINER" \
+        --hostname "dev-${name}" \
+        -e "HOST_UID=$(id -u)" \
+        -e "HOST_GID=$(id -g)" \
+        -e "GITLAB_TOKEN=${GITLAB_TOKEN}" \
+        -e "CLAUDE_CODE_ATTRIBUTION_HEADER=${CLAUDE_CODE_ATTRIBUTION_HEADER:-}" \
+        -e "CLAUDE_CODE_EFFORT_LEVEL=${CLAUDE_CODE_EFFORT_LEVEL:-}" \
+        -v "$HOME/.ssh:/home/dev/.ssh:ro" \
+        -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
+        -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \
+        -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
+        -v "$HOME/.agents:/home/.agents:ro" \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v "dev-${name}-claude:/home/dev/.claude" \
+        -v "${path}:${PROJ_MOUNT}" \
+        "$IMAGE"
+
+    echo "     container=$CONTAINER  image=$IMAGE"
+    echo ""
+done <<< "$PROJECTS"
+
+echo "==> Done! $COUNT container(s) created."
+echo ""
+echo "    ~/orb/bin/enter-sandbox niao       # enter a project"
+echo "    ~/orb/bin/enter-sandbox             # no project"

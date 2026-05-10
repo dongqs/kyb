@@ -1,0 +1,18 @@
+# Projects to run in dev sandbox containers
+# path: host directory (required), mounted at /home/dev/projects/{name}
+# dockerfile: relative to path (optional), builds project-specific image
+
+[projects.niao]
+path = "~/github/niao"
+
+[projects.hamilton]
+path = "~/projects/hamilton"
+
+[projects.click]
+path = "~/projects/click"
+
+[projects.Norland]
+path = "~/projects/Norland"
+
+[projects.item-structure]
+path = "~/projects/item-structure"
