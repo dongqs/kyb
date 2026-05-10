@@ -67,13 +67,11 @@ RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     eval "$($HOME/.local/bin/mise activate bash)" && \
     pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]' -U
 
-# uv — Python package manager (for kimi-cli)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# kimi-cli — Moonshot AI coding agent (needs Python >= 3.12, uv handles it)
+# kimi-cli — Moonshot AI coding agent (installs uv + kimi)
 RUN --mount=type=cache,target=/home/dev/.cache/uv \
-    eval "$($HOME/.local/bin/mise activate bash)" && \
-    uv tool install --python 3.13 kimi-cli
+    sudo mkdir -p /home/dev/.cache/uv /home/dev/.local/share/uv && \
+    sudo chown -R dev:dev /home/dev/.cache/uv /home/dev/.local/share && \
+    curl -fsSL https://code.kimi.com/install.sh | bash
 
 # Gradle Nexus credentials (same readonly user as pip)
 RUN mkdir -p ~/.gradle && \
