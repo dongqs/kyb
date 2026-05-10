@@ -27,18 +27,18 @@ setup_worktree() {
     local wt_path="${WORKTREE_BASE}/${name}/${container}"
 
     if [ -d "$wt_path" ]; then
-        echo "==> $name: worktree exists, reusing ($wt_path)"
+        echo "==> $name: worktree exists, reusing ($wt_path)" >&2
         echo "$wt_path"
         return
     fi
 
     local branch="sandbox/${container#dev-}"
-    echo "==> $name: creating worktree from origin/$base_branch ($branch)"
+    echo "==> $name: creating worktree from origin/$base_branch ($branch)" >&2
     mkdir -p "$(dirname "$wt_path")"
 
     cd "$primary"
-    git fetch origin "$base_branch"
-    git worktree add "$wt_path" "origin/${base_branch}" -b "$branch"
+    git fetch origin "$base_branch" >&2
+    git worktree add "$wt_path" "origin/${base_branch}" -b "$branch" >&2
 
     echo "$wt_path"
 }
@@ -66,7 +66,7 @@ setup_env() {
 }
 
 create_container() {
-    local name="$1" primary="$2" worktree="$3" df="$4" ports="$5" container="$6"
+    local name="$1" primary="$2" worktree="$3" df="$4" ports="$5" symlinks="$6" container="$7"
 
     # Build project-specific image if Dockerfile specified
     if [ -n "$df" ]; then
@@ -92,6 +92,16 @@ create_container() {
         done
     fi
 
+    # Build symlink bind-mount args
+    local LINK_ARGS=()
+    if [ -n "${symlinks:-}" ]; then
+        IFS=',' read -ra LINK_LIST <<< "$symlinks"
+        for link in "${LINK_LIST[@]}"; do
+            [ -z "$link" ] && continue
+            LINK_ARGS+=(-v "${primary}/${link}:/home/dev/projects/${name}/${link}:ro")
+        done
+    fi
+
     echo "==> $container: starting ($worktree -> /home/dev/projects/$name)"
     docker run -d \
         --name "$container" \
@@ -113,6 +123,7 @@ create_container() {
         -v "${container}-claude:/home/dev/.claude" \
         -v "${worktree}:/home/dev/projects/${name}" \
         -v "${name}-node_modules:/home/dev/projects/${name}/node_modules" \
+        ${LINK_ARGS:+"${LINK_ARGS[@]}"} \
         ${PORT_ARGS:+"${PORT_ARGS[@]}"} \
         "$IMAGE"
 
@@ -198,7 +209,7 @@ fi
 WORKTREE=$(setup_worktree "$name" "$path" "$base_branch" "$CONTAINER")
 setup_symlinks "$path" "$WORKTREE" "$symlinks"
 setup_env "$path" "$WORKTREE" "$env_template"
-create_container "$name" "$path" "$WORKTREE" "$df" "$PORTS" "$CONTAINER"
+create_container "$name" "$path" "$WORKTREE" "$df" "$PORTS" "$symlinks" "$CONTAINER"
 
 echo ""
 echo "==> Done! Enter:"
