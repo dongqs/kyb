@@ -12,11 +12,19 @@
 #   kyube prune                  Remove all sandboxes
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)/.."
+# Read repo path from user config
+KYUBE_CONFIG="${KYUBE_CONFIG:-$HOME/.config/kyube/config}"
+if [ -f "$KYUBE_CONFIG" ]; then
+    REPO_DIR="$(grep -E '^REPO_DIR=' "$KYUBE_CONFIG" | head -1 | cut -d= -f2-)"
+fi
+if [ -z "${REPO_DIR:-}" ]; then
+    echo "ERROR: REPO_DIR not configured" >&2
+    echo "  Create $KYUBE_CONFIG with: REPO_DIR=/path/to/orb" >&2
+    exit 1
+fi
 CONFIG="$REPO_DIR/projects.toml"
 BASE_IMAGE="dev-sandbox-base"
 WORKTREE_BASE="$HOME/.orb/worktrees"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ---------- helpers ----------
 
