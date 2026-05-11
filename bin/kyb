@@ -5,7 +5,7 @@ require 'yaml'
 require 'fileutils'
 
 # kyb — kubernate your branches — dev sandbox CLI
-module Ky
+module Kyb
   CONFIG_FILE = File.expand_path('~/.config/ky/config.yml')
   BASE_IMAGE = 'dev-sandbox-base'
   WORKTREE_BASE = File.expand_path('~/.ky/worktrees')
@@ -20,12 +20,12 @@ end
 
 # ---------- Config ----------
 
-module Ky::Config
+module Kyb::Config
   module_function
 
   def load
-    Ky.die("#{Ky::CONFIG_FILE} not found") unless File.exist?(Ky::CONFIG_FILE)
-    @config ||= YAML.safe_load_file(Ky::CONFIG_FILE, permitted_classes: [Symbol])
+    Kyb.die("#{Kyb::CONFIG_FILE} not found") unless File.exist?(Kyb::CONFIG_FILE)
+    @config ||= YAML.safe_load_file(Kyb::CONFIG_FILE, permitted_classes: [Symbol])
   end
 
   def base_image_path
@@ -34,7 +34,7 @@ module Ky::Config
 
   def project(name)
     p = load.dig('projects', name)
-    Ky.die("'#{name}' not found in #{Ky::CONFIG_FILE}") unless p
+    Kyb.die("'#{name}' not found in #{Kyb::CONFIG_FILE}") unless p
     {
       name: name,
       path: File.expand_path(p['path']),
@@ -53,18 +53,18 @@ end
 
 # ---------- Docker ----------
 
-module Ky::Docker
+module Kyb::Docker
   module_function
 
   def build(tag, path)
     puts "==> Building base image: #{tag}"
-    system('docker', 'build', '-t', tag, path.to_s) || Ky.die('docker build failed')
+    system('docker', 'build', '-t', tag, path.to_s) || Kyb.die('docker build failed')
   end
 
   def project_image(name, dockerfile, context)
     image = "dev-#{name}"
     puts "==> #{name}: building project image (#{dockerfile})"
-    system('docker', 'build', '-t', image, '-f', dockerfile.to_s, context.to_s) || Ky.die('docker build failed')
+    system('docker', 'build', '-t', image, '-f', dockerfile.to_s, context.to_s) || Kyb.die('docker build failed')
     image
   end
 
@@ -151,7 +151,7 @@ module Ky::Docker
 
     args << image
 
-    system(*args) || Ky.die('docker run failed')
+    system(*args) || Kyb.die('docker run failed')
   end
 
   def stop(container)
@@ -173,11 +173,11 @@ end
 
 # ---------- Git ----------
 
-module Ky::Git
+module Kyb::Git
   module_function
 
   def worktree_path(name, container)
-    File.join(Ky::WORKTREE_BASE, name, container)
+    File.join(Kyb::WORKTREE_BASE, name, container)
   end
 
   def branch(container)
@@ -195,9 +195,9 @@ module Ky::Git
     puts "==> creating worktree from origin/#{base_branch} (#{branch_name})"
     FileUtils.mkdir_p(File.dirname(worktree))
     Dir.chdir(repo_path) do
-      system('git', 'fetch', 'origin', base_branch) || Ky.die('git fetch failed')
+      system('git', 'fetch', 'origin', base_branch) || Kyb.die('git fetch failed')
       system('git', 'worktree', 'add', worktree, "origin/#{base_branch}", '-b', branch_name) ||
-        Ky.die('git worktree add failed')
+        Kyb.die('git worktree add failed')
     end
   end
 
@@ -238,33 +238,33 @@ end
 
 # ---------- CLI ----------
 
-module Ky::CLI
+module Kyb::CLI
   module_function
 
   def build
-    Ky::Config.load
-    path = Ky::Config.base_image_path
-    Ky::Docker.build(Ky::BASE_IMAGE, path)
-    puts "==> (◕‿‿◕) Build complete: #{Ky::BASE_IMAGE}"
+    Kyb::Config.load
+    path = Kyb::Config.base_image_path
+    Kyb::Docker.build(Kyb::BASE_IMAGE, path)
+    puts "==> (◕‿‿◕) Build complete: #{Kyb::BASE_IMAGE}"
   end
 
   def create(name, host_port = nil)
-    Ky::Config.load
-    proj = Ky::Config.project(name)
+    Kyb::Config.load
+    proj = Kyb::Config.project(name)
     path = proj[:path]
-    base = Ky::Config.base_image_path
+    base = Kyb::Config.base_image_path
 
     # Build base image
-    Ky::Docker.build(Ky::BASE_IMAGE, base)
+    Kyb::Docker.build(Kyb::BASE_IMAGE, base)
 
     # Determine container and ports
-    container = Ky::Docker.container_name(name, host_port)
+    container = Kyb::Docker.container_name(name, host_port)
     ports = host_port ? "#{host_port}:3000" : proj[:ports]
-    image = Ky::BASE_IMAGE
+    image = Kyb::BASE_IMAGE
 
     # Setup worktree
-    wt_path = Ky::Git.worktree_path(name, container)
-    Ky::Git.setup_worktree(path, proj[:base_branch], wt_path, container)
+    wt_path = Kyb::Git.worktree_path(name, container)
+    Kyb::Git.setup_worktree(path, proj[:base_branch], wt_path, container)
 
     # Setup .env from template
     if proj[:env_template] && !proj[:env_template].empty?
@@ -277,17 +277,17 @@ module Ky::CLI
     # Build project-specific image
     if proj[:dockerfile]
       df_path = File.join(path, proj[:dockerfile])
-      image = Ky::Docker.project_image(name, df_path, path)
+      image = Kyb::Docker.project_image(name, df_path, path)
     end
 
     # Remove existing container
-    Ky::Docker.remove_container(container)
+    Kyb::Docker.remove_container(container)
 
     # Ensure host dirs exist
     FileUtils.mkdir_p(File.expand_path('~/.kimi'))
 
     # Start container
-    Ky::Docker.run(
+    Kyb::Docker.run(
       container: container,
       image: image,
       hostname: container,
@@ -304,7 +304,7 @@ module Ky::CLI
   end
 
   def ps
-    list = Ky::Docker.ps_list
+    list = Kyb::Docker.ps_list
     if list.empty?
       puts "(◕‿‿◕) No sandbox containers — create one with: kyb create <name>"
       return
@@ -315,8 +315,8 @@ module Ky::CLI
   singleton_class.alias_method :ls, :ps
 
   def enter(name, port = nil)
-    container = Ky::Docker.container_name(name, port)
-    Ky.die("container '#{container}' is not running\n  Run: kyb create #{name}#{" #{port}" if port}") unless Ky::Docker.running?(container)
+    container = Kyb::Docker.container_name(name, port)
+    Kyb.die("container '#{container}' is not running\n  Run: kyb create #{name}#{" #{port}" if port}") unless Kyb::Docker.running?(container)
 
     cmd = "cd ~/projects/#{name} && mise trust && claude"
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
@@ -338,68 +338,68 @@ module Ky::CLI
     end
     # Consume optional --
     args.shift if args.first == '--'
-    Ky.die('exec requires a command') if args.empty?
+    Kyb.die('exec requires a command') if args.empty?
 
-    container = Ky::Docker.container_name(name, port)
-    Ky.die("container '#{container}' is not running") unless Ky::Docker.running?(container)
+    container = Kyb::Docker.container_name(name, port)
+    Kyb.die("container '#{container}' is not running") unless Kyb::Docker.running?(container)
 
     exec('docker', 'exec', '-it', '-u', 'dev', '-w', "/home/dev/projects/#{name}", container, *args)
   end
 
   def stop(name, port = nil)
-    Ky.die('stop requires a project name') unless name
-    container = Ky::Docker.container_name(name, port)
-    Ky.die("container '#{container}' is not running") unless Ky::Docker.running?(container)
-    Ky::Docker.stop(container)
+    Kyb.die('stop requires a project name') unless name
+    container = Kyb::Docker.container_name(name, port)
+    Kyb.die("container '#{container}' is not running") unless Kyb::Docker.running?(container)
+    Kyb::Docker.stop(container)
   end
 
   def start(name, port = nil)
-    Ky.die('start requires a project name') unless name
-    container = Ky::Docker.container_name(name, port)
-    Ky.die("container '#{container}' does not exist\n  Run: kyb create #{name}#{" #{port}" if port}") unless Ky::Docker.exists?(container)
-    Ky::Docker.start_existing(container)
+    Kyb.die('start requires a project name') unless name
+    container = Kyb::Docker.container_name(name, port)
+    Kyb.die("container '#{container}' does not exist\n  Run: kyb create #{name}#{" #{port}" if port}") unless Kyb::Docker.exists?(container)
+    Kyb::Docker.start_existing(container)
   end
 
   def rm(name, port = nil)
-    Ky.die("rm requires a project name\n  Usage: kyb rm NAME [PORT]") unless name
-    Ky::Config.load
-    proj = Ky::Config.project(name)
+    Kyb.die("rm requires a project name\n  Usage: kyb rm NAME [PORT]") unless name
+    Kyb::Config.load
+    proj = Kyb::Config.project(name)
     path = proj[:path]
-    Ky.die("#{path} not found") unless File.directory?(path)
+    Kyb.die("#{path} not found") unless File.directory?(path)
 
-    container = Ky::Docker.container_name(name, port)
-    Ky::Docker.remove_container(container)
+    container = Kyb::Docker.container_name(name, port)
+    Kyb::Docker.remove_container(container)
 
-    wt_path = Ky::Git.worktree_path(name, container)
-    Ky::Git.remove_worktree(path, wt_path)
-    Ky::Git.delete_local_branch(path, container)
-    Ky::Git.delete_remote_branch(path, container)
+    wt_path = Kyb::Git.worktree_path(name, container)
+    Kyb::Git.remove_worktree(path, wt_path)
+    Kyb::Git.delete_local_branch(path, container)
+    Kyb::Git.delete_remote_branch(path, container)
 
-    Ky::Docker.volume_rm("#{container}-claude")
+    Kyb::Docker.volume_rm("#{container}-claude")
 
     puts "==> Done: #{container} removed  (◕‿‿◕)"
   end
 
   def prune
-    Ky::Config.load
-    Ky::Config.project_names.each do |proj_name|
-      proj = Ky::Config.project(proj_name)
+    Kyb::Config.load
+    Kyb::Config.project_names.each do |proj_name|
+      proj = Kyb::Config.project(proj_name)
       path = proj[:path]
       unless File.directory?(path)
         warn "WARNING: #{path} not found, skip #{proj_name}"
         next
       end
 
-      Ky::Docker.containers_for_project(proj_name).each do |c|
+      Kyb::Docker.containers_for_project(proj_name).each do |c|
         puts "==> #{c}: removing container"
         system('docker', 'rm', '-f', c)
 
-        wt_path = Ky::Git.worktree_path(proj_name, c)
-        Ky::Git.remove_worktree(path, wt_path)
-        Ky::Git.delete_local_branch(path, c)
-        Ky::Git.delete_remote_branch(path, c)
+        wt_path = Kyb::Git.worktree_path(proj_name, c)
+        Kyb::Git.remove_worktree(path, wt_path)
+        Kyb::Git.delete_local_branch(path, c)
+        Kyb::Git.delete_remote_branch(path, c)
 
-        Ky::Docker.volume_rm("#{c}-claude")
+        Kyb::Docker.volume_rm("#{c}-claude")
         puts
       end
     end
@@ -445,15 +445,15 @@ module Ky::CLI
     when 'build'
       build
     when 'create'
-      Ky.die("create requires a project name\n  Usage: kyb create NAME [PORT]") unless args.first
+      Kyb.die("create requires a project name\n  Usage: kyb create NAME [PORT]") unless args.first
       create(args[0], args[1])
     when 'ps', 'ls'
       ps
     when 'enter'
-      Ky.die("enter requires a project name\n  Usage: kyb enter NAME [PORT]") unless args.first
+      Kyb.die("enter requires a project name\n  Usage: kyb enter NAME [PORT]") unless args.first
       enter(args[0], args[1])
     when 'exec'
-      Ky.die("exec requires a project name\n  Usage: kyb exec NAME [PORT] [--] CMD...") unless args.first
+      Kyb.die("exec requires a project name\n  Usage: kyb exec NAME [PORT] [--] CMD...") unless args.first
       exec_cmd(args[0], args[1..] || [])
     when 'stop'
       stop(args[0], args[1])
@@ -471,4 +471,4 @@ module Ky::CLI
   end
 end
 
-Ky::CLI.dispatch(ARGV) if __FILE__ == $PROGRAM_NAME
+Kyb::CLI.dispatch(ARGV) if __FILE__ == $PROGRAM_NAME
