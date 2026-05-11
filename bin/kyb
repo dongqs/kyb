@@ -6,9 +6,9 @@ require 'fileutils'
 
 # kyb — kubernate your branches — dev sandbox CLI
 module Kyb
-  CONFIG_FILE = File.expand_path('~/.config/ky/config.yml')
+  CONFIG_FILE = File.expand_path('~/.config/kyb/config.yml')
   BASE_IMAGE = 'dev-sandbox-base'
-  WORKTREE_BASE = File.expand_path('~/.ky/worktrees')
+  WORKTREE_BASE = File.expand_path('~/.kyb/worktrees')
 
   module_function
 

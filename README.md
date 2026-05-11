@@ -1,12 +1,12 @@
-# ky ／(◕‿‿◕)＼
+# kyb — kubernate your branches ／(◕‿‿◕)＼
 
 一键创建隔离的 AI 开发沙箱。Docker 容器即用即抛，权限全开无中断，宿主机零污染。
 
 ## 快速开始
 
 ```bash
-~/ky/bin/ky create niao       # 创建并启动沙箱
-~/ky/bin/ky enter niao        # 进入沙箱
+kyb create niao       # 创建并启动沙箱
+kyb enter niao        # 进入沙箱
 ```
 
 ## 架构
@@ -14,11 +14,10 @@
 ```
 macOS 宿主机
 ├── sing-box (socks5:2080)          ← 分流代理
-├── ~/ky/                        ← 本仓库，管理沙箱配置
+├── ~/kyb/                           ← 本仓库，管理沙箱配置
 │   ├── Dockerfile                  ← 沙箱镜像定义
 │   ├── entrypoint.sh               ← 容器启动入口
-│   ├── projects.toml               ← 项目注册表
-│   └── bin/ky                   ← CLI 工具
+│   └── bin/kyb                     ← CLI 工具
 └── Docker 容器
     ├── mise (node, ruby, java...)
     ├── Claude Code (权限全开)
@@ -51,29 +50,29 @@ Docker pull                   →    镜像源, 不翻墙
 mise 下载 runtime              →    ALL_PROXY → socks5:2080
 ```
 
-## ky CLI
+## kyb CLI
 
 ```bash
-ky build                     # 构建基础镜像
-ky create NAME [PORT]        # 创建并启动沙箱
-ky ps                        # 列出运行中的沙箱
-ky enter NAME [PORT]         # 进入沙箱
-ky exec NAME [PORT] -- CMD   # 在沙箱中执行命令
-ky stop NAME [PORT]          # 停止沙箱
-ky start NAME [PORT]         # 启动已停止的沙箱
-ky rm NAME [PORT]            # 删除沙箱
-ky prune                     # 删除所有沙箱
+kyb build                     # 构建基础镜像
+kyb create NAME [PORT]        # 创建并启动沙箱
+kyb ps                        # 列出运行中的沙箱
+kyb enter NAME [PORT]         # 进入沙箱
+kyb exec NAME [PORT] -- CMD   # 在沙箱中执行命令
+kyb stop NAME [PORT]          # 停止沙箱
+kyb start NAME [PORT]         # 启动已停止的沙箱
+kyb rm NAME [PORT]            # 删除沙箱
+kyb prune                     # 删除所有沙箱
 ```
 
 ## 修改沙箱配置
 
 1. 编辑 `Dockerfile`
 2. `git commit`
-3. `ky build` 重建基础镜像
+3. `kyb build` 重建基础镜像
 
 ## 添加新项目
 
-编辑 `projects.toml`，添加项目配置，然后 `ky create <name>`。
+编辑 `~/.config/kyb/config.yml`，添加项目配置，然后 `kyb create <name>`。
 
 ## 宿主机挂载
 
@@ -85,11 +84,11 @@ ky prune                     # 删除所有沙箱
 
 ## 工作树隔离
 
-每个容器使用独立 git worktree (`~/.ky/worktrees/<project>/<container>/`)，多实例互不干扰。详见 `docs/multi-sandbox-worktree.md`。
+每个容器使用独立 git worktree (`~/.kyb/worktrees/<project>/<container>/`)，多实例互不干扰。详见 `docs/multi-sandbox-worktree.md`。
 
 ## 清理
 
 ```bash
-ky rm niao                    # 删除单个沙箱
-ky prune                     # 删除所有沙箱
+kyb rm niao                    # 删除单个沙箱
+kyb prune                     # 删除所有沙箱
 ```

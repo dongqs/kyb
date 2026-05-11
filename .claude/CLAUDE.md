@@ -1,4 +1,4 @@
-# CLAUDE.md — ky ／(◕‿‿◕)＼
+# CLAUDE.md — kyb ／(◕‿‿◕)＼
 
 AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境，替代之前的 OrbStack Machine 方案。
 
@@ -6,16 +6,16 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境，替
 
 - `Dockerfile` — 定义沙箱镜像（Ubuntu 24.04 + mise + Node + Claude Code）
 - `entrypoint.sh` — 容器启动时调整 UID/GID 匹配宿主机用户
-- `bin/ky` — CLI 工具：build / create / enter / exec / stop / start / rm / prune
-- `projects.toml` — 项目注册表
+- `bin/kyb` — CLI 工具：build / create / enter / exec / stop / start / rm / prune
+- `~/.config/kyb/config.yml` — 用户级项目配置
 
 ## 常用操作
 
-- 创建沙箱: `ky create niao`
-- 进入沙箱: `ky enter niao`
-- 列出沙箱: `ky ps`
-- 停止沙箱: `ky stop niao`
-- 删除沙箱: `ky rm niao`
+- 创建沙箱: `kyb create niao`
+- 进入沙箱: `kyb enter niao`
+- 列出沙箱: `kyb ps`
+- 停止沙箱: `kyb stop niao`
+- 删除沙箱: `kyb rm niao`
 - 手动进入: `docker exec -it -u dev -w /home/dev dev-sandbox bash`
 - root 执行: `docker exec -u root dev-sandbox <cmd>`
 
@@ -23,11 +23,11 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境，替
 
 1. 编辑 `Dockerfile`
 2. `git commit`
-3. `ky build` 重建基础镜像
+3. `kyb build` 重建基础镜像
 
 ## 添加新项目
 
-编辑 `projects.toml`，添加项目配置，然后 `ky create <name>`。
+编辑 `~/.config/kyb/config.yml`，添加项目配置，然后 `kyb create <name>`。
 
 ## 沙箱环境
 
@@ -42,7 +42,7 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境，替
 
 ```bash
 # 进入沙箱
-ky enter Norland
+kyb enter Norland
 
 # 初始化（首次）
 cd ~/projects/Norland

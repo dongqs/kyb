@@ -2,26 +2,28 @@
 
 ## 问题
 
-`create-sandbox niao` / `create-sandbox niao 3333` 同时开多个容器，都挂载同一个宿主机项目目录，互相干扰。
+`kyb create niao` / `kyb create niao 3333` 同时开多个容器，都挂载同一个宿主机项目目录，互相干扰。
 
 ## 方案
 
-每个容器创建独立的 git worktree，挂在宿主机 `~/.ky/worktrees/<project>/<container>/`，Docker 挂载各自 worktree 而非主工作树。
+每个容器创建独立的 git worktree，挂在宿主机 `~/.kyb/worktrees/<project>/<container>/`，Docker 挂载各自 worktree 而非主工作树。
 
-## projects.toml 配置
+## config.yml 配置
 
-```toml
-[projects.niao]
-path = "~/github/niao"
-base_branch = "master"
-ports = ["3000:3000"]
-symlinks = ["tiles"]
-env_template = ".env.sample"
+```yaml
+projects:
+  niao:
+    path: ~/github/niao
+    base_branch: master
+    ports:
+      - "3000:3000"
+    symlinks:
+      - tiles
+    env_template: .env.sample
 
-[projects.hamilton]
-path = "~/leyan/training/hamilton"
-base_branch = "main"
-ports = []
+  hamilton:
+    path: ~/leyan/training/hamilton
+    base_branch: main
 ```
 
 | 字段 | 必填 | 说明 |
@@ -33,16 +35,16 @@ ports = []
 | `symlinks` | 否 | 从主工作树只读挂载到容器的目录/文件（Docker bind mount） |
 | `env_template` | 否 | 复制到 worktree 的 .env 模板文件 |
 
-## create-sandbox 流程
+## kyb create 流程
 
 ```
-create-sandbox niao 3333
+kyb create niao 3333
 
 1. docker build base image（如有变更）
-2. 解析 projects.toml，获取项目配置
+2. 解析 ~/.config/kyb/config.yml，获取项目配置
 3. cd <主工作树路径>
 4. git fetch origin <base_branch>
-5. git worktree add ~/.ky/worktrees/niao/dev-niao-3333 origin/<base_branch>
+5. git worktree add ~/.kyb/worktrees/niao/dev-niao-3333 origin/<base_branch>
    分支名: sandbox/niao-3333
    已存在则跳过，复用
 6. 对于每个 symlinks: Docker bind mount <主工作树>/<target> → 容器内 <项目>/<target> (只读)
@@ -51,7 +53,7 @@ create-sandbox niao 3333
 9. docker run -d
      - name: dev-niao-3333
      - -p 3333:3000
-     - -v ~/.ky/worktrees/niao/dev-niao-3333:/home/dev/projects/niao
+     - -v ~/.kyb/worktrees/niao/dev-niao-3333:/home/dev/projects/niao
      - -v ~/github/niao:/home/dev/projects/niao/tiles:ro   # symlinks 每个单独挂载
      - -v ~/github/niao:~/github/niao   # 主工作树，保证容器内 git worktree 操作正常
      - -v niao-node_modules:/home/dev/projects/niao/node_modules
@@ -78,11 +80,11 @@ create-sandbox niao 3333
 
 ```bash
 # 收尾单个实例
-ky rm niao 3333                # 删容器、worktree、分支、volume
-ky rm niao                     # 删默认端口的实例
+kyb rm niao 3333                # 删容器、worktree、分支、volume
+kyb rm niao                     # 删默认端口的实例
 
 # 全部推倒
-ky prune
+kyb prune
 ```
 
 脚本流程：① `docker rm -f` 容器 → ② `git worktree remove` 清理 worktree → ③ 删本地+远程 `sandbox/*` 分支 → ④ 删 per-container volume。如果 worktree 或容器已残留丢失，脚本会跳过并补刀清理。
