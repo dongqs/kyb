@@ -1,0 +1,468 @@
+#!/usr/bin/env bash
+# kyube — dev sandbox CLI (Docker-style subcommands)
+#
+#   kyube build                  Build base image
+#   kyube create NAME [PORT]     Create and start a sandbox
+#   kyube ps | ls                List sandbox containers
+#   kyube enter NAME [PORT]      Enter sandbox via tmux
+#   kyube exec  NAME [PORT] -- CMD  Run command in sandbox
+#   kyube stop  NAME [PORT]      Stop sandbox container
+#   kyube start NAME [PORT]      Start stopped sandbox container
+#   kyube rm    NAME [PORT]      Remove sandbox (container + worktree)
+#   kyube prune                  Remove all sandboxes
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)/.."
+CONFIG="$REPO_DIR/projects.toml"
+BASE_IMAGE="dev-sandbox-base"
+WORKTREE_BASE="$HOME/.orb/worktrees"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# ---------- helpers ----------
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+resolve_container() {
+    local name="$1" port="${2:-}"
+    if [ -n "$port" ]; then
+        echo "dev-${name}-${port}"
+    else
+        echo "dev-${name}"
+    fi
+}
+
+parse_project() {
+    local name="$1"
+    python3 -c '
+import toml, json, sys, os
+
+cfg = toml.load(sys.argv[1])
+name = sys.argv[2]
+p = cfg["projects"][name]
+item = {
+    "name": name,
+    "path": os.path.expanduser(p["path"]),
+    "base_branch": p["base_branch"],
+}
+if "dockerfile" in p:
+    item["dockerfile"] = p["dockerfile"]
+ports = p.get("ports", [])
+item["ports"] = ",".join(ports) if ports else ""
+symlinks = p.get("symlinks", [])
+item["symlinks"] = ",".join(symlinks) if symlinks else ""
+item["env_template"] = p.get("env_template", "")
+print(json.dumps(item))
+' "$CONFIG" "$name"
+}
+
+extract() {
+    echo "$1" | python3 -c "import json,sys; print(json.load(sys.stdin).get('$2',''))"
+}
+
+ensure_config() {
+    [ -f "$CONFIG" ] || die "$CONFIG not found"
+}
+
+# ---------- build ----------
+
+cmd_build() {
+    echo "==> Building base image: $BASE_IMAGE"
+    docker build -t "$BASE_IMAGE" "$REPO_DIR"
+    echo "==> Done: $BASE_IMAGE"
+}
+
+# ---------- create ----------
+
+cmd_create() {
+    local name="$1" host_port="${2:-}"
+    ensure_config
+
+    local proj_json
+    proj_json=$(parse_project "$name")
+    [ -n "$proj_json" ] || die "'$name' not found in $CONFIG"
+
+    local path base_branch df symlinks env_template
+    path=$(extract "$proj_json" path)
+    base_branch=$(extract "$proj_json" base_branch)
+    df=$(extract "$proj_json" dockerfile)
+    symlinks=$(extract "$proj_json" symlinks)
+    env_template=$(extract "$proj_json" env_template)
+
+    # Build base image
+    echo "==> Building base image: $BASE_IMAGE"
+    docker build -t "$BASE_IMAGE" "$REPO_DIR"
+
+    # Determine container name and ports
+    local container ports
+    if [ -n "$host_port" ]; then
+        container="dev-${name}-${host_port}"
+        ports="${host_port}:3000"
+    else
+        container="dev-${name}"
+        ports=$(extract "$proj_json" ports)
+    fi
+
+    # Setup git worktree
+    local wt_path="${WORKTREE_BASE}/${name}/${container}"
+    if [ -d "$wt_path" ]; then
+        echo "==> $name: worktree exists, reusing ($wt_path)"
+    else
+        local branch="sandbox/${container#dev-}"
+        echo "==> $name: creating worktree from origin/$base_branch ($branch)"
+        mkdir -p "$(dirname "$wt_path")"
+        git -C "$path" fetch origin "$base_branch"
+        git -C "$path" worktree add "$wt_path" "origin/${base_branch}" -b "$branch"
+    fi
+
+    # Setup .env from template
+    if [ -n "$env_template" ]; then
+        echo "     cp $path/$env_template -> .env"
+        cp "${path}/${env_template}" "${wt_path}/.env"
+    fi
+
+    # Build project-specific image if Dockerfile specified
+    local image="$BASE_IMAGE"
+    if [ -n "$df" ]; then
+        image="dev-${name}"
+        echo "==> $name: building project image ($df)"
+        docker build -t "$image" -f "${path}/${df}" "$path"
+    fi
+
+    # Remove existing container
+    docker rm -f "$container" 2>/dev/null || true
+
+    # Ensure host dirs exist
+    mkdir -p "$HOME/.kimi"
+
+    # Build port args
+    local port_args=()
+    if [ -n "$ports" ]; then
+        IFS=',' read -ra port_list <<< "$ports"
+        for p in "${port_list[@]}"; do
+            [ -n "$p" ] && port_args+=(-p "$p")
+        done
+    fi
+
+    # Build symlink bind-mount args
+    local link_args=()
+    if [ -n "$symlinks" ]; then
+        IFS=',' read -ra link_list <<< "$symlinks"
+        for link in "${link_list[@]}"; do
+            [ -z "$link" ] && continue
+            link_args+=(-v "${path}/${link}:/home/dev/projects/${name}/${link}:ro")
+        done
+    fi
+
+    echo "==> $container: starting ($wt_path -> /home/dev/projects/$name)"
+    docker run -d \
+        --name "$container" \
+        --hostname "$container" \
+        -e "HOST_UID=$(id -u)" \
+        -e "HOST_GID=$(id -g)" \
+        -e "GITLAB_TOKEN=${GITLAB_TOKEN:-}" \
+        -e "CLAUDE_CODE_ATTRIBUTION_HEADER=${CLAUDE_CODE_ATTRIBUTION_HEADER:-}" \
+        -e "CLAUDE_CODE_EFFORT_LEVEL=${CLAUDE_CODE_EFFORT_LEVEL:-}" \
+        -e "KIMI_API_KEY=${KIMI_API_KEY:-}" \
+        -e "SANDBOX_PROJECT=${name}" \
+        -v "$HOME/.ssh:/home/dev/.ssh:ro" \
+        -v "$HOME/.kimi:/home/dev/.kimi" \
+        -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
+        -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \
+        -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
+        -v "$HOME/.agents:/home/.agents:ro" \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v "${container}-claude:/home/dev/.claude" \
+        -v "${wt_path}:/home/dev/projects/${name}" \
+        -v "${name}-node_modules:/home/dev/projects/${name}/node_modules" \
+        -v "${path}:${path}" \
+        ${link_args:+"${link_args[@]}"} \
+        ${port_args:+"${port_args[@]}"} \
+        "$image"
+
+    echo ""
+    echo "==> Done! Container: $container  Image: $image  Ports: ${ports:-none}"
+    echo "    kyube enter $name${host_port:+ $host_port}"
+}
+
+# ---------- ps / ls ----------
+
+cmd_ps() {
+    local containers
+    containers=$(docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter 'name=dev-' 2>/dev/null || true)
+
+    if [ -z "$containers" ]; then
+        echo "No sandbox containers"
+        return
+    fi
+
+    printf "%-30s  %-24s  %s\n" "CONTAINER" "STATUS" "PORTS"
+    while IFS=$'\t' read -r name status ports; do
+        printf "%-30s  %-24s  %s\n" "$name" "$status" "${ports:-}"
+    done <<< "$containers"
+}
+
+# ---------- enter ----------
+
+cmd_enter() {
+    local name="$1" port="${2:-}"
+    local container session="dev"
+    container=$(resolve_container "$name" "$port")
+
+    docker ps --format '{{.Names}}' | grep -qx "$container" \
+        || die "container '$container' is not running\n  Run: kyube create $name${port:+ $port}"
+
+    local cmd
+    if [ -n "$name" ]; then
+        cmd="cd ~/projects/$name && mise trust && claude"
+    else
+        cmd="claude"
+    fi
+
+    local dexec=(docker exec -it -u dev -w /home/dev)
+    [ -n "${KIMI_API_KEY:-}" ] && dexec+=(-e "KIMI_API_KEY=$KIMI_API_KEY")
+
+    if docker exec -u dev "$container" tmux has-session -t "$session" 2>/dev/null; then
+        exec "${dexec[@]}" "$container" tmux attach-session -t "$session"
+    else
+        exec "${dexec[@]}" "$container" tmux new-session -s "$session" \; send-keys "$cmd" Enter
+    fi
+}
+
+# ---------- exec ----------
+
+cmd_exec() {
+    local name="$1" port="" cmd_args=()
+    shift
+
+    # Parse optional port (numeric arg)
+    if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then
+        port="$1"
+        shift
+    fi
+
+    # Consume optional -- separator
+    if [ $# -gt 0 ] && [ "$1" = "--" ]; then
+        shift
+    fi
+
+    [ $# -gt 0 ] || die "exec requires a command\n  Usage: kyube exec NAME [PORT] [--] CMD..."
+
+    local container
+    container=$(resolve_container "$name" "$port")
+
+    docker ps --format '{{.Names}}' | grep -qx "$container" \
+        || die "container '$container' is not running"
+
+    docker exec -it -u dev -w /home/dev/projects/"$name" "$container" "$@"
+}
+
+# ---------- stop ----------
+
+cmd_stop() {
+    local name="${1:-}" port="${2:-}"
+    [ -n "$name" ] || die "stop requires a project name"
+
+    local container
+    container=$(resolve_container "$name" "$port")
+
+    docker ps --format '{{.Names}}' | grep -qx "$container" \
+        || die "container '$container' is not running"
+
+    echo "==> Stopping $container"
+    docker stop "$container"
+    echo "==> Done: $container stopped"
+}
+
+# ---------- start ----------
+
+cmd_start() {
+    local name="${1:-}" port="${2:-}"
+    [ -n "$name" ] || die "start requires a project name"
+
+    local container
+    container=$(resolve_container "$name" "$port")
+
+    docker ps -a --format '{{.Names}}' | grep -qx "$container" \
+        || die "container '$container' does not exist\n  Run: kyube create $name${port:+ $port}"
+
+    if docker ps --format '{{.Names}}' | grep -qx "$container"; then
+        echo "==> $container is already running"
+        return
+    fi
+
+    echo "==> Starting $container"
+    docker start "$container"
+    echo "==> Done: $container started"
+}
+
+# ---------- rm ----------
+
+cmd_rm() {
+    local name="${1:-}" port="${2:-}"
+    [ -n "$name" ] || die "rm requires a project name\n  Usage: kyube rm NAME [PORT]"
+
+    ensure_config
+    local proj_json path
+    proj_json=$(parse_project "$name")
+    [ -n "$proj_json" ] || die "'$name' not found in $CONFIG"
+    path=$(extract "$proj_json" path)
+    [ -d "$path" ] || die "$path not found"
+
+    local container
+    container=$(resolve_container "$name" "$port")
+
+    # 1. Container
+    if docker ps -a --format '{{.Names}}' | grep -qx "$container"; then
+        echo "==> $container: removing container"
+        docker rm -f "$container"
+    else
+        echo "==> $container: container not found, skip"
+    fi
+
+    # 2. Worktree
+    local wt_path="${WORKTREE_BASE}/${name}/${container}"
+    local branch="sandbox/${container#dev-}"
+    if [ -d "$wt_path" ]; then
+        echo "==> $branch: removing worktree $wt_path"
+        git -C "$path" worktree remove "$wt_path" 2>/dev/null || {
+            echo "     worktree remove failed, pruning..."
+            rm -rf "$wt_path"
+            git -C "$path" worktree prune
+        }
+    fi
+
+    # 3. Local branch
+    if git -C "$path" branch --list "$branch" | grep -q .; then
+        echo "==> $branch: deleting local branch"
+        git -C "$path" branch -D "$branch"
+    fi
+
+    # 4. Remote branch
+    if git -C "$path" ls-remote --heads origin "$branch" | grep -q .; then
+        echo "==> $branch: deleting remote branch"
+        git -C "$path" push origin --delete "$branch"
+    fi
+
+    # 5. Claude volume
+    local claude_vol="${container}-claude"
+    if docker volume ls -q | grep -qx "$claude_vol"; then
+        echo "==> $claude_vol: removing volume"
+        docker volume rm "$claude_vol"
+    fi
+
+    echo "==> Done: $container removed"
+}
+
+# ---------- prune ----------
+
+cmd_prune() {
+    ensure_config
+
+    local names
+    names=$(python3 -c "
+import toml, sys
+cfg = toml.load(sys.argv[1])
+for name in sorted(cfg.get('projects', {}).keys()):
+    print(name)
+" "$CONFIG")
+
+    for proj in $names; do
+        local path
+        path=$(python3 -c "
+import toml, sys, os
+cfg = toml.load(sys.argv[1])
+p = cfg['projects'][sys.argv[2]]
+print(os.path.expanduser(p['path']))
+" "$CONFIG" "$proj")
+
+        if [ ! -d "$path" ]; then
+            echo "WARNING: $path not found, skip $proj"
+            continue
+        fi
+
+        local containers
+        containers=$(docker ps -a --format '{{.Names}}' --filter "name=dev-${proj}" 2>/dev/null || true)
+        for c in $containers; do
+            echo "==> $c: removing container"
+            docker rm -f "$c"
+
+            local wt_path="${WORKTREE_BASE}/${proj}/${c}"
+            local branch="sandbox/${c#dev-}"
+            if [ -d "$wt_path" ]; then
+                echo "==> $branch: removing worktree $wt_path"
+                git -C "$path" worktree remove "$wt_path" 2>/dev/null || {
+                    rm -rf "$wt_path"
+                    git -C "$path" worktree prune
+                }
+            fi
+            if git -C "$path" branch --list "$branch" | grep -q .; then
+                echo "==> $branch: deleting local branch"
+                git -C "$path" branch -D "$branch"
+            fi
+            if git -C "$path" ls-remote --heads origin "$branch" | grep -q .; then
+                echo "==> $branch: deleting remote branch"
+                git -C "$path" push origin --delete "$branch"
+            fi
+            local claude_vol="${c}-claude"
+            if docker volume ls -q | grep -qx "$claude_vol"; then
+                echo "==> $claude_vol: removing volume"
+                docker volume rm "$claude_vol"
+            fi
+            echo ""
+        done
+    done
+
+    echo "==> All sandboxes cleaned"
+}
+
+# ---------- help ----------
+
+usage() {
+    cat <<'EOF'
+Usage:  kyube COMMAND
+
+Commands:
+  build                     Build base image
+  create NAME [PORT]        Create and start a sandbox
+  ps, ls                    List sandbox containers
+  enter NAME [PORT]         Enter sandbox via interactive shell
+  exec  NAME [PORT] -- CMD  Run command in sandbox
+  stop  NAME [PORT]         Stop sandbox container
+  start NAME [PORT]         Start stopped sandbox container
+  rm    NAME [PORT]         Remove sandbox completely
+  prune                     Remove all sandboxes
+EOF
+    exit 0
+}
+
+# ---------- dispatch ----------
+
+# Pre-flight: ensure gitconfig exists (Docker mount requires a file)
+touch "$HOME/.gitconfig" 2>/dev/null || true
+
+# Load GitLab token for create
+GITLAB_TOKEN="$(awk '/^[[:space:]]*token:/{print $2; exit}' "$HOME/Library/Application Support/glab-cli/config.yml" 2>/dev/null || true)"
+
+case "${1:-}" in
+    build)                   cmd_build ;;
+    create)
+        [ -n "${2:-}" ] || die "create requires a project name\n  Usage: kyube create NAME [PORT]"
+        cmd_create "$2" "${3:-}"
+        ;;
+    ps|ls)                   cmd_ps ;;
+    enter)
+        [ -n "${2:-}" ] || die "enter requires a project name\n  Usage: kyube enter NAME [PORT]"
+        cmd_enter "$2" "${3:-}"
+        ;;
+    exec)
+        [ -n "${2:-}" ] || die "exec requires a project name\n  Usage: kyube exec NAME [PORT] [--] CMD..."
+        shift
+        cmd_exec "$@"
+        ;;
+    stop)                    cmd_stop "${2:-}" "${3:-}" ;;
+    start)                   cmd_start "${2:-}" "${3:-}" ;;
+    rm)                      cmd_rm "${2:-}" "${3:-}" ;;
+    prune)                   cmd_prune ;;
+    help|--help|-h)          usage ;;
+    *)                       usage ;;
+esac
