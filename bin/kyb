@@ -172,7 +172,7 @@ module Kyb::Docker
     puts "==> Done: #{container} stopped"
   end
 
-  def run_magic(container:, image:)
+  def run_play(container:, image:)
     puts "==> #{container}: starting magic sandbox"
 
     args = %w[docker run -d]
@@ -292,30 +292,30 @@ module Kyb::CLI
     puts "==> (◕‿‿◕) Build complete: #{Kyb::BASE_IMAGE}"
   end
 
-  MAGIC_CONTAINER = 'dev-magic'
+  PLAY_CONTAINER = 'dev-play'
 
-  def magic
+  def play
     Kyb::Config.load
     path = Kyb::Config.base_image_path
     Kyb::Docker.build(Kyb::BASE_IMAGE, path)
 
-    if Kyb::Docker.running?(MAGIC_CONTAINER)
-      puts "==> #{MAGIC_CONTAINER} already running, entering..."
-    elsif Kyb::Docker.exists?(MAGIC_CONTAINER)
-      Kyb::Docker.start_existing(MAGIC_CONTAINER)
+    if Kyb::Docker.running?(PLAY_CONTAINER)
+      puts "==> #{PLAY_CONTAINER} already running, entering..."
+    elsif Kyb::Docker.exists?(PLAY_CONTAINER)
+      Kyb::Docker.start_existing(PLAY_CONTAINER)
     else
-      Kyb::Docker.run_magic(container: MAGIC_CONTAINER, image: Kyb::BASE_IMAGE)
+      Kyb::Docker.run_play(container: PLAY_CONTAINER, image: Kyb::BASE_IMAGE)
     end
 
     cmd = 'claude'
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
-    if system('docker', 'exec', '-u', 'dev', MAGIC_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
+    if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, MAGIC_CONTAINER, 'tmux', 'attach-session', '-t', 'dev')
+      exec(*dexec, PLAY_CONTAINER, 'tmux', 'attach-session', '-t', 'dev')
     else
-      exec(*dexec, MAGIC_CONTAINER, 'tmux', 'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
+      exec(*dexec, PLAY_CONTAINER, 'tmux', 'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
     end
   end
 
@@ -543,7 +543,7 @@ module Kyb::CLI
 
       Commands:
         build                     Build base image
-        magic, play               Launch disposable sandbox (no project)
+        play                      Launch disposable sandbox (no project)
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                   Add current project to config
         create NAME [PORT]        Create and start a sandbox
@@ -575,8 +575,8 @@ module Kyb::CLI
     case cmd
     when 'build'
       build
-    when 'magic', 'play'
-      magic
+    when 'play'
+      play
     when 'init'
       init(args)
     when 'create'
