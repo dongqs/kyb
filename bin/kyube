@@ -12,17 +12,8 @@
 #   kyube prune                  Remove all sandboxes
 set -euo pipefail
 
-# Read repo path from user config
-KYUBE_CONFIG="${KYUBE_CONFIG:-$HOME/.config/kyube/config}"
-if [ -f "$KYUBE_CONFIG" ]; then
-    REPO_DIR="$(grep -E '^REPO_DIR=' "$KYUBE_CONFIG" | head -1 | cut -d= -f2-)"
-fi
-if [ -z "${REPO_DIR:-}" ]; then
-    echo "ERROR: REPO_DIR not configured" >&2
-    echo "  Create $KYUBE_CONFIG with: REPO_DIR=/path/to/orb" >&2
-    exit 1
-fi
-CONFIG="$REPO_DIR/projects.toml"
+# User config (TOML) — self-contained: base image path + projects
+KYUBE_CONFIG="${KYUBE_CONFIG:-$HOME/.config/kyube/config.toml}"
 BASE_IMAGE="dev-sandbox-base"
 WORKTREE_BASE="$HOME/.orb/worktrees"
 
@@ -60,7 +51,15 @@ symlinks = p.get("symlinks", [])
 item["symlinks"] = ",".join(symlinks) if symlinks else ""
 item["env_template"] = p.get("env_template", "")
 print(json.dumps(item))
-' "$CONFIG" "$name"
+' "$KYUBE_CONFIG" "$name"
+}
+
+base_dir() {
+    python3 -c "
+import toml, sys, os
+cfg = toml.load(sys.argv[1])
+print(os.path.expanduser(cfg['base']['image']))
+" "$KYUBE_CONFIG"
 }
 
 extract() {
@@ -68,14 +67,17 @@ extract() {
 }
 
 ensure_config() {
-    [ -f "$CONFIG" ] || die "$CONFIG not found"
+    [ -f "$KYUBE_CONFIG" ] || die "$KYUBE_CONFIG not found"
 }
 
 # ---------- build ----------
 
 cmd_build() {
+    ensure_config
+    local base
+    base=$(base_dir)
     echo "==> Building base image: $BASE_IMAGE"
-    docker build -t "$BASE_IMAGE" "$REPO_DIR"
+    docker build -t "$BASE_IMAGE" "$base"
     echo "==> Done: $BASE_IMAGE"
 }
 
@@ -87,18 +89,19 @@ cmd_create() {
 
     local proj_json
     proj_json=$(parse_project "$name")
-    [ -n "$proj_json" ] || die "'$name' not found in $CONFIG"
+    [ -n "$proj_json" ] || die "'$name' not found in $KYUBE_CONFIG"
 
-    local path base_branch df symlinks env_template
+    local path base_branch df symlinks env_template base
     path=$(extract "$proj_json" path)
     base_branch=$(extract "$proj_json" base_branch)
     df=$(extract "$proj_json" dockerfile)
     symlinks=$(extract "$proj_json" symlinks)
     env_template=$(extract "$proj_json" env_template)
+    base=$(base_dir)
 
     # Build base image
     echo "==> Building base image: $BASE_IMAGE"
-    docker build -t "$BASE_IMAGE" "$REPO_DIR"
+    docker build -t "$BASE_IMAGE" "$base"
 
     # Determine container name and ports
     local container ports
@@ -312,7 +315,7 @@ cmd_rm() {
     ensure_config
     local proj_json path
     proj_json=$(parse_project "$name")
-    [ -n "$proj_json" ] || die "'$name' not found in $CONFIG"
+    [ -n "$proj_json" ] || die "'$name' not found in $KYUBE_CONFIG"
     path=$(extract "$proj_json" path)
     [ -d "$path" ] || die "$path not found"
 
@@ -372,7 +375,7 @@ import toml, sys
 cfg = toml.load(sys.argv[1])
 for name in sorted(cfg.get('projects', {}).keys()):
     print(name)
-" "$CONFIG")
+" "$KYUBE_CONFIG")
 
     for proj in $names; do
         local path
@@ -381,7 +384,7 @@ import toml, sys, os
 cfg = toml.load(sys.argv[1])
 p = cfg['projects'][sys.argv[2]]
 print(os.path.expanduser(p['path']))
-" "$CONFIG" "$proj")
+" "$KYUBE_CONFIG" "$proj")
 
         if [ ! -d "$path" ]; then
             echo "WARNING: $path not found, skip $proj"
