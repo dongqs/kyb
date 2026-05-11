@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 BASE_IMAGE="dev-sandbox-base"
 CONFIG="$REPO_DIR/projects.toml"
-WORKTREE_BASE="$HOME/.orb/worktrees"
+WORKTREE_BASE="$HOME/.ky/worktrees"
 
 # ---------- helpers ----------
 
@@ -135,8 +135,8 @@ if [ -z "$PROJ_NAME" ]; then
     build_base
     echo ""
     echo "==> Done! Base image ready. Create containers with:"
-    echo "    ~/orb/bin/create-sandbox niao"
-    echo "    ~/orb/bin/create-sandbox niao 3000"
+    echo "    ky create niao"
+    echo "    ky create niao 3000"
     exit 0
 fi
 
@@ -200,4 +200,4 @@ create_container "$name" "$path" "$WORKTREE" "$df" "$PORTS" "$symlinks" "$CONTAI
 
 echo ""
 echo "==> Done! Enter:"
-echo "    ~/orb/bin/enter-sandbox $PROJ_NAME${HOST_PORT:+ $HOST_PORT}"
+echo "    ky enter $PROJ_NAME${HOST_PORT:+ $HOST_PORT}"

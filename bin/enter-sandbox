@@ -20,7 +20,7 @@ SESSION="dev"
 # Check if container is running
 if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
     echo "ERROR: container '$CONTAINER' is not running"
-    echo "Run: ~/orb/bin/create-sandbox${PROJ:+ $PROJ}${PORT:+ $PORT}"
+    echo "Run: ky create${PROJ:+ $PROJ}${PORT:+ $PORT}"
     exit 1
 fi
 

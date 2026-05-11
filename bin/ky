@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# kyube — dev sandbox CLI (Docker-style subcommands)
+# ky — dev sandbox CLI (Docker-style subcommands)
 #
-#   kyube build                  Build base image
-#   kyube create NAME [PORT]     Create and start a sandbox
-#   kyube ps | ls                List sandbox containers
-#   kyube enter NAME [PORT]      Enter sandbox via tmux
-#   kyube exec  NAME [PORT] -- CMD  Run command in sandbox
-#   kyube stop  NAME [PORT]      Stop sandbox container
-#   kyube start NAME [PORT]      Start stopped sandbox container
-#   kyube rm    NAME [PORT]      Remove sandbox (container + worktree)
-#   kyube prune                  Remove all sandboxes
+#   ky build                  Build base image
+#   ky create NAME [PORT]     Create and start a sandbox
+#   ky ps | ls                List sandbox containers
+#   ky enter NAME [PORT]      Enter sandbox via tmux
+#   ky exec  NAME [PORT] -- CMD  Run command in sandbox
+#   ky stop  NAME [PORT]      Stop sandbox container
+#   ky start NAME [PORT]      Start stopped sandbox container
+#   ky rm    NAME [PORT]      Remove sandbox (container + worktree)
+#   ky prune                  Remove all sandboxes
 set -euo pipefail
 
 # User config (TOML) — self-contained: base image path + projects
-KYUBE_CONFIG="${KYUBE_CONFIG:-$HOME/.config/kyube/config.toml}"
+KY_CONFIG="${KY_CONFIG:-$HOME/.config/ky/config.toml}"
 BASE_IMAGE="dev-sandbox-base"
-WORKTREE_BASE="$HOME/.orb/worktrees"
+WORKTREE_BASE="$HOME/.ky/worktrees"
 
 # ---------- helpers ----------
 
@@ -51,7 +51,7 @@ symlinks = p.get("symlinks", [])
 item["symlinks"] = ",".join(symlinks) if symlinks else ""
 item["env_template"] = p.get("env_template", "")
 print(json.dumps(item))
-' "$KYUBE_CONFIG" "$name"
+' "$KY_CONFIG" "$name"
 }
 
 base_dir() {
@@ -59,7 +59,7 @@ base_dir() {
 import toml, sys, os
 cfg = toml.load(sys.argv[1])
 print(os.path.expanduser(cfg['base']['image']))
-" "$KYUBE_CONFIG"
+" "$KY_CONFIG"
 }
 
 extract() {
@@ -67,7 +67,7 @@ extract() {
 }
 
 ensure_config() {
-    [ -f "$KYUBE_CONFIG" ] || die "$KYUBE_CONFIG not found"
+    [ -f "$KY_CONFIG" ] || die "$KY_CONFIG not found"
 }
 
 # ---------- build ----------
@@ -78,7 +78,7 @@ cmd_build() {
     base=$(base_dir)
     echo "==> Building base image: $BASE_IMAGE"
     docker build -t "$BASE_IMAGE" "$base"
-    echo "==> Done: $BASE_IMAGE"
+    echo "==> (◕‿‿◕) Build complete: $BASE_IMAGE"
 }
 
 # ---------- create ----------
@@ -89,7 +89,7 @@ cmd_create() {
 
     local proj_json
     proj_json=$(parse_project "$name")
-    [ -n "$proj_json" ] || die "'$name' not found in $KYUBE_CONFIG"
+    [ -n "$proj_json" ] || die "'$name' not found in $KY_CONFIG"
 
     local path base_branch df symlinks env_template base
     path=$(extract "$proj_json" path)
@@ -191,8 +191,8 @@ cmd_create() {
         "$image"
 
     echo ""
-    echo "==> Done! Container: $container  Image: $image  Ports: ${ports:-none}"
-    echo "    kyube enter $name${host_port:+ $host_port}"
+    echo "==> (◕‿‿◕) Sandbox ready! Container: $container  Image: $image  Ports: ${ports:-none}"
+    echo "    ky enter $name${host_port:+ $host_port}"
 }
 
 # ---------- ps / ls ----------
@@ -202,7 +202,7 @@ cmd_ps() {
     containers=$(docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter 'name=dev-' 2>/dev/null || true)
 
     if [ -z "$containers" ]; then
-        echo "No sandbox containers"
+        echo "(◕‿‿◕) No sandbox containers — create one with: ky create <name>"
         return
     fi
 
@@ -220,7 +220,7 @@ cmd_enter() {
     container=$(resolve_container "$name" "$port")
 
     docker ps --format '{{.Names}}' | grep -qx "$container" \
-        || die "container '$container' is not running\n  Run: kyube create $name${port:+ $port}"
+        || die "container '$container' is not running\n  Run: ky create $name${port:+ $port}"
 
     local cmd
     if [ -n "$name" ]; then
@@ -256,7 +256,7 @@ cmd_exec() {
         shift
     fi
 
-    [ $# -gt 0 ] || die "exec requires a command\n  Usage: kyube exec NAME [PORT] [--] CMD..."
+    [ $# -gt 0 ] || die "exec requires a command\n  Usage: ky exec NAME [PORT] [--] CMD..."
 
     local container
     container=$(resolve_container "$name" "$port")
@@ -294,7 +294,7 @@ cmd_start() {
     container=$(resolve_container "$name" "$port")
 
     docker ps -a --format '{{.Names}}' | grep -qx "$container" \
-        || die "container '$container' does not exist\n  Run: kyube create $name${port:+ $port}"
+        || die "container '$container' does not exist\n  Run: ky create $name${port:+ $port}"
 
     if docker ps --format '{{.Names}}' | grep -qx "$container"; then
         echo "==> $container is already running"
@@ -310,12 +310,12 @@ cmd_start() {
 
 cmd_rm() {
     local name="${1:-}" port="${2:-}"
-    [ -n "$name" ] || die "rm requires a project name\n  Usage: kyube rm NAME [PORT]"
+    [ -n "$name" ] || die "rm requires a project name\n  Usage: ky rm NAME [PORT]"
 
     ensure_config
     local proj_json path
     proj_json=$(parse_project "$name")
-    [ -n "$proj_json" ] || die "'$name' not found in $KYUBE_CONFIG"
+    [ -n "$proj_json" ] || die "'$name' not found in $KY_CONFIG"
     path=$(extract "$proj_json" path)
     [ -d "$path" ] || die "$path not found"
 
@@ -361,7 +361,7 @@ cmd_rm() {
         docker volume rm "$claude_vol"
     fi
 
-    echo "==> Done: $container removed"
+    echo "==> (◕‿‿◕) Done: $container removed"
 }
 
 # ---------- prune ----------
@@ -375,7 +375,7 @@ import toml, sys
 cfg = toml.load(sys.argv[1])
 for name in sorted(cfg.get('projects', {}).keys()):
     print(name)
-" "$KYUBE_CONFIG")
+" "$KY_CONFIG")
 
     for proj in $names; do
         local path
@@ -384,7 +384,7 @@ import toml, sys, os
 cfg = toml.load(sys.argv[1])
 p = cfg['projects'][sys.argv[2]]
 print(os.path.expanduser(p['path']))
-" "$KYUBE_CONFIG" "$proj")
+" "$KY_CONFIG" "$proj")
 
         if [ ! -d "$path" ]; then
             echo "WARNING: $path not found, skip $proj"
@@ -423,14 +423,16 @@ print(os.path.expanduser(p['path']))
         done
     done
 
-    echo "==> All sandboxes cleaned"
+    echo "==> (◕‿‿◕) All sandboxes cleaned"
 }
 
 # ---------- help ----------
 
 usage() {
     cat <<'EOF'
-Usage:  kyube COMMAND
+(◕‿‿◕)  ky
+
+Usage:  ky COMMAND
 
 Commands:
   build                     Build base image
@@ -457,16 +459,16 @@ GITLAB_TOKEN="$(awk '/^[[:space:]]*token:/{print $2; exit}' "$HOME/Library/Appli
 case "${1:-}" in
     build)                   cmd_build ;;
     create)
-        [ -n "${2:-}" ] || die "create requires a project name\n  Usage: kyube create NAME [PORT]"
+        [ -n "${2:-}" ] || die "create requires a project name\n  Usage: ky create NAME [PORT]"
         cmd_create "$2" "${3:-}"
         ;;
     ps|ls)                   cmd_ps ;;
     enter)
-        [ -n "${2:-}" ] || die "enter requires a project name\n  Usage: kyube enter NAME [PORT]"
+        [ -n "${2:-}" ] || die "enter requires a project name\n  Usage: ky enter NAME [PORT]"
         cmd_enter "$2" "${3:-}"
         ;;
     exec)
-        [ -n "${2:-}" ] || die "exec requires a project name\n  Usage: kyube exec NAME [PORT] [--] CMD..."
+        [ -n "${2:-}" ] || die "exec requires a project name\n  Usage: ky exec NAME [PORT] [--] CMD..."
         shift
         cmd_exec "$@"
         ;;

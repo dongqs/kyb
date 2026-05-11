@@ -6,7 +6,7 @@
 
 ## 方案
 
-每个容器创建独立的 git worktree，挂在宿主机 `~/.orb/worktrees/<project>/<container>/`，Docker 挂载各自 worktree 而非主工作树。
+每个容器创建独立的 git worktree，挂在宿主机 `~/.ky/worktrees/<project>/<container>/`，Docker 挂载各自 worktree 而非主工作树。
 
 ## projects.toml 配置
 
@@ -42,7 +42,7 @@ create-sandbox niao 3333
 2. 解析 projects.toml，获取项目配置
 3. cd <主工作树路径>
 4. git fetch origin <base_branch>
-5. git worktree add ~/.orb/worktrees/niao/dev-niao-3333 origin/<base_branch>
+5. git worktree add ~/.ky/worktrees/niao/dev-niao-3333 origin/<base_branch>
    分支名: sandbox/niao-3333
    已存在则跳过，复用
 6. 对于每个 symlinks: Docker bind mount <主工作树>/<target> → 容器内 <项目>/<target> (只读)
@@ -51,7 +51,7 @@ create-sandbox niao 3333
 9. docker run -d
      - name: dev-niao-3333
      - -p 3333:3000
-     - -v ~/.orb/worktrees/niao/dev-niao-3333:/home/dev/projects/niao
+     - -v ~/.ky/worktrees/niao/dev-niao-3333:/home/dev/projects/niao
      - -v ~/github/niao:/home/dev/projects/niao/tiles:ro   # symlinks 每个单独挂载
      - -v ~/github/niao:~/github/niao   # 主工作树，保证容器内 git worktree 操作正常
      - -v niao-node_modules:/home/dev/projects/niao/node_modules
@@ -78,11 +78,11 @@ create-sandbox niao 3333
 
 ```bash
 # 收尾单个实例
-~/orb/bin/clean-sandbox niao 3333    # 删容器、worktree、分支、volume
-~/orb/bin/clean-sandbox niao         # 删默认端口的实例
+ky rm niao 3333                # 删容器、worktree、分支、volume
+ky rm niao                     # 删默认端口的实例
 
 # 全部推倒
-~/orb/bin/clean-sandbox --all
+ky prune
 ```
 
 脚本流程：① `docker rm -f` 容器 → ② `git worktree remove` 清理 worktree → ③ 删本地+远程 `sandbox/*` 分支 → ④ 删 per-container volume。如果 worktree 或容器已残留丢失，脚本会跳过并补刀清理。

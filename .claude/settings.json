@@ -2,7 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(docker *)",
-      "Bash(~/orb/bin/*)"
+      "Bash(~/ky/bin/*)"
     ]
   }
 }
