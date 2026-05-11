@@ -172,6 +172,38 @@ module Kyb::Docker
     puts "==> Done: #{container} stopped"
   end
 
+  def run_magic(container:, image:)
+    puts "==> #{container}: starting magic sandbox"
+
+    args = %w[docker run -d]
+    args += ['--name', container]
+    args += ['--hostname', container]
+    args += ['-e', "HOST_UID=#{Process.uid}"]
+    args += ['-e', "HOST_GID=#{Process.gid}"]
+    args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"]
+    args += ['-e', "CLAUDE_CODE_ATTRIBUTION_HEADER=#{ENV['CLAUDE_CODE_ATTRIBUTION_HEADER']}"]
+    args += ['-e', "CLAUDE_CODE_EFFORT_LEVEL=#{ENV['CLAUDE_CODE_EFFORT_LEVEL']}"]
+    args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"]
+
+    # Essential volume mounts
+    ssh_dir = File.expand_path('~/.ssh')
+    args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
+    args += ['-v', "#{ENV['HOME']}/.kimi:/home/dev/.kimi"]
+    args += ['-v', "#{ENV['HOME']}/.gitconfig:/home/dev/.gitconfig:ro"]
+    args += ['-v', "#{ENV['HOME']}/.claude/settings.json:/home/dev/.claude-host-settings.json:ro"]
+    skills = File.expand_path('~/.claude/skills')
+    args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
+    agents = File.expand_path('~/.agents')
+    args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
+    args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
+    args += ['-v', "#{container}-claude:/home/dev/.claude"]
+    args += ['-v', "#{container}-home:/home/dev"]
+
+    args << image
+
+    system(*args) || Kyb.die('docker run failed')
+  end
+
   def start_existing(container)
     if running?(container)
       puts "==> #{container} is already running"
@@ -258,6 +290,33 @@ module Kyb::CLI
     path = Kyb::Config.base_image_path
     Kyb::Docker.build(Kyb::BASE_IMAGE, path)
     puts "==> (◕‿‿◕) Build complete: #{Kyb::BASE_IMAGE}"
+  end
+
+  MAGIC_CONTAINER = 'dev-magic'
+
+  def magic
+    Kyb::Config.load
+    path = Kyb::Config.base_image_path
+    Kyb::Docker.build(Kyb::BASE_IMAGE, path)
+
+    if Kyb::Docker.running?(MAGIC_CONTAINER)
+      puts "==> #{MAGIC_CONTAINER} already running, entering..."
+    elsif Kyb::Docker.exists?(MAGIC_CONTAINER)
+      Kyb::Docker.start_existing(MAGIC_CONTAINER)
+    else
+      Kyb::Docker.run_magic(container: MAGIC_CONTAINER, image: Kyb::BASE_IMAGE)
+    end
+
+    cmd = 'claude'
+    dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
+    dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
+
+    if system('docker', 'exec', '-u', 'dev', MAGIC_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
+              %i[out err] => File::NULL)
+      exec(*dexec, MAGIC_CONTAINER, 'tmux', 'attach-session', '-t', 'dev')
+    else
+      exec(*dexec, MAGIC_CONTAINER, 'tmux', 'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
+    end
   end
 
   def init(args = [])
@@ -484,6 +543,7 @@ module Kyb::CLI
 
       Commands:
         build                     Build base image
+        magic, play               Launch disposable sandbox (no project)
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                   Add current project to config
         create NAME [PORT]        Create and start a sandbox
@@ -515,6 +575,8 @@ module Kyb::CLI
     case cmd
     when 'build'
       build
+    when 'magic', 'play'
+      magic
     when 'init'
       init(args)
     when 'create'
