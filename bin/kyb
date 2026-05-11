@@ -515,14 +515,6 @@ module Kyb::CLI
     puts "==> Done: #{container} removed  (◕‿‿◕)"
   end
 
-  def fix_dns
-    puts "==> Disabling OrbStack system proxy..."
-    %w[webproxy securewebproxy socksfirewallproxy].each do |proxy|
-      system('networksetup', "-set#{proxy}state", 'Wi-Fi', 'off')
-    end
-    puts "==> Done: system proxy disabled, DNS should work now  (◕‿‿◕)"
-  end
-
   def prune
     Kyb::Config.load
     Kyb::Config.project_names.each do |proj_name|
@@ -569,7 +561,7 @@ module Kyb::CLI
         start NAME [PORT]         Start stopped sandbox container
         rm    NAME [PORT]         Remove sandbox completely
         prune                     Remove all sandboxes
-        fix-dns                   Disable OrbStack system proxy (fix host DNS)
+
     EOF
   end
 
@@ -614,8 +606,6 @@ module Kyb::CLI
       rm(args[0], args[1])
     when 'prune'
       prune
-    when 'fix-dns'
-      fix_dns
     when 'help', '--help', '-h'
       help
     else
