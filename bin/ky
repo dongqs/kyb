@@ -361,7 +361,7 @@ cmd_rm() {
         docker volume rm "$claude_vol"
     fi
 
-    echo "==> (◕‿‿◕) Done: $container removed"
+    echo "==> Done: $container removed  (◕‿‿◕)"
 }
 
 # ---------- prune ----------
@@ -423,7 +423,7 @@ print(os.path.expanduser(p['path']))
         done
     done
 
-    echo "==> (◕‿‿◕) All sandboxes cleaned"
+    echo "==> All sandboxes cleaned  (◕‿‿◕)"
 }
 
 # ---------- help ----------
