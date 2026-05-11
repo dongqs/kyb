@@ -4,7 +4,7 @@
 require 'yaml'
 require 'fileutils'
 
-# ky — dev sandbox CLI
+# kyb — kubernate your branches — dev sandbox CLI
 module Ky
   CONFIG_FILE = File.expand_path('~/.config/ky/config.yml')
   BASE_IMAGE = 'dev-sandbox-base'
@@ -300,13 +300,13 @@ module Ky::CLI
 
     puts
     puts "==> (◕‿‿◕) Sandbox ready! Container: #{container}  Image: #{image}  Ports: #{ports || 'none'}"
-    puts "    ky enter #{name}#{host_port ? " #{host_port}" : ''}"
+    puts "    kyb enter #{name}#{host_port ? " #{host_port}" : ''}"
   end
 
   def ps
     list = Ky::Docker.ps_list
     if list.empty?
-      puts "(◕‿‿◕) No sandbox containers — create one with: ky create <name>"
+      puts "(◕‿‿◕) No sandbox containers — create one with: kyb create <name>"
       return
     end
     printf "%-30s  %-24s  %s\n", 'CONTAINER', 'STATUS', 'PORTS'
@@ -316,7 +316,7 @@ module Ky::CLI
 
   def enter(name, port = nil)
     container = Ky::Docker.container_name(name, port)
-    Ky.die("container '#{container}' is not running\n  Run: ky create #{name}#{" #{port}" if port}") unless Ky::Docker.running?(container)
+    Ky.die("container '#{container}' is not running\n  Run: kyb create #{name}#{" #{port}" if port}") unless Ky::Docker.running?(container)
 
     cmd = "cd ~/projects/#{name} && mise trust && claude"
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
@@ -356,12 +356,12 @@ module Ky::CLI
   def start(name, port = nil)
     Ky.die('start requires a project name') unless name
     container = Ky::Docker.container_name(name, port)
-    Ky.die("container '#{container}' does not exist\n  Run: ky create #{name}#{" #{port}" if port}") unless Ky::Docker.exists?(container)
+    Ky.die("container '#{container}' does not exist\n  Run: kyb create #{name}#{" #{port}" if port}") unless Ky::Docker.exists?(container)
     Ky::Docker.start_existing(container)
   end
 
   def rm(name, port = nil)
-    Ky.die("rm requires a project name\n  Usage: ky rm NAME [PORT]") unless name
+    Ky.die("rm requires a project name\n  Usage: kyb rm NAME [PORT]") unless name
     Ky::Config.load
     proj = Ky::Config.project(name)
     path = proj[:path]
@@ -409,9 +409,9 @@ module Ky::CLI
 
   def help
     puts <<~EOF
-      (◕‿‿◕)  ky
+      (◕‿‿◕)  kyb
 
-      Usage:  ky COMMAND
+      Usage:  kyb COMMAND
 
       Commands:
         build                     Build base image
@@ -445,15 +445,15 @@ module Ky::CLI
     when 'build'
       build
     when 'create'
-      Ky.die("create requires a project name\n  Usage: ky create NAME [PORT]") unless args.first
+      Ky.die("create requires a project name\n  Usage: kyb create NAME [PORT]") unless args.first
       create(args[0], args[1])
     when 'ps', 'ls'
       ps
     when 'enter'
-      Ky.die("enter requires a project name\n  Usage: ky enter NAME [PORT]") unless args.first
+      Ky.die("enter requires a project name\n  Usage: kyb enter NAME [PORT]") unless args.first
       enter(args[0], args[1])
     when 'exec'
-      Ky.die("exec requires a project name\n  Usage: ky exec NAME [PORT] [--] CMD...") unless args.first
+      Ky.die("exec requires a project name\n  Usage: kyb exec NAME [PORT] [--] CMD...") unless args.first
       exec_cmd(args[0], args[1..] || [])
     when 'stop'
       stop(args[0], args[1])
