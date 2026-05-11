@@ -1,481 +1,474 @@
-#!/usr/bin/env bash
-# ky — dev sandbox CLI (Docker-style subcommands)
-#
-#   ky build                  Build base image
-#   ky create NAME [PORT]     Create and start a sandbox
-#   ky ps | ls                List sandbox containers
-#   ky enter NAME [PORT]      Enter sandbox via tmux
-#   ky exec  NAME [PORT] -- CMD  Run command in sandbox
-#   ky stop  NAME [PORT]      Stop sandbox container
-#   ky start NAME [PORT]      Start stopped sandbox container
-#   ky rm    NAME [PORT]      Remove sandbox (container + worktree)
-#   ky prune                  Remove all sandboxes
-set -euo pipefail
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-# User config (TOML) — self-contained: base image path + projects
-KY_CONFIG="${KY_CONFIG:-$HOME/.config/ky/config.toml}"
-BASE_IMAGE="dev-sandbox-base"
-WORKTREE_BASE="$HOME/.ky/worktrees"
+require 'yaml'
+require 'fileutils'
 
-# ---------- helpers ----------
+# ky — dev sandbox CLI
+module Ky
+  CONFIG_FILE = File.expand_path('~/.config/ky/config.yml')
+  BASE_IMAGE = 'dev-sandbox-base'
+  WORKTREE_BASE = File.expand_path('~/.ky/worktrees')
 
-die() { echo "ERROR: $*" >&2; exit 1; }
+  module_function
 
-resolve_container() {
-    local name="$1" port="${2:-}"
-    if [ -n "$port" ]; then
-        echo "dev-${name}-${port}"
+  def die(msg)
+    warn "ERROR: #{msg}"
+    exit 1
+  end
+end
+
+# ---------- Config ----------
+
+module Ky::Config
+  module_function
+
+  def load
+    Ky.die("#{Ky::CONFIG_FILE} not found") unless File.exist?(Ky::CONFIG_FILE)
+    @config ||= YAML.safe_load_file(Ky::CONFIG_FILE, permitted_classes: [Symbol])
+  end
+
+  def base_image_path
+    File.expand_path(load.dig('base', 'image'))
+  end
+
+  def project(name)
+    p = load.dig('projects', name)
+    Ky.die("'#{name}' not found in #{Ky::CONFIG_FILE}") unless p
+    {
+      name: name,
+      path: File.expand_path(p['path']),
+      base_branch: p['base_branch'],
+      dockerfile: p['dockerfile'],
+      ports: Array(p['ports']).map(&:to_s).reject(&:empty?).join(','),
+      symlinks: Array(p['symlinks']).map(&:to_s).reject(&:empty?).join(','),
+      env_template: p['env_template']
+    }
+  end
+
+  def project_names
+    (load['projects'] || {}).keys.sort
+  end
+end
+
+# ---------- Docker ----------
+
+module Ky::Docker
+  module_function
+
+  def build(tag, path)
+    puts "==> Building base image: #{tag}"
+    system('docker', 'build', '-t', tag, path.to_s) || Ky.die('docker build failed')
+  end
+
+  def project_image(name, dockerfile, context)
+    image = "dev-#{name}"
+    puts "==> #{name}: building project image (#{dockerfile})"
+    system('docker', 'build', '-t', image, '-f', dockerfile.to_s, context.to_s) || Ky.die('docker build failed')
+    image
+  end
+
+  def container_name(name, port = nil)
+    port ? "dev-#{name}-#{port}" : "dev-#{name}"
+  end
+
+  def running?(container)
+    `docker ps --format '{{.Names}}'`.lines.map(&:strip).include?(container)
+  end
+
+  def exists?(container)
+    `docker ps -a --format '{{.Names}}'`.lines.map(&:strip).include?(container)
+  end
+
+  def ps_list
+    out = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter 'name=dev-' 2>/dev/null`
+    return [] if out.strip.empty?
+    out.lines.map { |l| l.strip.split("\t", 3) }
+  end
+
+  def remove_container(container)
+    if exists?(container)
+      puts "==> #{container}: removing container"
+      system('docker', 'rm', '-f', container)
     else
-        echo "dev-${name}"
-    fi
-}
+      puts "==> #{container}: container not found, skip"
+    end
+  end
 
-parse_project() {
-    local name="$1"
-    python3 -c '
-import toml, json, sys, os
+  def volume_rm(volume)
+    return unless system('docker', 'volume', 'ls', '-q', out: File::NULL) &&
+                  `docker volume ls -q`.lines.map(&:strip).include?(volume)
+    puts "==> #{volume}: removing volume"
+    system('docker', 'volume', 'rm', volume)
+  end
 
-cfg = toml.load(sys.argv[1])
-name = sys.argv[2]
-p = cfg["projects"][name]
-item = {
-    "name": name,
-    "path": os.path.expanduser(p["path"]),
-    "base_branch": p["base_branch"],
-}
-if "dockerfile" in p:
-    item["dockerfile"] = p["dockerfile"]
-ports = p.get("ports", [])
-item["ports"] = ",".join(ports) if ports else ""
-symlinks = p.get("symlinks", [])
-item["symlinks"] = ",".join(symlinks) if symlinks else ""
-item["env_template"] = p.get("env_template", "")
-print(json.dumps(item))
-' "$KY_CONFIG" "$name"
-}
+  def containers_for_project(name)
+    out = `docker ps -a --format '{{.Names}}' --filter 'name=dev-#{name}' 2>/dev/null`
+    out.lines.map(&:strip).reject(&:empty?)
+  end
 
-base_dir() {
-    python3 -c "
-import toml, sys, os
-cfg = toml.load(sys.argv[1])
-print(os.path.expanduser(cfg['base']['image']))
-" "$KY_CONFIG"
-}
+  def run(container:, image:, hostname:, wt_path:, project_name:, project_path:, ports:, symlinks:)
+    puts "==> #{container}: starting (#{wt_path} -> /home/dev/projects/#{project_name})"
 
-extract() {
-    echo "$1" | python3 -c "import json,sys; print(json.load(sys.stdin).get('$2',''))"
-}
+    args = %w[docker run -d]
+    args += ['--name', container]
+    args += ['--hostname', hostname]
+    args += ['-e', "HOST_UID=#{Process.uid}"]
+    args += ['-e', "HOST_GID=#{Process.gid}"]
+    args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"]
+    args += ['-e', "CLAUDE_CODE_ATTRIBUTION_HEADER=#{ENV['CLAUDE_CODE_ATTRIBUTION_HEADER']}"]
+    args += ['-e', "CLAUDE_CODE_EFFORT_LEVEL=#{ENV['CLAUDE_CODE_EFFORT_LEVEL']}"]
+    args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"]
+    args += ['-e', "SANDBOX_PROJECT=#{project_name}"]
 
-ensure_config() {
-    [ -f "$KY_CONFIG" ] || die "$KY_CONFIG not found"
-}
+    # Volume mounts
+    ssh_dir = File.expand_path('~/.ssh')
+    args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
+    args += ['-v', "#{ENV['HOME']}/.kimi:/home/dev/.kimi"]
+    args += ['-v', "#{ENV['HOME']}/.gitconfig:/home/dev/.gitconfig:ro"]
+    args += ['-v', "#{ENV['HOME']}/.claude/settings.json:/home/dev/.claude-host-settings.json:ro"]
+    skills = File.expand_path('~/.claude/skills')
+    args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
+    agents = File.expand_path('~/.agents')
+    args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
+    args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
+    args += ['-v', "#{container}-claude:/home/dev/.claude"]
+    args += ['-v', "#{wt_path}:/home/dev/projects/#{project_name}"]
+    args += ['-v', "#{project_name}-node_modules:/home/dev/projects/#{project_name}/node_modules"]
+    args += ['-v', "#{project_path}:#{project_path}"]
 
-# ---------- build ----------
+    # Symlinks
+    symlinks.to_s.split(',').each do |link|
+      next if link.empty?
+      args += ['-v', "#{project_path}/#{link}:/home/dev/projects/#{project_name}/#{link}:ro"]
+    end
 
-cmd_build() {
-    ensure_config
-    local base
-    base=$(base_dir)
-    echo "==> Building base image: $BASE_IMAGE"
-    docker build -t "$BASE_IMAGE" "$base"
-    echo "==> (◕‿‿◕) Build complete: $BASE_IMAGE"
-}
+    # Ports
+    ports.to_s.split(',').each do |p|
+      next if p.empty?
+      args += ['-p', p]
+    end
 
-# ---------- create ----------
+    args << image
 
-cmd_create() {
-    local name="$1" host_port="${2:-}"
-    ensure_config
+    system(*args) || Ky.die('docker run failed')
+  end
 
-    local proj_json
-    proj_json=$(parse_project "$name")
-    [ -n "$proj_json" ] || die "'$name' not found in $KY_CONFIG"
+  def stop(container)
+    puts "==> Stopping #{container}"
+    system('docker', 'stop', container)
+    puts "==> Done: #{container} stopped"
+  end
 
-    local path base_branch df symlinks env_template base
-    path=$(extract "$proj_json" path)
-    base_branch=$(extract "$proj_json" base_branch)
-    df=$(extract "$proj_json" dockerfile)
-    symlinks=$(extract "$proj_json" symlinks)
-    env_template=$(extract "$proj_json" env_template)
-    base=$(base_dir)
+  def start_existing(container)
+    if running?(container)
+      puts "==> #{container} is already running"
+      return
+    end
+    puts "==> Starting #{container}"
+    system('docker', 'start', container)
+    puts "==> Done: #{container} started"
+  end
+end
+
+# ---------- Git ----------
+
+module Ky::Git
+  module_function
+
+  def worktree_path(name, container)
+    File.join(Ky::WORKTREE_BASE, name, container)
+  end
+
+  def branch(container)
+    "sandbox/#{container.sub('dev-', '')}"
+  end
+
+  def setup_worktree(repo_path, base_branch, worktree, container)
+    branch_name = branch(container)
+
+    if File.directory?(worktree)
+      puts "==> worktree exists, reusing (#{worktree})"
+      return
+    end
+
+    puts "==> creating worktree from origin/#{base_branch} (#{branch_name})"
+    FileUtils.mkdir_p(File.dirname(worktree))
+    Dir.chdir(repo_path) do
+      system('git', 'fetch', 'origin', base_branch) || Ky.die('git fetch failed')
+      system('git', 'worktree', 'add', worktree, "origin/#{base_branch}", '-b', branch_name) ||
+        Ky.die('git worktree add failed')
+    end
+  end
+
+  def remove_worktree(repo_path, worktree)
+    return unless File.directory?(worktree)
+
+    branch_name = File.basename(worktree) # container name as fallback
+    puts "==> removing worktree #{worktree}"
+    Dir.chdir(repo_path) do
+      unless system('git', 'worktree', 'remove', worktree)
+        warn '     worktree remove failed, pruning...'
+        FileUtils.rm_rf(worktree)
+        system('git', 'worktree', 'prune')
+      end
+    end
+  end
+
+  def delete_local_branch(repo_path, container)
+    branch_name = branch(container)
+    Dir.chdir(repo_path) do
+      return unless system('git', 'branch', '--list', branch_name, out: File::NULL) &&
+                    !`git branch --list #{branch_name}`.strip.empty?
+      puts "==> #{branch_name}: deleting local branch"
+      system('git', 'branch', '-D', branch_name)
+    end
+  end
+
+  def delete_remote_branch(repo_path, container)
+    branch_name = branch(container)
+    Dir.chdir(repo_path) do
+      return unless system('git', 'ls-remote', '--heads', 'origin', branch_name, out: File::NULL) &&
+                    !`git ls-remote --heads origin #{branch_name}`.strip.empty?
+      puts "==> #{branch_name}: deleting remote branch"
+      system('git', 'push', 'origin', '--delete', branch_name)
+    end
+  end
+end
+
+# ---------- CLI ----------
+
+module Ky::CLI
+  module_function
+
+  def build
+    Ky::Config.load
+    path = Ky::Config.base_image_path
+    Ky::Docker.build(Ky::BASE_IMAGE, path)
+    puts "==> (◕‿‿◕) Build complete: #{Ky::BASE_IMAGE}"
+  end
+
+  def create(name, host_port = nil)
+    Ky::Config.load
+    proj = Ky::Config.project(name)
+    path = proj[:path]
+    base = Ky::Config.base_image_path
 
     # Build base image
-    echo "==> Building base image: $BASE_IMAGE"
-    docker build -t "$BASE_IMAGE" "$base"
+    Ky::Docker.build(Ky::BASE_IMAGE, base)
 
-    # Determine container name and ports
-    local container ports
-    if [ -n "$host_port" ]; then
-        container="dev-${name}-${host_port}"
-        ports="${host_port}:3000"
-    else
-        container="dev-${name}"
-        ports=$(extract "$proj_json" ports)
-    fi
+    # Determine container and ports
+    container = Ky::Docker.container_name(name, host_port)
+    ports = host_port ? "#{host_port}:3000" : proj[:ports]
+    image = Ky::BASE_IMAGE
 
-    # Setup git worktree
-    local wt_path="${WORKTREE_BASE}/${name}/${container}"
-    if [ -d "$wt_path" ]; then
-        echo "==> $name: worktree exists, reusing ($wt_path)"
-    else
-        local branch="sandbox/${container#dev-}"
-        echo "==> $name: creating worktree from origin/$base_branch ($branch)"
-        mkdir -p "$(dirname "$wt_path")"
-        git -C "$path" fetch origin "$base_branch"
-        git -C "$path" worktree add "$wt_path" "origin/${base_branch}" -b "$branch"
-    fi
+    # Setup worktree
+    wt_path = Ky::Git.worktree_path(name, container)
+    Ky::Git.setup_worktree(path, proj[:base_branch], wt_path, container)
 
     # Setup .env from template
-    if [ -n "$env_template" ]; then
-        echo "     cp $path/$env_template -> .env"
-        cp "${path}/${env_template}" "${wt_path}/.env"
-    fi
+    if proj[:env_template] && !proj[:env_template].empty?
+      src = File.join(path, proj[:env_template])
+      dst = File.join(wt_path, '.env')
+      puts "     cp #{src} -> .env"
+      FileUtils.cp(src, dst)
+    end
 
-    # Build project-specific image if Dockerfile specified
-    local image="$BASE_IMAGE"
-    if [ -n "$df" ]; then
-        image="dev-${name}"
-        echo "==> $name: building project image ($df)"
-        docker build -t "$image" -f "${path}/${df}" "$path"
-    fi
+    # Build project-specific image
+    if proj[:dockerfile]
+      df_path = File.join(path, proj[:dockerfile])
+      image = Ky::Docker.project_image(name, df_path, path)
+    end
 
     # Remove existing container
-    docker rm -f "$container" 2>/dev/null || true
+    Ky::Docker.remove_container(container)
 
     # Ensure host dirs exist
-    mkdir -p "$HOME/.kimi"
+    FileUtils.mkdir_p(File.expand_path('~/.kimi'))
 
-    # Build port args
-    local port_args=()
-    if [ -n "$ports" ]; then
-        IFS=',' read -ra port_list <<< "$ports"
-        for p in "${port_list[@]}"; do
-            [ -n "$p" ] && port_args+=(-p "$p")
-        done
-    fi
+    # Start container
+    Ky::Docker.run(
+      container: container,
+      image: image,
+      hostname: container,
+      wt_path: wt_path,
+      project_name: name,
+      project_path: path,
+      ports: ports,
+      symlinks: proj[:symlinks]
+    )
 
-    # Build symlink bind-mount args
-    local link_args=()
-    if [ -n "$symlinks" ]; then
-        IFS=',' read -ra link_list <<< "$symlinks"
-        for link in "${link_list[@]}"; do
-            [ -z "$link" ] && continue
-            link_args+=(-v "${path}/${link}:/home/dev/projects/${name}/${link}:ro")
-        done
-    fi
+    puts
+    puts "==> (◕‿‿◕) Sandbox ready! Container: #{container}  Image: #{image}  Ports: #{ports || 'none'}"
+    puts "    ky enter #{name}#{host_port ? " #{host_port}" : ''}"
+  end
 
-    echo "==> $container: starting ($wt_path -> /home/dev/projects/$name)"
-    docker run -d \
-        --name "$container" \
-        --hostname "$container" \
-        -e "HOST_UID=$(id -u)" \
-        -e "HOST_GID=$(id -g)" \
-        -e "GITLAB_TOKEN=${GITLAB_TOKEN:-}" \
-        -e "CLAUDE_CODE_ATTRIBUTION_HEADER=${CLAUDE_CODE_ATTRIBUTION_HEADER:-}" \
-        -e "CLAUDE_CODE_EFFORT_LEVEL=${CLAUDE_CODE_EFFORT_LEVEL:-}" \
-        -e "KIMI_API_KEY=${KIMI_API_KEY:-}" \
-        -e "SANDBOX_PROJECT=${name}" \
-        -v "$HOME/.ssh:/home/dev/.ssh:ro" \
-        -v "$HOME/.kimi:/home/dev/.kimi" \
-        -v "$HOME/.gitconfig:/home/dev/.gitconfig:ro" \
-        -v "$HOME/.claude/settings.json:/home/dev/.claude-host-settings.json:ro" \
-        -v "$HOME/.claude/skills:/home/dev/.claude-skills-host:ro" \
-        -v "$HOME/.agents:/home/.agents:ro" \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -v "${container}-claude:/home/dev/.claude" \
-        -v "${wt_path}:/home/dev/projects/${name}" \
-        -v "${name}-node_modules:/home/dev/projects/${name}/node_modules" \
-        -v "${path}:${path}" \
-        ${link_args:+"${link_args[@]}"} \
-        ${port_args:+"${port_args[@]}"} \
-        "$image"
+  def ps
+    list = Ky::Docker.ps_list
+    if list.empty?
+      puts "(◕‿‿◕) No sandbox containers — create one with: ky create <name>"
+      return
+    end
+    printf "%-30s  %-24s  %s\n", 'CONTAINER', 'STATUS', 'PORTS'
+    list.each { |name, status, ports| printf "%-30s  %-24s  %s\n", name, status, ports }
+  end
+  singleton_class.alias_method :ls, :ps
 
-    echo ""
-    echo "==> (◕‿‿◕) Sandbox ready! Container: $container  Image: $image  Ports: ${ports:-none}"
-    echo "    ky enter $name${host_port:+ $host_port}"
-}
+  def enter(name, port = nil)
+    container = Ky::Docker.container_name(name, port)
+    Ky.die("container '#{container}' is not running\n  Run: ky create #{name}#{" #{port}" if port}") unless Ky::Docker.running?(container)
 
-# ---------- ps / ls ----------
+    cmd = "cd ~/projects/#{name} && mise trust && claude"
+    dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
+    dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
-cmd_ps() {
-    local containers
-    containers=$(docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter 'name=dev-' 2>/dev/null || true)
-
-    if [ -z "$containers" ]; then
-        echo "(◕‿‿◕) No sandbox containers — create one with: ky create <name>"
-        return
-    fi
-
-    printf "%-30s  %-24s  %s\n" "CONTAINER" "STATUS" "PORTS"
-    while IFS=$'\t' read -r name status ports; do
-        printf "%-30s  %-24s  %s\n" "$name" "$status" "${ports:-}"
-    done <<< "$containers"
-}
-
-# ---------- enter ----------
-
-cmd_enter() {
-    local name="$1" port="${2:-}"
-    local container session="dev"
-    container=$(resolve_container "$name" "$port")
-
-    docker ps --format '{{.Names}}' | grep -qx "$container" \
-        || die "container '$container' is not running\n  Run: ky create $name${port:+ $port}"
-
-    local cmd
-    if [ -n "$name" ]; then
-        cmd="cd ~/projects/$name && mise trust && claude"
+    if system('docker', 'exec', '-u', 'dev', container, 'tmux', 'has-session', '-t', 'dev',
+              %i[out err] => File::NULL)
+      exec(*dexec, container, 'tmux', 'attach-session', '-t', 'dev')
     else
-        cmd="claude"
-    fi
+      exec(*dexec, container, 'tmux', 'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
+    end
+  end
 
-    local dexec=(docker exec -it -u dev -w /home/dev)
-    [ -n "${KIMI_API_KEY:-}" ] && dexec+=(-e "KIMI_API_KEY=$KIMI_API_KEY")
+  def exec_cmd(name, args)
+    port = nil
+    # Parse optional port
+    if args.first =~ /^\d+$/
+      port = args.shift
+    end
+    # Consume optional --
+    args.shift if args.first == '--'
+    Ky.die('exec requires a command') if args.empty?
 
-    if docker exec -u dev "$container" tmux has-session -t "$session" 2>/dev/null; then
-        exec "${dexec[@]}" "$container" tmux attach-session -t "$session"
+    container = Ky::Docker.container_name(name, port)
+    Ky.die("container '#{container}' is not running") unless Ky::Docker.running?(container)
+
+    exec('docker', 'exec', '-it', '-u', 'dev', '-w', "/home/dev/projects/#{name}", container, *args)
+  end
+
+  def stop(name, port = nil)
+    Ky.die('stop requires a project name') unless name
+    container = Ky::Docker.container_name(name, port)
+    Ky.die("container '#{container}' is not running") unless Ky::Docker.running?(container)
+    Ky::Docker.stop(container)
+  end
+
+  def start(name, port = nil)
+    Ky.die('start requires a project name') unless name
+    container = Ky::Docker.container_name(name, port)
+    Ky.die("container '#{container}' does not exist\n  Run: ky create #{name}#{" #{port}" if port}") unless Ky::Docker.exists?(container)
+    Ky::Docker.start_existing(container)
+  end
+
+  def rm(name, port = nil)
+    Ky.die("rm requires a project name\n  Usage: ky rm NAME [PORT]") unless name
+    Ky::Config.load
+    proj = Ky::Config.project(name)
+    path = proj[:path]
+    Ky.die("#{path} not found") unless File.directory?(path)
+
+    container = Ky::Docker.container_name(name, port)
+    Ky::Docker.remove_container(container)
+
+    wt_path = Ky::Git.worktree_path(name, container)
+    Ky::Git.remove_worktree(path, wt_path)
+    Ky::Git.delete_local_branch(path, container)
+    Ky::Git.delete_remote_branch(path, container)
+
+    Ky::Docker.volume_rm("#{container}-claude")
+
+    puts "==> Done: #{container} removed  (◕‿‿◕)"
+  end
+
+  def prune
+    Ky::Config.load
+    Ky::Config.project_names.each do |proj_name|
+      proj = Ky::Config.project(proj_name)
+      path = proj[:path]
+      unless File.directory?(path)
+        warn "WARNING: #{path} not found, skip #{proj_name}"
+        next
+      end
+
+      Ky::Docker.containers_for_project(proj_name).each do |c|
+        puts "==> #{c}: removing container"
+        system('docker', 'rm', '-f', c)
+
+        wt_path = Ky::Git.worktree_path(proj_name, c)
+        Ky::Git.remove_worktree(path, wt_path)
+        Ky::Git.delete_local_branch(path, c)
+        Ky::Git.delete_remote_branch(path, c)
+
+        Ky::Docker.volume_rm("#{c}-claude")
+        puts
+      end
+    end
+
+    puts "==> All sandboxes cleaned  (◕‿‿◕)"
+  end
+
+  def help
+    puts <<~EOF
+      (◕‿‿◕)  ky
+
+      Usage:  ky COMMAND
+
+      Commands:
+        build                     Build base image
+        create NAME [PORT]        Create and start a sandbox
+        ps, ls                    List sandbox containers
+        enter NAME [PORT]         Enter sandbox via interactive shell
+        exec  NAME [PORT] -- CMD  Run command in sandbox
+        stop  NAME [PORT]         Stop sandbox container
+        start NAME [PORT]         Start stopped sandbox container
+        rm    NAME [PORT]         Remove sandbox completely
+        prune                     Remove all sandboxes
+    EOF
+  end
+
+  def dispatch(argv)
+    # Pre-flight
+    gitconfig = File.expand_path('~/.gitconfig')
+    FileUtils.touch(gitconfig) unless File.exist?(gitconfig)
+
+    # GitLab token from glab config
+    glab_config = File.expand_path('~/Library/Application Support/glab-cli/config.yml')
+    if File.exist?(glab_config)
+      token = YAML.safe_load_file(glab_config, permitted_classes: [Symbol, Time]) rescue nil
+      ENV['GITLAB_TOKEN'] ||= token&.dig('hosts', 'git.leyantech.com', 'token').to_s
+    end
+
+    cmd = argv.first || 'help'
+    args = argv[1..] || []
+
+    case cmd
+    when 'build'
+      build
+    when 'create'
+      Ky.die("create requires a project name\n  Usage: ky create NAME [PORT]") unless args.first
+      create(args[0], args[1])
+    when 'ps', 'ls'
+      ps
+    when 'enter'
+      Ky.die("enter requires a project name\n  Usage: ky enter NAME [PORT]") unless args.first
+      enter(args[0], args[1])
+    when 'exec'
+      Ky.die("exec requires a project name\n  Usage: ky exec NAME [PORT] [--] CMD...") unless args.first
+      exec_cmd(args[0], args[1..] || [])
+    when 'stop'
+      stop(args[0], args[1])
+    when 'start'
+      start(args[0], args[1])
+    when 'rm'
+      rm(args[0], args[1])
+    when 'prune'
+      prune
+    when 'help', '--help', '-h'
+      help
     else
-        exec "${dexec[@]}" "$container" tmux new-session -s "$session" \; send-keys "$cmd" Enter
-    fi
-}
+      help
+    end
+  end
+end
 
-# ---------- exec ----------
-
-cmd_exec() {
-    local name="$1" port="" cmd_args=()
-    shift
-
-    # Parse optional port (numeric arg)
-    if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then
-        port="$1"
-        shift
-    fi
-
-    # Consume optional -- separator
-    if [ $# -gt 0 ] && [ "$1" = "--" ]; then
-        shift
-    fi
-
-    [ $# -gt 0 ] || die "exec requires a command\n  Usage: ky exec NAME [PORT] [--] CMD..."
-
-    local container
-    container=$(resolve_container "$name" "$port")
-
-    docker ps --format '{{.Names}}' | grep -qx "$container" \
-        || die "container '$container' is not running"
-
-    docker exec -it -u dev -w /home/dev/projects/"$name" "$container" "$@"
-}
-
-# ---------- stop ----------
-
-cmd_stop() {
-    local name="${1:-}" port="${2:-}"
-    [ -n "$name" ] || die "stop requires a project name"
-
-    local container
-    container=$(resolve_container "$name" "$port")
-
-    docker ps --format '{{.Names}}' | grep -qx "$container" \
-        || die "container '$container' is not running"
-
-    echo "==> Stopping $container"
-    docker stop "$container"
-    echo "==> Done: $container stopped"
-}
-
-# ---------- start ----------
-
-cmd_start() {
-    local name="${1:-}" port="${2:-}"
-    [ -n "$name" ] || die "start requires a project name"
-
-    local container
-    container=$(resolve_container "$name" "$port")
-
-    docker ps -a --format '{{.Names}}' | grep -qx "$container" \
-        || die "container '$container' does not exist\n  Run: ky create $name${port:+ $port}"
-
-    if docker ps --format '{{.Names}}' | grep -qx "$container"; then
-        echo "==> $container is already running"
-        return
-    fi
-
-    echo "==> Starting $container"
-    docker start "$container"
-    echo "==> Done: $container started"
-}
-
-# ---------- rm ----------
-
-cmd_rm() {
-    local name="${1:-}" port="${2:-}"
-    [ -n "$name" ] || die "rm requires a project name\n  Usage: ky rm NAME [PORT]"
-
-    ensure_config
-    local proj_json path
-    proj_json=$(parse_project "$name")
-    [ -n "$proj_json" ] || die "'$name' not found in $KY_CONFIG"
-    path=$(extract "$proj_json" path)
-    [ -d "$path" ] || die "$path not found"
-
-    local container
-    container=$(resolve_container "$name" "$port")
-
-    # 1. Container
-    if docker ps -a --format '{{.Names}}' | grep -qx "$container"; then
-        echo "==> $container: removing container"
-        docker rm -f "$container"
-    else
-        echo "==> $container: container not found, skip"
-    fi
-
-    # 2. Worktree
-    local wt_path="${WORKTREE_BASE}/${name}/${container}"
-    local branch="sandbox/${container#dev-}"
-    if [ -d "$wt_path" ]; then
-        echo "==> $branch: removing worktree $wt_path"
-        git -C "$path" worktree remove "$wt_path" 2>/dev/null || {
-            echo "     worktree remove failed, pruning..."
-            rm -rf "$wt_path"
-            git -C "$path" worktree prune
-        }
-    fi
-
-    # 3. Local branch
-    if git -C "$path" branch --list "$branch" | grep -q .; then
-        echo "==> $branch: deleting local branch"
-        git -C "$path" branch -D "$branch"
-    fi
-
-    # 4. Remote branch
-    if git -C "$path" ls-remote --heads origin "$branch" | grep -q .; then
-        echo "==> $branch: deleting remote branch"
-        git -C "$path" push origin --delete "$branch"
-    fi
-
-    # 5. Claude volume
-    local claude_vol="${container}-claude"
-    if docker volume ls -q | grep -qx "$claude_vol"; then
-        echo "==> $claude_vol: removing volume"
-        docker volume rm "$claude_vol"
-    fi
-
-    echo "==> Done: $container removed  (◕‿‿◕)"
-}
-
-# ---------- prune ----------
-
-cmd_prune() {
-    ensure_config
-
-    local names
-    names=$(python3 -c "
-import toml, sys
-cfg = toml.load(sys.argv[1])
-for name in sorted(cfg.get('projects', {}).keys()):
-    print(name)
-" "$KY_CONFIG")
-
-    for proj in $names; do
-        local path
-        path=$(python3 -c "
-import toml, sys, os
-cfg = toml.load(sys.argv[1])
-p = cfg['projects'][sys.argv[2]]
-print(os.path.expanduser(p['path']))
-" "$KY_CONFIG" "$proj")
-
-        if [ ! -d "$path" ]; then
-            echo "WARNING: $path not found, skip $proj"
-            continue
-        fi
-
-        local containers
-        containers=$(docker ps -a --format '{{.Names}}' --filter "name=dev-${proj}" 2>/dev/null || true)
-        for c in $containers; do
-            echo "==> $c: removing container"
-            docker rm -f "$c"
-
-            local wt_path="${WORKTREE_BASE}/${proj}/${c}"
-            local branch="sandbox/${c#dev-}"
-            if [ -d "$wt_path" ]; then
-                echo "==> $branch: removing worktree $wt_path"
-                git -C "$path" worktree remove "$wt_path" 2>/dev/null || {
-                    rm -rf "$wt_path"
-                    git -C "$path" worktree prune
-                }
-            fi
-            if git -C "$path" branch --list "$branch" | grep -q .; then
-                echo "==> $branch: deleting local branch"
-                git -C "$path" branch -D "$branch"
-            fi
-            if git -C "$path" ls-remote --heads origin "$branch" | grep -q .; then
-                echo "==> $branch: deleting remote branch"
-                git -C "$path" push origin --delete "$branch"
-            fi
-            local claude_vol="${c}-claude"
-            if docker volume ls -q | grep -qx "$claude_vol"; then
-                echo "==> $claude_vol: removing volume"
-                docker volume rm "$claude_vol"
-            fi
-            echo ""
-        done
-    done
-
-    echo "==> All sandboxes cleaned  (◕‿‿◕)"
-}
-
-# ---------- help ----------
-
-usage() {
-    cat <<'EOF'
-(◕‿‿◕)  ky
-
-Usage:  ky COMMAND
-
-Commands:
-  build                     Build base image
-  create NAME [PORT]        Create and start a sandbox
-  ps, ls                    List sandbox containers
-  enter NAME [PORT]         Enter sandbox via interactive shell
-  exec  NAME [PORT] -- CMD  Run command in sandbox
-  stop  NAME [PORT]         Stop sandbox container
-  start NAME [PORT]         Start stopped sandbox container
-  rm    NAME [PORT]         Remove sandbox completely
-  prune                     Remove all sandboxes
-EOF
-    exit 0
-}
-
-# ---------- dispatch ----------
-
-# Pre-flight: ensure gitconfig exists (Docker mount requires a file)
-touch "$HOME/.gitconfig" 2>/dev/null || true
-
-# Load GitLab token for create
-GITLAB_TOKEN="$(awk '/^[[:space:]]*token:/{print $2; exit}' "$HOME/Library/Application Support/glab-cli/config.yml" 2>/dev/null || true)"
-
-case "${1:-}" in
-    build)                   cmd_build ;;
-    create)
-        [ -n "${2:-}" ] || die "create requires a project name\n  Usage: ky create NAME [PORT]"
-        cmd_create "$2" "${3:-}"
-        ;;
-    ps|ls)                   cmd_ps ;;
-    enter)
-        [ -n "${2:-}" ] || die "enter requires a project name\n  Usage: ky enter NAME [PORT]"
-        cmd_enter "$2" "${3:-}"
-        ;;
-    exec)
-        [ -n "${2:-}" ] || die "exec requires a project name\n  Usage: ky exec NAME [PORT] [--] CMD..."
-        shift
-        cmd_exec "$@"
-        ;;
-    stop)                    cmd_stop "${2:-}" "${3:-}" ;;
-    start)                   cmd_start "${2:-}" "${3:-}" ;;
-    rm)                      cmd_rm "${2:-}" "${3:-}" ;;
-    prune)                   cmd_prune ;;
-    help|--help|-h)          usage ;;
-    *)                       usage ;;
-esac
+Ky::CLI.dispatch(ARGV) if __FILE__ == $PROGRAM_NAME
