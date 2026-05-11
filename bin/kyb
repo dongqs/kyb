@@ -305,6 +305,13 @@ module Kyb::CLI
       Kyb::Docker.start_existing(PLAY_CONTAINER)
     else
       Kyb::Docker.run_play(container: PLAY_CONTAINER, image: Kyb::BASE_IMAGE)
+      # Wait for entrypoint to generate settings.json
+      30.times do
+        break if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER,
+                        'test', '-f', '/home/dev/.claude/settings.json',
+                        out: File::NULL, err: File::NULL)
+        sleep 0.5
+      end
     end
 
     cmd = 'claude'
