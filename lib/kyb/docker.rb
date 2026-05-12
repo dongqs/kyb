@@ -28,7 +28,7 @@ module Kyb::Docker
   end
 
   def port_in_use?(port)
-    TCPServer.new('127.0.0.1', port).close
+    TCPServer.new('0.0.0.0', port).close
     false
   rescue Errno::EADDRINUSE
     true

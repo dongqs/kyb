@@ -22,7 +22,7 @@ class DockerTest < Minitest::Test
   end
 
   def test_port_in_use
-    server = TCPServer.new('127.0.0.1', 29_002)
+    server = TCPServer.new('0.0.0.0', 29_002)
     assert Kyb::Docker.port_in_use?(29_002)
   ensure
     server&.close
@@ -41,7 +41,7 @@ class DockerTest < Minitest::Test
   end
 
   def test_assign_ports_skips_busy_port
-    server = TCPServer.new('127.0.0.1', 29_300)
+    server = TCPServer.new('0.0.0.0', 29_300)
     mapping = Kyb::Docker.assign_ports([29_300])
     assert_equal '29301:29300', mapping
   ensure
@@ -49,7 +49,7 @@ class DockerTest < Minitest::Test
   end
 
   def test_assign_ports_multiple_with_one_busy
-    server = TCPServer.new('127.0.0.1', 29_400)
+    server = TCPServer.new('0.0.0.0', 29_400)
     mapping = Kyb::Docker.assign_ports([29_400, 29_500])
     assert_equal '29401:29400,29500:29500', mapping
   ensure
