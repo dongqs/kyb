@@ -34,6 +34,8 @@ module Kyb::Config
       dockerfile: p['dockerfile'],
       ports: Array(p['ports']).map(&:to_i).reject(&:zero?),
       symlinks: Array(p['symlinks']).map(&:to_s).reject(&:empty?).join(','),
+      mounts_rw: Array(p['mounts_rw']).map(&:to_s).reject(&:empty?).join(','),
+      mounts_ro: Array(p['mounts_ro']).map(&:to_s).reject(&:empty?).join(','),
       env_template: p['env_template']
     }
   end

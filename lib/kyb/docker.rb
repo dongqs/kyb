@@ -69,7 +69,7 @@ module Kyb::Docker
     out.lines.map(&:strip).reject(&:empty?)
   end
 
-  def run(container:, image:, wt_path:, project_name:, project_path:, ports:, symlinks:)
+  def run(container:, image:, wt_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:)
     puts "==> #{container.name}: starting (#{wt_path} -> /home/dev/projects/#{project_name})"
 
     args = %w[docker run -d]
@@ -102,6 +102,20 @@ module Kyb::Docker
     symlinks.to_s.split(',').each do |link|
       next if link.empty?
       args += ['-v', "#{project_path}/#{link}:/home/dev/projects/#{project_name}/#{link}:ro"]
+    end
+
+    mounts_rw.to_s.split(',').each do |m|
+      next if m.empty?
+      host_path, container_path = m.split(':', 2)
+      next unless host_path && container_path
+      args += ['-v', "#{File.expand_path(host_path)}:#{container_path}"]
+    end
+
+    mounts_ro.to_s.split(',').each do |m|
+      next if m.empty?
+      host_path, container_path = m.split(':', 2)
+      next unless host_path && container_path
+      args += ['-v', "#{File.expand_path(host_path)}:#{container_path}:ro"]
     end
 
     # Mount host build-tool caches so dependencies survive container recreation
@@ -179,7 +193,9 @@ module Kyb::Docker
       project_name: project,
       project_path: path,
       ports: ports,
-      symlinks: proj[:symlinks]
+      symlinks: proj[:symlinks],
+      mounts_rw: proj[:mounts_rw],
+      mounts_ro: proj[:mounts_ro]
     )
 
     60.times do
