@@ -5,16 +5,6 @@ module Kyb::CLI
 
   module_function
 
-  def title(text)
-    print "\e]0;#{text}\a" if STDOUT.tty?
-  end
-
-  def tmux_opts(container)
-    ['set', '-g', 'set-titles', 'on', ';',
-     'set', '-g', 'automatic-rename', 'off', ';',
-     'set', '-g', 'set-titles-string', "kyb:#{container}"]
-  end
-
   def play
     Kyb::Config.load
     path = Kyb::Config.base_image_path
@@ -34,19 +24,17 @@ module Kyb::CLI
       end
     end
 
-    cmd = 'claude'
+    cmd = "printf '\\e]0;kyb:play\\a'; claude"
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
-    title("kyb:play")
     if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, PLAY_CONTAINER, 'tmux', *tmux_opts(PLAY_CONTAINER), ';',
-           'attach-session', '-t', 'dev')
+      system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux',
+             'send-keys', '-t', 'dev', "printf '\\e]0;kyb:play\\a'", 'Enter')
+      exec(*dexec, PLAY_CONTAINER, 'tmux', 'attach-session', '-t', 'dev')
     else
-      exec(*dexec, PLAY_CONTAINER, 'tmux', *tmux_opts(PLAY_CONTAINER), ';',
-           'new-session', '-s', 'dev', ';',
-           'select-pane', '-T', "kyb:play", ';',
+      exec(*dexec, PLAY_CONTAINER, 'tmux', 'new-session', '-s', 'dev', ';',
            'send-keys', cmd, 'Enter')
     end
   end
@@ -80,19 +68,17 @@ module Kyb::CLI
       end
     end
 
-    cmd = "cd ~/projects/#{name} && mise trust && claude"
+    cmd = "printf '\\e]0;kyb:#{container}\\a'; cd ~/projects/#{name} && mise trust && claude"
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
-    title("kyb:#{container}")
     if system('docker', 'exec', '-u', 'dev', container, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, container, 'tmux', *tmux_opts(container), ';',
-           'attach-session', '-t', 'dev')
+      system('docker', 'exec', '-u', 'dev', container, 'tmux',
+             'send-keys', '-t', 'dev', "printf '\\e]0;kyb:#{container}\\a'", 'Enter')
+      exec(*dexec, container, 'tmux', 'attach-session', '-t', 'dev')
     else
-      exec(*dexec, container, 'tmux', *tmux_opts(container), ';',
-           'new-session', '-s', 'dev', ';',
-           'select-pane', '-T', "kyb:#{container}", ';',
+      exec(*dexec, container, 'tmux', 'new-session', '-s', 'dev', ';',
            'send-keys', cmd, 'Enter')
     end
   end
