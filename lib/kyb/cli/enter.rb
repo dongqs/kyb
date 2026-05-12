@@ -41,7 +41,9 @@ module Kyb::CLI
     else
       exec(*dexec, PLAY_CONTAINER, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
            'set', '-g', 'set-titles-string', title_str(PLAY_CONTAINER), ';',
-           'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
+           'new-session', '-s', 'dev', ';',
+           'select-pane', '-T', "kyb:play", ';',
+           'send-keys', cmd, 'Enter')
     end
   end
 
@@ -87,12 +89,14 @@ module Kyb::CLI
     else
       exec(*dexec, container, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
            'set', '-g', 'set-titles-string', title_str(container), ';',
-           'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
+           'new-session', '-s', 'dev', ';',
+           'select-pane', '-T', "kyb:#{container}", ';',
+           'send-keys', cmd, 'Enter')
     end
   end
 
   def title_str(container)
-    "kyb:#{container}"
+    "kyb:#{container} — \#{pane_title}"
   end
 
 end
