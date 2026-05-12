@@ -5,6 +5,7 @@ require 'fileutils'
 require 'socket'
 
 module Kyb
+  VERSION = '0.1.0'
   CONFIG_FILE = File.expand_path('~/.config/kyb/config.yml')
   BASE_IMAGE = 'dev-sandbox-base'
   WORKTREE_BASE = File.expand_path('~/.kyb/worktrees')

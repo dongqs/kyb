@@ -56,6 +56,8 @@ module Kyb::CLI
       rm(args[0], args[1])
     when 'prune'
       prune
+    when 'version', '--version', '-v'
+      puts "kyb #{Kyb::VERSION}"
     when 'help', '--help', '-h'
       help
     else
@@ -84,6 +86,7 @@ module Kyb::CLI
         start NAME [SUFFIX]       Start stopped sandbox container
         rm    NAME [SUFFIX]       Remove sandbox completely
         prune                     Remove all sandboxes
+        version                   Show version
 
     EOF
   end
