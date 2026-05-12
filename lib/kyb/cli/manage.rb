@@ -44,6 +44,16 @@ module Kyb::CLI
 
   def rm(name, suffix = nil)
     Kyb.die("rm requires a project name\n  Usage: kyb rm NAME [SUFFIX]") unless name
+
+    if name == 'play'
+      container = 'dev-play'
+      Kyb::Docker.remove_container(container)
+      Kyb::Docker.volume_rm("#{container}-claude")
+      Kyb::Docker.volume_rm("#{container}-home")
+      puts "==> Done: #{container} removed  (◕‿‿◕)"
+      return
+    end
+
     Kyb::Config.load
     proj = Kyb::Config.project(name)
     path = proj[:path]
