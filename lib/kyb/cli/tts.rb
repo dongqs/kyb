@@ -7,21 +7,26 @@ module Kyb::CLI
 
   module_function
 
-  def tts_start
-    candidates = [
-      File.expand_path('../../../tts-server.rb', __dir__),              # dev
-      File.join(File.dirname(File.expand_path($PROGRAM_NAME)), 'tts-server'), # installed
-    ]
-    server = candidates.find { |p| File.exist?(p) }
-    Kyb.die("tts-server not found") unless server
+  def tts_lib_path
+    root = File.expand_path('../../..', __dir__)
+    dev = File.join(root, 'lib')
+    if File.exist?(File.join(dev, 'kyb.rb'))
+      dev
+    else
+      File.expand_path('~/.local/lib')
+    end
+  end
 
+  def tts_start
     if tts_running?
       puts "==> tts server already running (pid #{File.read(TTS_PID_FILE).strip})"
       return
     end
 
     FileUtils.mkdir_p(File.dirname(TTS_PID_FILE))
-    pid = Process.spawn('ruby', server, %i[out err] => File::NULL)
+    pid = Process.spawn('ruby', '-I', tts_lib_path, '-e',
+                        "require 'kyb/tts_server'; Kyb::TTSServer.start",
+                        %i[out err] => File::NULL)
     Process.detach(pid)
     File.write(TTS_PID_FILE, pid.to_s)
     puts "==> tts server started (pid #{pid}, port 10666)"
