@@ -33,11 +33,13 @@ module Kyb::CLI
               %i[out err] => File::NULL)
       exec(*dexec, PLAY_CONTAINER, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
+           'set', '-g', 'set-titles-string', '#W', ';',
            'rename-window', title, ';',
            'attach-session', '-t', 'dev')
     else
       exec(*dexec, PLAY_CONTAINER, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
+           'set', '-g', 'set-titles-string', '#W', ';',
            'new-session', '-s', 'dev', '-n', title, ';',
            'send-keys', cmd, 'Enter')
     end
@@ -81,11 +83,13 @@ module Kyb::CLI
               %i[out err] => File::NULL)
       exec(*dexec, container, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
+           'set', '-g', 'set-titles-string', '#W', ';',
            'rename-window', title, ';',
            'attach-session', '-t', 'dev')
     else
       exec(*dexec, container, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
+           'set', '-g', 'set-titles-string', '#W', ';',
            'new-session', '-s', 'dev', '-n', title, ';',
            'send-keys', cmd, 'Enter')
     end
