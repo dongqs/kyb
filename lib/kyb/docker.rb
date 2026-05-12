@@ -103,6 +103,13 @@ module Kyb::Docker
       args += ['-v', "#{project_path}/#{link}:/home/dev/projects/#{project_name}/#{link}:ro"]
     end
 
+    # Mount host build-tool caches so dependencies survive container recreation
+    gradle_home = File.expand_path('~/.gradle')
+    if File.exist?(File.join(wt_path, 'gradlew')) || File.directory?(File.join(wt_path, 'gradle'))
+      FileUtils.mkdir_p(gradle_home)
+      args += ['-v', "#{gradle_home}:/home/dev/.gradle"]
+    end
+
     ports.to_s.split(',').each do |p|
       next if p.empty?
       args += ['-p', p]
