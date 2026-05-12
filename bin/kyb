@@ -383,25 +383,21 @@ module Kyb::CLI
     puts "    env_template: #{env_template}" if env_template
   end
 
-  def create(name, host_port = nil)
+  def create_container(name, host_port = nil)
     Kyb::Config.load
     proj = Kyb::Config.project(name)
     path = proj[:path]
     base = Kyb::Config.base_image_path
 
-    # Build base image
     Kyb::Docker.build(Kyb::BASE_IMAGE, base)
 
-    # Determine container and ports
     container = Kyb::Docker.container_name(name, host_port)
     ports = host_port ? "#{host_port}:3000" : proj[:ports]
     image = Kyb::BASE_IMAGE
 
-    # Setup worktree
     wt_path = Kyb::Git.worktree_path(name, container)
     Kyb::Git.setup_worktree(path, proj[:base_branch], wt_path, container)
 
-    # Setup .env from template
     if proj[:env_template] && !proj[:env_template].empty?
       src = File.join(path, proj[:env_template])
       dst = File.join(wt_path, '.env')
@@ -409,19 +405,15 @@ module Kyb::CLI
       FileUtils.cp(src, dst)
     end
 
-    # Build project-specific image
     if proj[:dockerfile]
       df_path = File.join(path, proj[:dockerfile])
       image = Kyb::Docker.project_image(name, df_path, path)
     end
 
-    # Remove existing container
     Kyb::Docker.remove_container(container)
 
-    # Ensure host dirs exist
     FileUtils.mkdir_p(File.expand_path('~/.kimi'))
 
-    # Start container
     Kyb::Docker.run(
       container: container,
       image: image,
@@ -432,6 +424,24 @@ module Kyb::CLI
       ports: ports,
       symlinks: proj[:symlinks]
     )
+
+    # Wait for entrypoint to generate settings.json
+    60.times do
+      break if system('docker', 'exec', '-u', 'dev', container,
+                      'test', '-f', '/home/dev/.claude/settings.json',
+                      out: File::NULL, err: File::NULL)
+      sleep 0.5
+    end
+
+    container
+  end
+
+  def create(name, host_port = nil)
+    container = create_container(name, host_port)
+    proj = Kyb::Config.project(name)
+    ports = host_port ? "#{host_port}:3000" : proj[:ports]
+    image = Kyb::BASE_IMAGE
+    image = Kyb::Docker.project_image(name, File.join(proj[:path], proj[:dockerfile]), proj[:path]) if proj[:dockerfile]
 
     puts
     puts "==> (◕‿‿◕) Sandbox ready! Container: #{container}  Image: #{image}  Ports: #{ports || 'none'}"
@@ -450,8 +460,33 @@ module Kyb::CLI
   singleton_class.alias_method :ls, :ps
 
   def enter(name, port = nil)
+    Kyb::Config.load
     container = Kyb::Docker.container_name(name, port)
-    Kyb.die("container '#{container}' is not running\n  Run: kyb create #{name}#{" #{port}" if port}") unless Kyb::Docker.running?(container)
+
+    if Kyb::Docker.running?(container)
+      # already running, just enter
+    elsif Kyb::Docker.exists?(container)
+      Kyb::Docker.start_existing(container)
+    else
+      print "==> #{container}: sandbox not found. Create it? [Y/n] (10s) "
+      STDOUT.flush
+      input = nil
+      begin
+        input = if IO.select([STDIN], nil, nil, 10)
+                  STDIN.gets.to_s.strip.downcase
+                end
+      rescue Interrupt
+        puts
+        exit 0
+      end
+      if input == 'y' || input == 'yes' || input == ''
+        create_container(name, port)
+      else
+        puts
+        puts "==> Run `kyb create #{name}` to create it manually"
+        exit 0
+      end
+    end
 
     cmd = "cd ~/projects/#{name} && mise trust && claude"
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
