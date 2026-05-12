@@ -127,37 +127,6 @@ module Kyb::Docker
     puts "==> Done: #{container} stopped"
   end
 
-  def run_play(container:, image:)
-    puts "==> #{container}: starting container"
-
-    args = %w[docker run -d]
-    args += ['--name', container.name]
-    args += ['--hostname', container.hostname]
-    args += ['-e', "HOST_UID=#{Process.uid}"]
-    args += ['-e', "HOST_GID=#{Process.gid}"]
-    args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"]
-    args += ['-e', "CLAUDE_CODE_ATTRIBUTION_HEADER=#{ENV['CLAUDE_CODE_ATTRIBUTION_HEADER']}"]
-    args += ['-e', "CLAUDE_CODE_EFFORT_LEVEL=#{ENV['CLAUDE_CODE_EFFORT_LEVEL']}"]
-    args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"]
-
-    ssh_dir = File.expand_path('~/.ssh')
-    args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
-    args += ['-v', "#{ENV['HOME']}/.kimi:/home/dev/.kimi"]
-    args += ['-v', "#{ENV['HOME']}/.gitconfig:/home/dev/.gitconfig:ro"]
-    args += ['-v', "#{ENV['HOME']}/.claude/settings.json:/home/dev/.claude-host-settings.json:ro"]
-    skills = File.expand_path('~/.claude/skills')
-    args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
-    agents = File.expand_path('~/.agents')
-    args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
-    args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
-    args += ['-v', "#{container.claude_volume}:/home/dev/.claude"]
-    args += ['-v', "#{container.home_volume}:/home/dev"]
-
-    args << image
-
-    system(*args) || Kyb.die('docker run failed')
-  end
-
   def start_existing(container)
     if running?(container)
       puts "==> #{container} is already running"

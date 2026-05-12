@@ -19,8 +19,6 @@ module Kyb::CLI
     case cmd
     when 'build'
       build
-    when 'play'
-      play
     when 'init'
       init(args)
     when 'create'
@@ -84,7 +82,7 @@ module Kyb::CLI
 
       Commands:
         build                            Build base image
-        play                             Launch disposable container (no project)
+
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                          Add current project to config
         create PROJECT-BRANCH [--ports HOST:CONTAINER]

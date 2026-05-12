@@ -7,10 +7,6 @@ class ContainerTest < Minitest::Test
     assert_equal 'kyb-base', Kyb::Container::BASE_IMAGE
   end
 
-  def test_play_name
-    assert_equal 'kyb-play', Kyb::Container::PLAY_NAME
-  end
-
   def test_branch_prefix
     assert_equal 'kyb', Kyb::Container::BRANCH_PREFIX
   end
@@ -21,15 +17,6 @@ class ContainerTest < Minitest::Test
 
   def test_filter
     assert_equal 'name=kyb-', Kyb::Container.filter
-  end
-
-  # --- factory ---
-
-  def test_play_factory
-    c = Kyb::Container.play
-    assert_equal 'kyb-play', c.name
-    assert_nil c.project
-    assert_nil c.branch
   end
 
   # --- normal container ---
@@ -97,35 +84,4 @@ class ContainerTest < Minitest::Test
     assert_equal 'kyb-niao', c.project_image
   end
 
-  # --- play container (no project) ---
-
-  def test_play_git_branch_is_nil
-    c = Kyb::Container.play
-    assert_nil c.git_branch
-  end
-
-  def test_play_worktree_path_is_nil
-    c = Kyb::Container.play
-    assert_nil c.worktree_path
-  end
-
-  def test_play_node_modules_volume_is_nil
-    c = Kyb::Container.play
-    assert_nil c.node_modules_volume
-  end
-
-  def test_play_project_image_is_nil
-    c = Kyb::Container.play
-    assert_nil c.project_image
-  end
-
-  def test_play_claude_volume
-    c = Kyb::Container.play
-    assert_equal 'kyb-play-claude', c.claude_volume
-  end
-
-  def test_play_home_volume
-    c = Kyb::Container.play
-    assert_equal 'kyb-play-home', c.home_volume
-  end
 end

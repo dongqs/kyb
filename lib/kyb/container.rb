@@ -3,15 +3,10 @@
 module Kyb
   class Container
     BASE_IMAGE = 'kyb-base'
-    PLAY_NAME = 'kyb-play'
     BRANCH_PREFIX = 'kyb'
     LABEL = 'kyb=true'
 
     attr_reader :project, :branch
-
-    def self.play
-      new(nil, nil, name: PLAY_NAME)
-    end
 
     def self.filter
       'name=kyb-'
