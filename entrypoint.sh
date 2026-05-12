@@ -63,6 +63,44 @@ YAML
     chmod 600 /home/dev/.config/glab-cli/config.yml
 fi
 
+# Generate sandbox CLAUDE.md
+if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
+    if [ -n "${SANDBOX_PROJECT:-}" ]; then
+        cat > /home/dev/.claude/CLAUDE.md << CLAUDE
+# Sandbox Environment
+
+You are running inside a **kyb dev sandbox** container.
+
+## Project
+- **Name**: ${SANDBOX_PROJECT}
+- **Path**: /home/dev/projects/${SANDBOX_PROJECT}
+
+## Services
+- **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
+  - DSN: \`postgresql://postgres:postgres@127.0.0.1:5432/postgres\`
+- **Docker** — available via mounted socket
+- **glab** — pre-configured for git.leyantech.com
+
+## Workflow
+- Project code is in \`~/projects/${SANDBOX_PROJECT}\`
+- Use \`mig25\` for database migrations (DSN in \`.env\`)
+- Commit and push changes — they persist on the host via volume mount
+CLAUDE
+    else
+        cat > /home/dev/.claude/CLAUDE.md << CLAUDE
+# Sandbox Environment
+
+You are running inside a **kyb play sandbox** — a disposable container with no project mounted.
+
+## Services
+- **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
+- **Docker** — available via mounted socket
+- **glab** — pre-configured for git.leyantech.com
+CLAUDE
+    fi
+    chown dev:dev /home/dev/.claude/CLAUDE.md
+fi
+
 # Symlink host skills into Claude directory
 if [ -d /home/dev/.claude-skills-host ] && [ ! -L /home/dev/.claude/skills ]; then
     ln -s /home/dev/.claude-skills-host /home/dev/.claude/skills
