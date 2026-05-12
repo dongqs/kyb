@@ -49,15 +49,16 @@ module Kyb::CLI
     end
   end
 
-  def enter(name, suffix = nil)
+  def enter(project, branch)
     Kyb::Config.load
-    container = Kyb::Docker.container_name(name, suffix)
+    container = Kyb::Docker.container_name(project, branch)
 
     if Kyb::Docker.running?(container)
       # already running, just enter
     elsif Kyb::Docker.exists?(container)
       Kyb::Docker.start_existing(container)
     else
+      id = "#{project}-#{branch}"
       print "==> #{container}: sandbox not found. Create it? [Y/n] (10s) "
       STDOUT.flush
       input = nil
@@ -70,16 +71,16 @@ module Kyb::CLI
         exit 0
       end
       if input == 'y' || input == 'yes' || input == ''
-        Kyb::Docker.create_container(name, suffix)
+        Kyb::Docker.create_container(project, branch)
       else
         puts
-        puts "==> Run `kyb create #{name}#{suffix ? " #{suffix}" : ''}` to create it manually"
+        puts "==> Run `kyb create #{id}` to create it manually"
         exit 0
       end
     end
 
     title = "kyb:#{container}"
-    cmd = "cd ~/projects/#{name} && mise trust && claude"
+    cmd = "cd ~/projects/#{project} && mise trust && claude"
     dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 

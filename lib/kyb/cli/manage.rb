@@ -6,63 +6,45 @@ module Kyb::CLI
   def ps
     list = Kyb::Docker.ps_list
     if list.empty?
-      puts "(◕‿‿◕) No sandbox containers — create one with: kyb create <name>"
+      puts "(◕‿‿◕) No sandbox containers — create one with: kyb create <project-branch>"
       return
     end
-    printf "%-30s  %-24s  %s\n", 'CONTAINER', 'STATUS', 'PORTS'
-    list.each { |name, status, ports| printf "%-30s  %-24s  %s\n", name, status, ports }
+    printf "%-30s  %-24s  %s\n", 'PROJECT-BRANCH', 'STATUS', 'PORTS'
+    list.each { |name, status, ports| printf "%-30s  %-24s  %s\n", name.sub(/^kyb-/, ''), status, ports }
   end
   singleton_class.alias_method :ls, :ps
 
-  def exec_cmd(name, args)
-    suffix = nil
-    if args.first && args.first != '--'
-      suffix = args.shift
-    end
-    args.shift if args.first == '--'
+  def exec_cmd(project, branch, args)
     Kyb.die('exec requires a command') if args.empty?
 
-    container = Kyb::Docker.container_name(name, suffix)
+    container = Kyb::Docker.container_name(project, branch)
     Kyb.die("container '#{container}' is not running") unless Kyb::Docker.running?(container)
 
-    exec('docker', 'exec', '-it', '-u', 'dev', '-w', "/home/dev/projects/#{name}", container, *args)
+    exec('docker', 'exec', '-it', '-u', 'dev', '-w', "/home/dev/projects/#{project}", container, *args)
   end
 
-  def stop(name, suffix = nil)
-    Kyb.die('stop requires a project name') unless name
-    container = Kyb::Docker.container_name(name, suffix)
+  def stop(project, branch)
+    container = Kyb::Docker.container_name(project, branch)
     Kyb.die("container '#{container}' is not running") unless Kyb::Docker.running?(container)
     Kyb::Docker.stop(container)
   end
 
-  def start(name, suffix = nil)
-    Kyb.die('start requires a project name') unless name
-    container = Kyb::Docker.container_name(name, suffix)
-    Kyb.die("container '#{container}' does not exist\n  Run: kyb create #{name}#{" #{suffix}" if suffix}") unless Kyb::Docker.exists?(container)
+  def start(project, branch)
+    container = Kyb::Docker.container_name(project, branch)
+    Kyb.die("container '#{container}' does not exist\n  Run: kyb create #{project}-#{branch}") unless Kyb::Docker.exists?(container)
     Kyb::Docker.start_existing(container)
   end
 
-  def rm(name, suffix = nil)
-    Kyb.die("rm requires a project name\n  Usage: kyb rm NAME [SUFFIX]") unless name
-
-    if name == 'play'
-      container = 'dev-play'
-      Kyb::Docker.remove_container(container)
-      Kyb::Docker.volume_rm("#{container}-claude")
-      Kyb::Docker.volume_rm("#{container}-home")
-      puts "==> Done: #{container} removed  (◕‿‿◕)"
-      return
-    end
-
+  def rm(project, branch)
     Kyb::Config.load
-    proj = Kyb::Config.project(name)
+    proj = Kyb::Config.project(project)
     path = proj[:path]
     Kyb.die("#{path} not found") unless File.directory?(path)
 
-    container = Kyb::Docker.container_name(name, suffix)
+    container = Kyb::Docker.container_name(project, branch)
     Kyb::Docker.remove_container(container)
 
-    wt_path = Kyb::Git.worktree_path(name, container)
+    wt_path = Kyb::Git.worktree_path(project, container)
     Kyb::Git.remove_worktree(path, wt_path)
     Kyb::Git.delete_local_branch(path, container)
     Kyb::Git.delete_remote_branch(path, container)
