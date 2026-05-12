@@ -2,17 +2,9 @@
 
 module Kyb::CLI
   PLAY_CONTAINER = 'dev-play'
-  DOCKER = '/usr/local/bin/docker'
-  CMDS_DIR = File.expand_path('~/.cache/kyb/cmds')
+  DOCKER = 'docker'
 
   module_function
-
-  def docker_alias(name)
-    FileUtils.mkdir_p(CMDS_DIR)
-    path = File.join(CMDS_DIR, name)
-    File.symlink(DOCKER, path) unless File.exist?(path)
-    path
-  end
 
   def play
     Kyb::Config.load
@@ -35,8 +27,7 @@ module Kyb::CLI
 
     title = 'kyb:play'
     cmd = 'claude'
-    d = docker_alias('kyb-play')
-    dexec = [d, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
+    dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
     if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
@@ -89,8 +80,7 @@ module Kyb::CLI
 
     title = "kyb:#{container}"
     cmd = "cd ~/projects/#{name} && mise trust && claude"
-    d = docker_alias(container.sub('dev-', 'kyb-'))
-    dexec = [d, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
+    dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
     if system('docker', 'exec', '-u', 'dev', container, 'tmux', 'has-session', '-t', 'dev',
