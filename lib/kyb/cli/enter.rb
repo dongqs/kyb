@@ -35,9 +35,13 @@ module Kyb::CLI
     title("kyb:play")
     if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, PLAY_CONTAINER, 'tmux', 'attach-session', '-t', 'dev')
+      exec(*dexec, PLAY_CONTAINER, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
+           'set', '-g', 'set-titles-string', title_str(PLAY_CONTAINER), ';',
+           'attach-session', '-t', 'dev')
     else
-      exec(*dexec, PLAY_CONTAINER, 'tmux', 'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
+      exec(*dexec, PLAY_CONTAINER, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
+           'set', '-g', 'set-titles-string', title_str(PLAY_CONTAINER), ';',
+           'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
     end
   end
 
@@ -77,9 +81,18 @@ module Kyb::CLI
     title("kyb:#{container}")
     if system('docker', 'exec', '-u', 'dev', container, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, container, 'tmux', 'attach-session', '-t', 'dev')
+      exec(*dexec, container, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
+           'set', '-g', 'set-titles-string', title_str(container), ';',
+           'attach-session', '-t', 'dev')
     else
-      exec(*dexec, container, 'tmux', 'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
+      exec(*dexec, container, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
+           'set', '-g', 'set-titles-string', title_str(container), ';',
+           'new-session', '-s', 'dev', ';', 'send-keys', cmd, 'Enter')
     end
   end
+
+  def title_str(container)
+    "kyb:#{container}"
+  end
+
 end
