@@ -33,14 +33,17 @@ module Kyb::CLI
               %i[out err] => File::NULL)
       exec(*dexec, PLAY_CONTAINER, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
-           'set', '-g', 'set-titles-string', '#W', ';',
+           'set', '-g', 'automatic-rename', 'off', ';',
+           'set', '-g', 'set-titles-string', '#{pane_title}', ';',
            'rename-window', title, ';',
            'attach-session', '-t', 'dev')
     else
       exec(*dexec, PLAY_CONTAINER, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
-           'set', '-g', 'set-titles-string', '#W', ';',
+           'set', '-g', 'automatic-rename', 'off', ';',
+           'set', '-g', 'set-titles-string', '#{pane_title}', ';',
            'new-session', '-s', 'dev', '-n', title, ';',
+           'select-pane', '-T', title, ';',
            'send-keys', cmd, 'Enter')
     end
   end
@@ -83,14 +86,17 @@ module Kyb::CLI
               %i[out err] => File::NULL)
       exec(*dexec, container, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
-           'set', '-g', 'set-titles-string', '#W', ';',
+           'set', '-g', 'automatic-rename', 'off', ';',
+           'set', '-g', 'set-titles-string', '#{pane_title}', ';',
            'rename-window', title, ';',
            'attach-session', '-t', 'dev')
     else
       exec(*dexec, container, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
-           'set', '-g', 'set-titles-string', '#W', ';',
+           'set', '-g', 'automatic-rename', 'off', ';',
+           'set', '-g', 'set-titles-string', '#{pane_title}', ';',
            'new-session', '-s', 'dev', '-n', title, ';',
+           'select-pane', '-T', title, ';',
            'send-keys', cmd, 'Enter')
     end
   end
