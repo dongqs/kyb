@@ -37,7 +37,7 @@ module Kyb::CLI
     end
 
     title = "kyb:#{cname}"
-    cmd = "cd ~/projects/#{project} && mise trust && claude"
+    cmd = "cd ~/projects/#{project} && mise trust && cat CLAUDE.md 2>/dev/null; claude"
     dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
