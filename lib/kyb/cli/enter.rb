@@ -5,6 +5,10 @@ module Kyb::CLI
 
   module_function
 
+  def title(text)
+    print "\e]0;#{text}\a" if STDOUT.tty?
+  end
+
   def play
     Kyb::Config.load
     path = Kyb::Config.base_image_path
@@ -28,6 +32,7 @@ module Kyb::CLI
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
+    title("kyb:play")
     if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
       exec(*dexec, PLAY_CONTAINER, 'tmux', 'attach-session', '-t', 'dev')
@@ -69,6 +74,7 @@ module Kyb::CLI
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
+    title("kyb:#{container}")
     if system('docker', 'exec', '-u', 'dev', container, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
       exec(*dexec, container, 'tmux', 'attach-session', '-t', 'dev')
