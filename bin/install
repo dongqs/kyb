@@ -12,10 +12,9 @@ echo "==> Installing kyb $version"
 
 mkdir -p "$BIN_DIR" "$LIB_DIR"
 
-rm -f "$BIN_DIR/kyb" "$BIN_DIR/tts-server"
+rm -f "$BIN_DIR/kyb"
 cp "$project_dir/bin/kyb" "$BIN_DIR/kyb"
-cp "$project_dir/tts-server.rb" "$BIN_DIR/tts-server"
-chmod +x "$BIN_DIR/kyb" "$BIN_DIR/tts-server"
+chmod +x "$BIN_DIR/kyb"
 rm -rf "$LIB_DIR"
 mkdir -p "$LIB_DIR"
 cp "$project_dir/lib/kyb.rb" "$LIB_DIR/../kyb.rb"
