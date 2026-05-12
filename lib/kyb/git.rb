@@ -8,7 +8,7 @@ module Kyb::Git
   end
 
   def branch(container)
-    "sandbox/#{container.sub('dev-', '')}"
+    "sandbox/#{container.sub('kyb-', '')}"
   end
 
   def setup_worktree(repo_path, base_branch, worktree, container)

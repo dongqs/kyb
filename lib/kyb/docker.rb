@@ -15,8 +15,8 @@ module Kyb::Docker
     image
   end
 
-  def container_name(name, suffix = nil)
-    suffix ? "dev-#{name}-#{suffix}" : "dev-#{name}"
+  def container_name(project, branch)
+    "kyb-#{project}-#{branch}"
   end
 
   def assign_ports(container_ports)
@@ -43,7 +43,7 @@ module Kyb::Docker
   end
 
   def ps_list
-    out = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter 'name=dev-' 2>/dev/null`
+    out = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter 'name=kyb-' 2>/dev/null`
     return [] if out.strip.empty?
     out.lines.map { |l| l.strip.split("\t", 3) }
   end
@@ -65,7 +65,7 @@ module Kyb::Docker
   end
 
   def containers_for_project(name)
-    out = `docker ps -a --format '{{.Names}}' --filter 'name=dev-#{name}' 2>/dev/null`
+    out = `docker ps -a --format '{{.Names}}' --filter 'name=kyb-#{name}' 2>/dev/null`
     out.lines.map(&:strip).reject(&:empty?)
   end
 
@@ -82,6 +82,7 @@ module Kyb::Docker
     args += ['-e', "CLAUDE_CODE_EFFORT_LEVEL=#{ENV['CLAUDE_CODE_EFFORT_LEVEL']}"]
     args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"]
     args += ['-e', "SANDBOX_PROJECT=#{project_name}"]
+    args += ['-l', 'kyb=true']
 
     ssh_dir = File.expand_path('~/.ssh')
     args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
@@ -167,16 +168,16 @@ module Kyb::Docker
     puts "==> Done: #{container} started"
   end
 
-  def create_container(name, suffix = nil, port_overrides = nil)
+  def create_container(project, branch, port_overrides = nil)
     Kyb::Config.load
-    proj = Kyb::Config.project(name)
+    proj = Kyb::Config.project(project)
     path = proj[:path]
     base = Kyb::Config.base_image_path
 
-    container = container_name(name, suffix)
+    container = container_name(project, branch)
 
     if exists?(container)
-      Kyb.die("container '#{container}' already exists.\n  Remove it first: kyb rm #{name}#{suffix ? " #{suffix}" : ''}")
+      Kyb.die("container '#{container}' already exists.\n  Remove it first: kyb rm #{project}-#{branch}")
     end
 
     ports = port_overrides || assign_ports(proj[:ports])
@@ -185,7 +186,7 @@ module Kyb::Docker
 
     image = Kyb::BASE_IMAGE
 
-    wt_path = Kyb::Git.worktree_path(name, container)
+    wt_path = Kyb::Git.worktree_path(project, container)
     Kyb::Git.setup_worktree(path, proj[:base_branch], wt_path, container)
 
     if proj[:env_template] && !proj[:env_template].empty?
@@ -197,7 +198,7 @@ module Kyb::Docker
 
     if proj[:dockerfile]
       df_path = File.join(path, proj[:dockerfile])
-      image = project_image(name, df_path, path)
+      image = project_image(project, df_path, path)
     end
 
     FileUtils.mkdir_p(File.expand_path('~/.kimi'))
@@ -207,7 +208,7 @@ module Kyb::Docker
       image: image,
       hostname: container,
       wt_path: wt_path,
-      project_name: name,
+      project_name: project,
       project_path: path,
       ports: ports,
       symlinks: proj[:symlinks]

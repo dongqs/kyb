@@ -3,16 +3,12 @@ require_relative 'test_helper'
 class DockerTest < Minitest::Test
   # --- container_name ---
 
-  def test_container_name_without_suffix
-    assert_equal 'dev-niao', Kyb::Docker.container_name('niao')
+  def test_container_name_with_default_branch
+    assert_equal 'kyb-niao-sandbox', Kyb::Docker.container_name('niao', 'sandbox')
   end
 
-  def test_container_name_with_suffix
-    assert_equal 'dev-niao-water', Kyb::Docker.container_name('niao', 'water')
-  end
-
-  def test_container_name_suffix_nil
-    assert_equal 'dev-niao', Kyb::Docker.container_name('niao', nil)
+  def test_container_name_with_branch
+    assert_equal 'kyb-niao-water', Kyb::Docker.container_name('niao', 'water')
   end
 
   # --- port_in_use? ---

@@ -19,6 +19,7 @@ module Kyb
 end
 
 require_relative 'kyb/config'
+require_relative 'kyb/parser'
 require_relative 'kyb/docker'
 require_relative 'kyb/git'
 require_relative 'kyb/cli'

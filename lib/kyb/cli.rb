@@ -24,36 +24,36 @@ module Kyb::CLI
     when 'init'
       init(args)
     when 'create'
-      Kyb.die("create requires a project name\n  Usage: kyb create NAME [SUFFIX] [--ports HOST:CONTAINER]") unless args.first
-      name = args.shift
-      suffix = nil
+      Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--ports HOST:CONTAINER]") unless args.first
+      project, branch = Kyb::Parser.parse(args.shift)
       port_overrides = nil
-      i = 0
-      while i < args.size
-        case args[i]
-        when '--ports'
-          port_overrides = args[i + 1] if args[i + 1]
-          i += 2
-        else
-          suffix = args[i] unless args[i].start_with?('--')
-          i += 1
-        end
+      if args.first == '--ports'
+        args.shift
+        port_overrides = args.shift if args.first
       end
-      create(name, suffix, port_overrides)
+      create(project, branch, port_overrides)
     when 'ps', 'ls'
       ps
     when 'enter'
-      Kyb.die("enter requires a project name\n  Usage: kyb enter NAME [SUFFIX]") unless args.first
-      enter(args[0], args[1])
+      Kyb.die("enter requires a project-branch\n  Usage: kyb enter PROJECT-BRANCH") unless args.first
+      project, branch = Kyb::Parser.parse(args.shift)
+      enter(project, branch)
     when 'exec'
-      Kyb.die("exec requires a project name\n  Usage: kyb exec NAME [SUFFIX] [--] CMD...") unless args.first
-      exec_cmd(args[0], args[1..] || [])
+      Kyb.die("exec requires a project-branch\n  Usage: kyb exec PROJECT-BRANCH [CMD...]") unless args.first
+      project, branch = Kyb::Parser.parse(args.shift)
+      exec_cmd(project, branch, args)
     when 'stop'
-      stop(args[0], args[1])
+      Kyb.die("stop requires a project-branch\n  Usage: kyb stop PROJECT-BRANCH") unless args.first
+      project, branch = Kyb::Parser.parse(args.shift)
+      stop(project, branch)
     when 'start'
-      start(args[0], args[1])
+      Kyb.die("start requires a project-branch\n  Usage: kyb start PROJECT-BRANCH") unless args.first
+      project, branch = Kyb::Parser.parse(args.shift)
+      start(project, branch)
     when 'rm'
-      rm(args[0], args[1])
+      Kyb.die("rm requires a project-branch\n  Usage: kyb rm PROJECT-BRANCH") unless args.first
+      project, branch = Kyb::Parser.parse(args.shift)
+      rm(project, branch)
     when 'prune'
       prune
     when 'tts'
@@ -83,22 +83,21 @@ module Kyb::CLI
       Usage:  kyb COMMAND
 
       Commands:
-        build                     Build base image
-        play                      Launch disposable sandbox (no project)
+        build                            Build base image
+        play                             Launch disposable sandbox (no project)
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
-                                  Add current project to config
-        create NAME [SUFFIX] [--ports HOST:CONTAINER]
-                                  Create and start a sandbox
-        ps, ls                    List sandbox containers
-        enter NAME [SUFFIX]       Enter sandbox via interactive shell
-        exec  NAME [SUFFIX] -- CMD
-                                  Run command in sandbox
-        stop  NAME [SUFFIX]       Stop sandbox container
-        start NAME [SUFFIX]       Start stopped sandbox container
-        rm    NAME [SUFFIX]       Remove sandbox completely
-        prune                     Remove all sandboxes
-        tts {start|stop|speak...} macOS TTS controls
-        version                   Show version
+                                         Add current project to config
+        create PROJECT-BRANCH [--ports HOST:CONTAINER]
+                                         Create and start a sandbox
+        ps, ls                           List sandbox containers
+        enter PROJECT-BRANCH             Enter sandbox via interactive shell
+        exec  PROJECT-BRANCH [CMD...]    Run command in sandbox
+        stop  PROJECT-BRANCH             Stop sandbox container
+        start PROJECT-BRANCH             Start stopped sandbox container
+        rm    PROJECT-BRANCH             Remove sandbox completely
+        prune                            Remove all sandboxes
+        tts {start|stop|speak...}        macOS TTS controls
+        version                          Show version
 
     EOF
   end
