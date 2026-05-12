@@ -3,6 +3,7 @@
 
 require 'yaml'
 require 'fileutils'
+require 'socket'
 
 # kyb — kubernate your branches — dev sandbox CLI
 module Kyb
@@ -389,10 +390,26 @@ module Kyb::CLI
     path = proj[:path]
     base = Kyb::Config.base_image_path
 
-    Kyb::Docker.build(Kyb::BASE_IMAGE, base)
-
     container = Kyb::Docker.container_name(name, host_port)
     ports = host_port ? "#{host_port}:3000" : proj[:ports]
+
+    if Kyb::Docker.exists?(container)
+      Kyb.die("container '#{container}' already exists.\n  Remove it first: kyb rm #{name}#{host_port ? " #{host_port}" : ''}")
+    end
+
+    ports.to_s.split(',').each do |mapping|
+      next if mapping.empty?
+      hport = mapping.split(':').first
+      begin
+        s = TCPServer.new('127.0.0.1', hport.to_i)
+        s.close
+      rescue Errno::EADDRINUSE
+        Kyb.die("port #{hport} is already in use")
+      end
+    end
+
+    Kyb::Docker.build(Kyb::BASE_IMAGE, base)
+
     image = Kyb::BASE_IMAGE
 
     wt_path = Kyb::Git.worktree_path(name, container)
@@ -409,8 +426,6 @@ module Kyb::CLI
       df_path = File.join(path, proj[:dockerfile])
       image = Kyb::Docker.project_image(name, df_path, path)
     end
-
-    Kyb::Docker.remove_container(container)
 
     FileUtils.mkdir_p(File.expand_path('~/.kimi'))
 
