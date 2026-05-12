@@ -56,6 +56,17 @@ module Kyb::CLI
       rm(args[0], args[1])
     when 'prune'
       prune
+    when 'tts'
+      Kyb.die("tts requires a subcommand\n  Usage: kyb tts {start|stop|status|speak|ping|done}") unless args.first
+      case args[0]
+      when 'start'  then tts_start
+      when 'stop'   then tts_stop
+      when 'status' then tts_status
+      when 'speak'  then tts_speak(args[1..].join(' '))
+      when 'ping'   then tts_ping
+      when 'done'   then tts_done(args[1..].join(' '))
+      else Kyb.die("unknown tts subcommand: #{args[0]}")
+      end
     when 'version', '--version', '-v'
       puts "kyb #{Kyb::VERSION}"
     when 'help', '--help', '-h'
@@ -86,6 +97,7 @@ module Kyb::CLI
         start NAME [SUFFIX]       Start stopped sandbox container
         rm    NAME [SUFFIX]       Remove sandbox completely
         prune                     Remove all sandboxes
+        tts {start|stop|speak...} macOS TTS controls
         version                   Show version
 
     EOF
@@ -97,3 +109,4 @@ require_relative 'cli/init'
 require_relative 'cli/create'
 require_relative 'cli/enter'
 require_relative 'cli/manage'
+require_relative 'cli/tts'
