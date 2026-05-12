@@ -46,6 +46,32 @@ if [ ! -f /home/dev/.claude/settings.json ] && [ -f /home/dev/.claude-host-setti
     chown -R dev:dev /home/dev/.claude
 fi
 
+# Skip Claude Code onboarding (theme picker, security notes, trust dialog)
+if [ ! -f /home/dev/.claude.json ]; then
+  project_trust='{}'
+  if [ -n "${SANDBOX_PROJECT:-}" ]; then
+    project_trust=$(jq -n --arg p "/home/dev/projects/${SANDBOX_PROJECT}" '{
+      ($p): {
+        allowedTools: [],
+        mcpContextUris: [],
+        mcpServers: {},
+        enabledMcpjsonServers: [],
+        disabledMcpjsonServers: [],
+        hasTrustDialogAccepted: true,
+        projectOnboardingSeenCount: 0,
+        hasClaudeMdExternalIncludesApproved: false,
+        hasClaudeMdExternalIncludesWarningShown: false
+      }
+    }')
+  fi
+  jq -n --argjson projects "$project_trust" '{
+    hasCompletedOnboarding: true,
+    migrationVersion: 13,
+    projects: $projects
+  }' > /home/dev/.claude.json
+  chown dev:dev /home/dev/.claude.json
+fi
+
 # Configure glab on first run
 if [ -n "${GITLAB_TOKEN:-}" ] && [ ! -f /home/dev/.config/glab-cli/config.yml ]; then
     mkdir -p /home/dev/.config/glab-cli
