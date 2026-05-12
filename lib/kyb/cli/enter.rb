@@ -9,6 +9,13 @@ module Kyb::CLI
     print "\e]0;#{text}\a" if STDOUT.tty?
   end
 
+  def tmux_opts(container)
+    ['set', '-g', 'set-titles', 'on', ';',
+     'set', '-g', 'automatic-rename', 'off', ';',
+     'set', '-g', 'set-titles-string', "kyb:#{container}", ';',
+     'set', '-g', 'allow-set-titles', 'on']
+  end
+
   def play
     Kyb::Config.load
     path = Kyb::Config.base_image_path
@@ -35,12 +42,10 @@ module Kyb::CLI
     title("kyb:play")
     if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, PLAY_CONTAINER, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
-           'set', '-g', 'set-titles-string', title_str(PLAY_CONTAINER), ';',
+      exec(*dexec, PLAY_CONTAINER, 'tmux', *tmux_opts(PLAY_CONTAINER), ';',
            'attach-session', '-t', 'dev')
     else
-      exec(*dexec, PLAY_CONTAINER, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
-           'set', '-g', 'set-titles-string', title_str(PLAY_CONTAINER), ';',
+      exec(*dexec, PLAY_CONTAINER, 'tmux', *tmux_opts(PLAY_CONTAINER), ';',
            'new-session', '-s', 'dev', ';',
            'select-pane', '-T', "kyb:play", ';',
            'send-keys', cmd, 'Enter')
@@ -83,20 +88,13 @@ module Kyb::CLI
     title("kyb:#{container}")
     if system('docker', 'exec', '-u', 'dev', container, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, container, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
-           'set', '-g', 'set-titles-string', title_str(container), ';',
+      exec(*dexec, container, 'tmux', *tmux_opts(container), ';',
            'attach-session', '-t', 'dev')
     else
-      exec(*dexec, container, 'tmux', 'set', '-g', 'set-titles', 'on', ';',
-           'set', '-g', 'set-titles-string', title_str(container), ';',
+      exec(*dexec, container, 'tmux', *tmux_opts(container), ';',
            'new-session', '-s', 'dev', ';',
            'select-pane', '-T', "kyb:#{container}", ';',
            'send-keys', cmd, 'Enter')
     end
   end
-
-  def title_str(container)
-    "kyb:#{container} — \#{pane_title}"
-  end
-
 end
