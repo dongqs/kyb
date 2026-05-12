@@ -1,6 +1,13 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative '../lib/kyb'
+dev_lib = File.expand_path('../lib', __dir__)
+if File.exist?(File.join(dev_lib, 'kyb.rb'))
+  $LOAD_PATH.unshift(dev_lib)
+else
+  $LOAD_PATH.unshift(File.expand_path('~/.local/lib'))
+end
+
+require 'kyb'
 
 Kyb::CLI.dispatch(ARGV) if __FILE__ == $PROGRAM_NAME
