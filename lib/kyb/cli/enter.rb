@@ -24,17 +24,21 @@ module Kyb::CLI
       end
     end
 
-    cmd = "printf '\\e]0;kyb:play\\a'; claude"
+    title = 'kyb:play'
+    cmd = 'claude'
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
     if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux',
-             'send-keys', '-t', 'dev', "printf '\\e]0;kyb:play\\a'", 'Enter')
-      exec(*dexec, PLAY_CONTAINER, 'tmux', 'attach-session', '-t', 'dev')
+      exec(*dexec, PLAY_CONTAINER, 'tmux',
+           'set', '-g', 'set-titles', 'on', ';',
+           'rename-window', title, ';',
+           'attach-session', '-t', 'dev')
     else
-      exec(*dexec, PLAY_CONTAINER, 'tmux', 'new-session', '-s', 'dev', ';',
+      exec(*dexec, PLAY_CONTAINER, 'tmux',
+           'set', '-g', 'set-titles', 'on', ';',
+           'new-session', '-s', 'dev', '-n', title, ';',
            'send-keys', cmd, 'Enter')
     end
   end
@@ -68,17 +72,21 @@ module Kyb::CLI
       end
     end
 
-    cmd = "printf '\\e]0;kyb:#{container}\\a'; cd ~/projects/#{name} && mise trust && claude"
+    title = "kyb:#{container}"
+    cmd = "cd ~/projects/#{name} && mise trust && claude"
     dexec = ['docker', 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
     if system('docker', 'exec', '-u', 'dev', container, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      system('docker', 'exec', '-u', 'dev', container, 'tmux',
-             'send-keys', '-t', 'dev', "printf '\\e]0;kyb:#{container}\\a'", 'Enter')
-      exec(*dexec, container, 'tmux', 'attach-session', '-t', 'dev')
+      exec(*dexec, container, 'tmux',
+           'set', '-g', 'set-titles', 'on', ';',
+           'rename-window', title, ';',
+           'attach-session', '-t', 'dev')
     else
-      exec(*dexec, container, 'tmux', 'new-session', '-s', 'dev', ';',
+      exec(*dexec, container, 'tmux',
+           'set', '-g', 'set-titles', 'on', ';',
+           'new-session', '-s', 'dev', '-n', title, ';',
            'send-keys', cmd, 'Enter')
     end
   end
