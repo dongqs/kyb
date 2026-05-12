@@ -34,7 +34,7 @@ class CLITest < Minitest::Test
   def test_create_project_only
     cmd, args = dispatch('create', 'niao')
     assert_equal :create, cmd
-    assert_equal ['niao', 'sandbox', nil], args
+    assert_equal ['niao', 'kyb', nil], args
   end
 
   def test_create_project_branch
@@ -46,7 +46,7 @@ class CLITest < Minitest::Test
   def test_create_with_ports_flag
     cmd, args = dispatch('create', 'niao', '--ports', '3000:3001')
     assert_equal :create, cmd
-    assert_equal ['niao', 'sandbox', '3000:3001'], args
+    assert_equal ['niao', 'kyb', '3000:3001'], args
   end
 
   def test_create_project_branch_and_ports
@@ -64,7 +64,7 @@ class CLITest < Minitest::Test
   def test_enter_project_only
     cmd, args = dispatch('enter', 'niao')
     assert_equal :enter, cmd
-    assert_equal ['niao', 'sandbox'], args
+    assert_equal ['niao', 'kyb'], args
   end
 
   def test_enter_project_branch
@@ -108,6 +108,6 @@ class CLITest < Minitest::Test
   def test_multi_dash_project_create_default_branch
     cmd, args = dispatch('create', 'tts-server')
     assert_equal :create, cmd
-    assert_equal ['tts-server', 'sandbox', nil], args
+    assert_equal ['tts-server', 'kyb', nil], args
   end
 end

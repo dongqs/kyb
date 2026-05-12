@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 module Kyb::CLI
-  PLAY_CONTAINER = 'dev-play'
   DOCKER = 'docker'
 
   module_function
@@ -9,16 +8,19 @@ module Kyb::CLI
   def play
     Kyb::Config.load
     path = Kyb::Config.base_image_path
-    Kyb::Docker.build(Kyb::BASE_IMAGE, path)
+    Kyb::Docker.build(Kyb::Container::BASE_IMAGE, path)
 
-    if Kyb::Docker.running?(PLAY_CONTAINER)
-      puts "==> #{PLAY_CONTAINER} already running, entering..."
-    elsif Kyb::Docker.exists?(PLAY_CONTAINER)
-      Kyb::Docker.start_existing(PLAY_CONTAINER)
+    pc = Kyb::Container.play
+    pname = pc.name
+
+    if pc.running?
+      puts "==> #{pname} already running, entering..."
+    elsif pc.exists?
+      Kyb::Docker.start_existing(pname)
     else
-      Kyb::Docker.run_play(container: PLAY_CONTAINER, image: Kyb::BASE_IMAGE)
+      Kyb::Docker.run_play(container: pc, image: Kyb::Container::BASE_IMAGE)
       30.times do
-        break if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER,
+        break if system('docker', 'exec', '-u', 'dev', pname,
                         'test', '-f', '/home/dev/.claude/settings.json',
                         out: File::NULL, err: File::NULL)
         sleep 0.5
@@ -30,16 +32,16 @@ module Kyb::CLI
     dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
-    if system('docker', 'exec', '-u', 'dev', PLAY_CONTAINER, 'tmux', 'has-session', '-t', 'dev',
+    if system('docker', 'exec', '-u', 'dev', pname, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, PLAY_CONTAINER, 'tmux',
+      exec(*dexec, pname, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
            'set', '-g', 'automatic-rename', 'off', ';',
            'set', '-g', 'set-titles-string', '#{pane_title}', ';',
            'rename-window', title, ';',
            'attach-session', '-t', 'dev')
     else
-      exec(*dexec, PLAY_CONTAINER, 'tmux',
+      exec(*dexec, pname, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
            'set', '-g', 'automatic-rename', 'off', ';',
            'set', '-g', 'set-titles-string', '#{pane_title}', ';',
@@ -51,15 +53,16 @@ module Kyb::CLI
 
   def enter(project, branch)
     Kyb::Config.load
-    container = Kyb::Docker.container_name(project, branch)
+    container = Kyb::Container.new(project, branch)
+    cname = container.name
 
-    if Kyb::Docker.running?(container)
+    if container.running?
       # already running, just enter
-    elsif Kyb::Docker.exists?(container)
-      Kyb::Docker.start_existing(container)
+    elsif container.exists?
+      Kyb::Docker.start_existing(cname)
     else
       id = "#{project}-#{branch}"
-      print "==> #{container}: sandbox not found. Create it? [Y/n] (10s) "
+      print "==> #{cname}: container not found. Create it? [Y/n] (10s) "
       STDOUT.flush
       input = nil
       begin
@@ -79,21 +82,21 @@ module Kyb::CLI
       end
     end
 
-    title = "kyb:#{container}"
+    title = "kyb:#{cname}"
     cmd = "cd ~/projects/#{project} && mise trust && claude"
     dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
-    if system('docker', 'exec', '-u', 'dev', container, 'tmux', 'has-session', '-t', 'dev',
+    if system('docker', 'exec', '-u', 'dev', cname, 'tmux', 'has-session', '-t', 'dev',
               %i[out err] => File::NULL)
-      exec(*dexec, container, 'tmux',
+      exec(*dexec, cname, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
            'set', '-g', 'automatic-rename', 'off', ';',
            'set', '-g', 'set-titles-string', '#{pane_title}', ';',
            'rename-window', title, ';',
            'attach-session', '-t', 'dev')
     else
-      exec(*dexec, container, 'tmux',
+      exec(*dexec, cname, 'tmux',
            'set', '-g', 'set-titles', 'on', ';',
            'set', '-g', 'automatic-rename', 'off', ';',
            'set', '-g', 'set-titles-string', '#{pane_title}', ';',

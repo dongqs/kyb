@@ -6,7 +6,7 @@ module Kyb::CLI
   def ps
     list = Kyb::Docker.ps_list
     if list.empty?
-      puts "(◕‿‿◕) No sandbox containers — create one with: kyb create <project-branch>"
+      puts "(◕‿‿◕) No containers — create one with: kyb create <project-branch>"
       return
     end
     printf "%-30s  %-24s  %s\n", 'PROJECT-BRANCH', 'STATUS', 'PORTS'
@@ -17,22 +17,22 @@ module Kyb::CLI
   def exec_cmd(project, branch, args)
     Kyb.die('exec requires a command') if args.empty?
 
-    container = Kyb::Docker.container_name(project, branch)
-    Kyb.die("container '#{container}' is not running") unless Kyb::Docker.running?(container)
+    c = Kyb::Container.new(project, branch)
+    Kyb.die("container '#{c.name}' is not running") unless c.running?
 
-    exec('docker', 'exec', '-it', '-u', 'dev', '-w', "/home/dev/projects/#{project}", container, *args)
+    exec('docker', 'exec', '-it', '-u', 'dev', '-w', "/home/dev/projects/#{project}", c.name, *args)
   end
 
   def stop(project, branch)
-    container = Kyb::Docker.container_name(project, branch)
-    Kyb.die("container '#{container}' is not running") unless Kyb::Docker.running?(container)
-    Kyb::Docker.stop(container)
+    c = Kyb::Container.new(project, branch)
+    Kyb.die("container '#{c.name}' is not running") unless c.running?
+    Kyb::Docker.stop(c.name)
   end
 
   def start(project, branch)
-    container = Kyb::Docker.container_name(project, branch)
-    Kyb.die("container '#{container}' does not exist\n  Run: kyb create #{project}-#{branch}") unless Kyb::Docker.exists?(container)
-    Kyb::Docker.start_existing(container)
+    c = Kyb::Container.new(project, branch)
+    Kyb.die("container '#{c.name}' does not exist\n  Run: kyb create #{project}-#{branch}") unless c.exists?
+    Kyb::Docker.start_existing(c.name)
   end
 
   def rm(project, branch)
@@ -41,17 +41,17 @@ module Kyb::CLI
     path = proj[:path]
     Kyb.die("#{path} not found") unless File.directory?(path)
 
-    container = Kyb::Docker.container_name(project, branch)
-    Kyb::Docker.remove_container(container)
+    c = Kyb::Container.new(project, branch)
+    Kyb::Docker.remove_container(c.name)
 
-    wt_path = Kyb::Git.worktree_path(project, container)
+    wt_path = Kyb::Git.worktree_path(project, c)
     Kyb::Git.remove_worktree(path, wt_path)
-    Kyb::Git.delete_local_branch(path, container)
-    Kyb::Git.delete_remote_branch(path, container)
+    Kyb::Git.delete_local_branch(path, c)
+    Kyb::Git.delete_remote_branch(path, c)
 
-    Kyb::Docker.volume_rm("#{container}-claude")
+    Kyb::Docker.volume_rm(c.claude_volume)
 
-    puts "==> Done: #{container} removed  (◕‿‿◕)"
+    puts "==> Done: #{c.name} removed  (◕‿‿◕)"
   end
 
   def prune
@@ -64,20 +64,21 @@ module Kyb::CLI
         next
       end
 
-      Kyb::Docker.containers_for_project(proj_name).each do |c|
-        puts "==> #{c}: removing container"
-        system('docker', 'rm', '-f', c)
+      Kyb::Docker.containers_for_project(proj_name).each do |cname|
+        c = Kyb::Container.new(nil, nil, name: cname)
+        puts "==> #{cname}: removing container"
+        system('docker', 'rm', '-f', cname)
 
         wt_path = Kyb::Git.worktree_path(proj_name, c)
         Kyb::Git.remove_worktree(path, wt_path)
         Kyb::Git.delete_local_branch(path, c)
         Kyb::Git.delete_remote_branch(path, c)
 
-        Kyb::Docker.volume_rm("#{c}-claude")
+        Kyb::Docker.volume_rm(c.claude_volume)
         puts
       end
     end
 
-    puts "==> All sandboxes cleaned  (◕‿‿◕)"
+    puts "==> All containers cleaned  (◕‿‿◕)"
   end
 end

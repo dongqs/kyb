@@ -9,14 +9,14 @@ module Kyb::Docker
   end
 
   def project_image(name, dockerfile, context)
-    image = "dev-#{name}"
+    image = Kyb::Container.new(name, nil).project_image
     puts "==> #{name}: building project image (#{dockerfile})"
     system('docker', 'build', '-t', image, '-f', dockerfile.to_s, context.to_s) || Kyb.die('docker build failed')
     image
   end
 
   def container_name(project, branch)
-    "kyb-#{project}-#{branch}"
+    Kyb::Container.new(project, branch).name
   end
 
   def assign_ports(container_ports)
@@ -43,7 +43,7 @@ module Kyb::Docker
   end
 
   def ps_list
-    out = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter 'name=kyb-' 2>/dev/null`
+    out = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter '#{Kyb::Container.filter}' 2>/dev/null`
     return [] if out.strip.empty?
     out.lines.map { |l| l.strip.split("\t", 3) }
   end
@@ -69,20 +69,20 @@ module Kyb::Docker
     out.lines.map(&:strip).reject(&:empty?)
   end
 
-  def run(container:, image:, hostname:, wt_path:, project_name:, project_path:, ports:, symlinks:)
-    puts "==> #{container}: starting (#{wt_path} -> /home/dev/projects/#{project_name})"
+  def run(container:, image:, wt_path:, project_name:, project_path:, ports:, symlinks:)
+    puts "==> #{container.name}: starting (#{wt_path} -> /home/dev/projects/#{project_name})"
 
     args = %w[docker run -d]
-    args += ['--name', container]
-    args += ['--hostname', hostname]
+    args += ['--name', container.name]
+    args += ['--hostname', container.hostname]
     args += ['-e', "HOST_UID=#{Process.uid}"]
     args += ['-e', "HOST_GID=#{Process.gid}"]
     args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"]
     args += ['-e', "CLAUDE_CODE_ATTRIBUTION_HEADER=#{ENV['CLAUDE_CODE_ATTRIBUTION_HEADER']}"]
     args += ['-e', "CLAUDE_CODE_EFFORT_LEVEL=#{ENV['CLAUDE_CODE_EFFORT_LEVEL']}"]
     args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"]
-    args += ['-e', "SANDBOX_PROJECT=#{project_name}"]
-    args += ['-l', 'kyb=true']
+    args += ['-e', "KYB_PROJECT=#{project_name}"]
+    args += ['-l', Kyb::Container::LABEL]
 
     ssh_dir = File.expand_path('~/.ssh')
     args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
@@ -94,9 +94,9 @@ module Kyb::Docker
     agents = File.expand_path('~/.agents')
     args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
     args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
-    args += ['-v', "#{container}-claude:/home/dev/.claude"]
+    args += ['-v', "#{container.claude_volume}:/home/dev/.claude"]
     args += ['-v', "#{wt_path}:/home/dev/projects/#{project_name}"]
-    args += ['-v', "#{project_name}-node_modules:/home/dev/projects/#{project_name}/node_modules"]
+    args += ['-v', "#{container.node_modules_volume}:/home/dev/projects/#{project_name}/node_modules"]
     args += ['-v', "#{project_path}:#{project_path}"]
 
     symlinks.to_s.split(',').each do |link|
@@ -128,11 +128,11 @@ module Kyb::Docker
   end
 
   def run_play(container:, image:)
-    puts "==> #{container}: starting magic sandbox"
+    puts "==> #{container}: starting container"
 
     args = %w[docker run -d]
-    args += ['--name', container]
-    args += ['--hostname', container]
+    args += ['--name', container.name]
+    args += ['--hostname', container.hostname]
     args += ['-e', "HOST_UID=#{Process.uid}"]
     args += ['-e', "HOST_GID=#{Process.gid}"]
     args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"]
@@ -150,8 +150,8 @@ module Kyb::Docker
     agents = File.expand_path('~/.agents')
     args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
     args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
-    args += ['-v', "#{container}-claude:/home/dev/.claude"]
-    args += ['-v', "#{container}-home:/home/dev"]
+    args += ['-v', "#{container.claude_volume}:/home/dev/.claude"]
+    args += ['-v', "#{container.home_volume}:/home/dev"]
 
     args << image
 
@@ -174,19 +174,19 @@ module Kyb::Docker
     path = proj[:path]
     base = Kyb::Config.base_image_path
 
-    container = container_name(project, branch)
+    container = Kyb::Container.new(project, branch)
 
-    if exists?(container)
-      Kyb.die("container '#{container}' already exists.\n  Remove it first: kyb rm #{project}-#{branch}")
+    if container.exists?
+      Kyb.die("container '#{container.name}' already exists.\n  Remove it first: kyb rm #{project}-#{branch}")
     end
 
     ports = port_overrides || assign_ports(proj[:ports])
 
-    build(Kyb::BASE_IMAGE, base)
+    build(Kyb::Container::BASE_IMAGE, base)
 
-    image = Kyb::BASE_IMAGE
+    image = Kyb::Container::BASE_IMAGE
 
-    wt_path = Kyb::Git.worktree_path(project, container)
+    wt_path = container.worktree_path
     Kyb::Git.setup_worktree(path, proj[:base_branch], wt_path, container)
 
     if proj[:env_template] && !proj[:env_template].empty?
@@ -206,7 +206,6 @@ module Kyb::Docker
     run(
       container: container,
       image: image,
-      hostname: container,
       wt_path: wt_path,
       project_name: project,
       project_path: path,
@@ -215,12 +214,12 @@ module Kyb::Docker
     )
 
     60.times do
-      break if system('docker', 'exec', '-u', 'dev', container,
+      break if system('docker', 'exec', '-u', 'dev', container.name,
                       'test', '-f', '/home/dev/.claude/settings.json',
                       out: File::NULL, err: File::NULL)
       sleep 0.5
     end
 
-    [container, ports]
+    [container.name, ports]
   end
 end

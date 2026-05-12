@@ -4,7 +4,7 @@ class DockerTest < Minitest::Test
   # --- container_name ---
 
   def test_container_name_with_default_branch
-    assert_equal 'kyb-niao-sandbox', Kyb::Docker.container_name('niao', 'sandbox')
+    assert_equal 'kyb-niao-kyb', Kyb::Docker.container_name('niao', 'kyb')
   end
 
   def test_container_name_with_branch

@@ -3,16 +3,20 @@
 module Kyb::Git
   module_function
 
-  def worktree_path(name, container)
-    File.join(Kyb::WORKTREE_BASE, name, container)
+  def worktree_path(project, container)
+    if container.is_a?(Kyb::Container)
+      container.worktree_path || File.join(Kyb::WORKTREE_BASE, project, container.name)
+    else
+      File.join(Kyb::WORKTREE_BASE, project, container)
+    end
   end
 
   def branch(container)
-    "sandbox/#{container.sub('kyb-', '')}"
+    container.git_branch
   end
 
   def setup_worktree(repo_path, base_branch, worktree, container)
-    branch_name = branch(container)
+    branch_name = container.git_branch
 
     if File.directory?(worktree)
       puts "==> worktree exists, reusing (#{worktree})"
@@ -42,7 +46,7 @@ module Kyb::Git
   end
 
   def delete_local_branch(repo_path, container)
-    branch_name = branch(container)
+    branch_name = container.is_a?(Kyb::Container) ? container.git_branch : branch(Kyb::Container.new(nil, nil, name: container))
     Dir.chdir(repo_path) do
       return unless system('git', 'branch', '--list', branch_name, out: File::NULL) &&
                     !`git branch --list #{branch_name}`.strip.empty?
@@ -52,7 +56,7 @@ module Kyb::Git
   end
 
   def delete_remote_branch(repo_path, container)
-    branch_name = branch(container)
+    branch_name = container.is_a?(Kyb::Container) ? container.git_branch : branch(Kyb::Container.new(nil, nil, name: container))
     Dir.chdir(repo_path) do
       return unless system('git', 'ls-remote', '--heads', 'origin', branch_name, out: File::NULL) &&
                     !`git ls-remote --heads origin #{branch_name}`.strip.empty?

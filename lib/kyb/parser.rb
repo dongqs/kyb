@@ -23,7 +23,7 @@ module Kyb::Parser
     end
 
     branch = if str == project
-               'sandbox'
+               'kyb'
              else
                str[(project.length + 1)..]
              end
@@ -33,6 +33,6 @@ module Kyb::Parser
 
   def container(str)
     project, branch = parse(str)
-    "kyb-#{project}-#{branch}"
+    Kyb::Container.new(project, branch).name
   end
 end

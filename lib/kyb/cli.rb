@@ -84,18 +84,18 @@ module Kyb::CLI
 
       Commands:
         build                            Build base image
-        play                             Launch disposable sandbox (no project)
+        play                             Launch disposable container (no project)
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                          Add current project to config
         create PROJECT-BRANCH [--ports HOST:CONTAINER]
-                                         Create and start a sandbox
-        ps, ls                           List sandbox containers
-        enter PROJECT-BRANCH             Enter sandbox via interactive shell
-        exec  PROJECT-BRANCH [CMD...]    Run command in sandbox
-        stop  PROJECT-BRANCH             Stop sandbox container
-        start PROJECT-BRANCH             Start stopped sandbox container
-        rm    PROJECT-BRANCH             Remove sandbox completely
-        prune                            Remove all sandboxes
+                                         Create and start a container
+        ps, ls                           List containers
+        enter PROJECT-BRANCH             Enter container via interactive shell
+        exec  PROJECT-BRANCH [CMD...]    Run command in container
+        stop  PROJECT-BRANCH             Stop container
+        start PROJECT-BRANCH             Start stopped container
+        rm    PROJECT-BRANCH             Remove container
+        prune                            Remove all containers
         tts {start|stop|speak...}        macOS TTS controls
         version                          Show version
 

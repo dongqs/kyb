@@ -49,8 +49,8 @@ fi
 # Skip Claude Code onboarding (theme picker, security notes, trust dialog)
 if [ ! -f /home/dev/.claude.json ]; then
   project_trust='{}'
-  if [ -n "${SANDBOX_PROJECT:-}" ]; then
-    project_trust=$(jq -n --arg p "/home/dev/projects/${SANDBOX_PROJECT}" '{
+  if [ -n "${KYB_PROJECT:-}" ]; then
+    project_trust=$(jq -n --arg p "/home/dev/projects/${KYB_PROJECT}" '{
       ($p): {
         allowedTools: [],
         mcpContextUris: [],
@@ -90,17 +90,17 @@ YAML
     chmod 600 /home/dev/.config/glab-cli/config.yml
 fi
 
-# Generate sandbox CLAUDE.md
+# Generate container CLAUDE.md
 if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
-    if [ -n "${SANDBOX_PROJECT:-}" ]; then
+    if [ -n "${KYB_PROJECT:-}" ]; then
         cat > /home/dev/.claude/CLAUDE.md << CLAUDE
-# Sandbox Environment
+# Container Environment
 
-You are running inside a **kyb dev sandbox** container.
+You are running inside a **kyb-managed Docker container** for project ${KYB_PROJECT}.
 
 ## Project
-- **Name**: ${SANDBOX_PROJECT}
-- **Path**: /home/dev/projects/${SANDBOX_PROJECT}
+- **Name**: ${KYB_PROJECT}
+- **Path**: /home/dev/projects/${KYB_PROJECT}
 
 ## Services
 - **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
@@ -109,16 +109,16 @@ You are running inside a **kyb dev sandbox** container.
 - **glab** — pre-configured for git.leyantech.com
 
 ## Workflow
-- Project code is in \`~/projects/${SANDBOX_PROJECT}\`
+- Project code is in \`~/projects/${KYB_PROJECT}\`
 - Use \`mig25\` for database migrations (DSN in \`.env\`)
 - Commit and push changes — they persist on the host via volume mount
 - End each conversation with the kyb mascot: (◕‿‿◕)
 CLAUDE
     else
         cat > /home/dev/.claude/CLAUDE.md << CLAUDE
-# Sandbox Environment
+# Container Environment
 
-You are running inside a **kyb play sandbox** — a disposable container with no project mounted.
+You are running inside a **kyb-managed disposable Docker container** — no project mounted.
 
 ## Services
 - **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
@@ -139,9 +139,9 @@ fi
 pg_ctlcluster 16 main start 2>/dev/null || true
 
 # Project setup: mise trust, npm install on first run
-if [ -n "${SANDBOX_PROJECT:-}" ] && [ -d "/home/dev/projects/${SANDBOX_PROJECT}" ]; then
+if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
     runuser -u dev -- bash -l << EOF
-        cd /home/dev/projects/${SANDBOX_PROJECT}
+        cd /home/dev/projects/${KYB_PROJECT}
         ~/.local/bin/mise trust 2>/dev/null || true
         eval "\$(~/.local/bin/mise activate bash)"
         if [ -f package.json ] && [ ! -d node_modules -o -z "\$(ls -A node_modules 2>/dev/null)" ]; then

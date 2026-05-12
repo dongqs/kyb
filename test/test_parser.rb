@@ -15,10 +15,10 @@ class ParserTest < Minitest::Test
 
   # --- basic ---
 
-  def test_exact_project_match_uses_sandbox_branch
+  def test_exact_project_match_uses_default_branch
     project, branch = Kyb::Parser.parse('myproject')
     assert_equal 'myproject', project
-    assert_equal 'sandbox', branch
+    assert_equal 'kyb', branch
   end
 
   def test_project_with_branch
@@ -38,7 +38,7 @@ class ParserTest < Minitest::Test
   def test_multi_dash_project_exact_match
     project, branch = Kyb::Parser.parse('tts-server')
     assert_equal 'tts-server', project
-    assert_equal 'sandbox', branch
+    assert_equal 'kyb', branch
   end
 
   def test_multi_dash_project_with_branch
@@ -58,9 +58,9 @@ class ParserTest < Minitest::Test
   # --- container name ---
 
   def test_container_name
-    assert_equal 'kyb-myproject-sandbox', Kyb::Parser.container('myproject')
+    assert_equal 'kyb-myproject-kyb', Kyb::Parser.container('myproject')
     assert_equal 'kyb-myproject-test', Kyb::Parser.container('myproject-test')
-    assert_equal 'kyb-tts-server-sandbox', Kyb::Parser.container('tts-server')
+    assert_equal 'kyb-tts-server-kyb', Kyb::Parser.container('tts-server')
     assert_equal 'kyb-tts-server-test', Kyb::Parser.container('tts-server-test')
   end
 

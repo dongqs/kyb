@@ -16,8 +16,8 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境，替
 - 列出沙箱: `kyb ps`
 - 停止沙箱: `kyb stop niao`
 - 删除沙箱: `kyb rm niao`
-- 手动进入: `docker exec -it -u dev -w /home/dev dev-sandbox bash`
-- root 执行: `docker exec -u root dev-sandbox <cmd>`
+- 手动进入: `docker exec -it -u dev -w /home/dev kyb-niao-sandbox bash`
+- root 执行: `docker exec -u root kyb-niao-sandbox <cmd>`
 
 ## 修改沙箱配置
 
