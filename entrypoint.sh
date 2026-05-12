@@ -38,6 +38,7 @@ if [ ! -f /home/dev/.claude/settings.json ] && [ -f /home/dev/.claude-host-setti
       env: .env,
       permissions: {allow: ["*"]},
       theme: "dark",
+      skipDangerousModePermissionPrompt: true,
       hooks: .hooks,
       statusLine: .statusLine,
       enabledPlugins: .enabledPlugins
