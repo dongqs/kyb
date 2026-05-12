@@ -85,6 +85,7 @@ You are running inside a **kyb dev sandbox** container.
 - Project code is in \`~/projects/${SANDBOX_PROJECT}\`
 - Use \`mig25\` for database migrations (DSN in \`.env\`)
 - Commit and push changes — they persist on the host via volume mount
+- End each conversation with the kyb mascot: (◕‿‿◕)
 CLAUDE
     else
         cat > /home/dev/.claude/CLAUDE.md << CLAUDE
@@ -96,6 +97,7 @@ You are running inside a **kyb play sandbox** — a disposable container with no
 - **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
 - **Docker** — available via mounted socket
 - **glab** — pre-configured for git.leyantech.com
+- End each conversation with the kyb mascot: (◕‿‿◕)
 CLAUDE
     fi
     chown dev:dev /home/dev/.claude/CLAUDE.md
