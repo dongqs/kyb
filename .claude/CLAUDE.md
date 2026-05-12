@@ -29,6 +29,22 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境，替
 
 编辑 `~/.config/kyb/config.yml`，添加项目配置，然后 `kyb create <name>`。
 
+```yaml
+# config.yml 项目配置格式
+projects:
+  my-project:
+    path: "~/path/to/project"
+    base_branch: master
+    ports:                    # 可选，端口映射 host:container
+    - 3000:3000
+    symlinks:                 # 可选，项目内只读挂载（相对路径 → 容器内同位置）
+    - shared/vendor
+    mounts_rw:                # 可选，外部目录读写挂载 host_path:container_path
+    - /Users/dongqs/github/jaxa_storage:/home/dev/jaxa_storage
+    mounts_ro:                # 可选，外部目录只读挂载 host_path:container_path
+    - /some/data:/home/dev/data
+```
+
 ## 沙箱环境
 
 - **PostgreSQL 16** — 随容器启动，trust 认证，时区 Asia/Shanghai
@@ -65,6 +81,7 @@ mig25 要求 PG 时区为 Asia/Shanghai，已在 Dockerfile 中预设。
 - `~/.claude/skills` → 容器内 `/home/dev/.claude-skills-host` (只读)
 - `~/projects` → 容器内 `/home/dev/projects`
 - `/var/run/docker.sock` → 容器内 Docker 访问
+- `mounts_rw` / `mounts_ro` → 项目级配置的外部目录挂载（读写/只读）
 
 ## 为什么用 Docker 而不是 Machine
 
