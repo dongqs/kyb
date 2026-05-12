@@ -12,8 +12,7 @@ module Kyb::CLI
   def tmux_opts(container)
     ['set', '-g', 'set-titles', 'on', ';',
      'set', '-g', 'automatic-rename', 'off', ';',
-     'set', '-g', 'set-titles-string', "kyb:#{container}", ';',
-     'set', '-g', 'allow-set-titles', 'on']
+     'set', '-g', 'set-titles-string', "kyb:#{container}"]
   end
 
   def play
