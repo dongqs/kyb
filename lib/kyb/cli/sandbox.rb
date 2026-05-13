@@ -227,16 +227,12 @@ module Kyb::CLI
           allowWrite: [NODE_MODULES_BASE + '/' + project]
         },
         excludedCommands: [
-          'npm run dev',
-          'npm run serve',
-          'npm run start',
+          'npm run *',
           'npm start',
-          'npx vite',
+          'npx *',
           'vite',
-          'npx next dev',
-          'next dev',
-          'npx webpack serve',
-          'npx webpack-dev-server',
+          'next',
+          'webpack',
           'python -m http.server',
           'ruby -run'
         ]
