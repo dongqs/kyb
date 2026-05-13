@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'json'
 require 'shellwords'
 
 module Kyb::CLI
@@ -150,6 +151,9 @@ module Kyb::CLI
       end
     end
 
+    # Project-level Claude settings (sandbox + permissions)
+    write_sandbox_settings(wt_path)
+
     # CLAUDE.md context
     write_sandbox_claude_md(wt_path, project, branch, path, ports, proj)
 
@@ -157,7 +161,7 @@ module Kyb::CLI
     File.write(pid_path, Process.pid.to_s)
 
     # Build Claude Code arguments
-    claude_args = ['--sandbox', '--dangerously-skip-permissions']
+    claude_args = []
 
     # @file context references
     [
@@ -184,6 +188,17 @@ module Kyb::CLI
     exec('claude', *claude_args)
   rescue Errno::ENOENT
     Kyb.die('claude not found in PATH. Is Claude Code installed?')
+  end
+
+  def write_sandbox_settings(wt_path)
+    settings_dir = File.join(wt_path, '.claude')
+    FileUtils.mkdir_p(settings_dir)
+    settings_path = File.join(settings_dir, 'settings.json')
+    settings = {
+      sandbox: { enabled: true },
+      permissions: { allow: ['*'] }
+    }
+    File.write(settings_path, JSON.pretty_generate(settings))
   end
 
   def write_sandbox_claude_md(wt_path, project, branch, project_path, ports, proj)
