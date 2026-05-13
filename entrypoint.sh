@@ -105,6 +105,9 @@ You are running inside a **kyb-managed Docker container** for project ${KYB_PROJ
 ## Services
 - **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
   - DSN: \`postgresql://postgres:postgres@127.0.0.1:5432/postgres\`
+- **ClickHouse** — running on host, no auth
+  - Native: \`host.orb.internal:9000\`
+  - CLI: \`clickhouse-client --host host.orb.internal\`
 - **Docker** — available via mounted socket
 - **glab** — pre-configured for git.leyantech.com
 
@@ -122,6 +125,7 @@ You are running inside a **kyb-managed disposable Docker container** — no proj
 
 ## Services
 - **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
+- **ClickHouse** — running on host, no auth (`host.orb.internal:9000`)
 - **Docker** — available via mounted socket
 - **glab** — pre-configured for git.leyantech.com
 - End each conversation with the kyb mascot: (◕‿‿◕)
