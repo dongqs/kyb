@@ -152,13 +152,25 @@ module Kyb::CLI
     end
 
     # Project-level Claude settings (sandbox + permissions)
-    write_sandbox_settings(wt_path)
+    write_sandbox_settings(wt_path, project)
 
     # CLAUDE.md context
     write_sandbox_claude_md(wt_path, project, branch, path, ports, proj)
 
     # Write pid (current process — exec preserves PID)
     File.write(pid_path, Process.pid.to_s)
+
+    # Pre-install dependencies (runs outside sandbox, avoids network prompts)
+    if system('which', 'mise', out: File::NULL, err: File::NULL)
+      system('mise', 'trust', chdir: wt_path)
+    end
+    if File.exist?(File.join(wt_path, 'package.json'))
+      nm = File.join(wt_path, 'node_modules')
+      unless File.directory?(nm) && !Dir.empty?(nm)
+        puts '==> npm install (shared)'
+        system('npm', 'install', chdir: wt_path)
+      end
+    end
 
     # Build Claude Code arguments
     claude_args = []
@@ -179,23 +191,42 @@ module Kyb::CLI
       claude_args << '先读一下项目文档和环境说明'
     end
 
-    # Run mise trust if available
-    if system('which', 'mise', out: File::NULL, err: File::NULL)
-      system('mise', 'trust', chdir: wt_path)
-    end
-
     Dir.chdir(wt_path)
     exec('claude', *claude_args)
   rescue Errno::ENOENT
     Kyb.die('claude not found in PATH. Is Claude Code installed?')
   end
 
-  def write_sandbox_settings(wt_path)
+  def write_sandbox_settings(wt_path, project)
     settings_dir = File.join(wt_path, '.claude')
     FileUtils.mkdir_p(settings_dir)
     settings_path = File.join(settings_dir, 'settings.json')
     settings = {
-      sandbox: { enabled: true },
+      sandbox: {
+        enabled: true,
+        network: {
+          allowedDomains: [
+            '*.npmjs.org',
+            '*.npmmirror.com',
+            'registry.npmjs.org',
+            'registry.npmmirror.com',
+            'github.com',
+            '*.github.com',
+            '*.githubusercontent.com',
+            'git.leyantech.com',
+            '*.leyantech.com',
+            'nexus.leyantech.com',
+            'api.anthropic.com',
+            'api.deepseek.com',
+            '*.deepseek.com',
+            'localhost',
+            '127.0.0.1'
+          ]
+        },
+        filesystem: {
+          allowWrite: [NODE_MODULES_BASE + '/' + project]
+        }
+      },
       permissions: { allow: ['*'] }
     }
     File.write(settings_path, JSON.pretty_generate(settings))
@@ -251,6 +282,8 @@ module Kyb::CLI
 
       ## Ports
       - This sandbox has assigned ports: #{ports_text}
+      - Use these ports when starting dev servers
+      - **Important**: Bind to `127.0.0.1` not `0.0.0.0` (sandbox blocks all-interface binding)
     CLAUDE
 
     if mounts_text.empty?
