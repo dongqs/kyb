@@ -37,8 +37,13 @@ module Kyb::CLI
     end
 
     title = "kyb:#{cname}"
-    bin = agent || 'claude'
-    cmd = "cd ~/projects/#{project} && mise trust && #{bin} '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 先读一下项目文档和环境说明'"
+    if agent
+      bin = agent
+      cmd = "cd ~/projects/#{project} && mise trust && #{bin}"
+    else
+      bin = 'claude'
+      cmd = "cd ~/projects/#{project} && mise trust && #{bin} '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 先读一下项目文档和环境说明'"
+    end
     dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 
