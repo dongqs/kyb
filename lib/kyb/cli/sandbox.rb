@@ -173,7 +173,7 @@ module Kyb::CLI
     end
 
     # Build Claude Code arguments
-    claude_args = []
+    claude_args = ['--dangerously-skip-permissions']
 
     # @file context references
     [
