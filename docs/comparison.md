@@ -483,6 +483,43 @@ zerobox --allow-net=api.production.com --credential=DEPLOY_KEY=REAL_KEY -- ./dep
 
 ---
 
+## kyb create (Docker) vs kyb sandbox
+
+kyb 内部两套模式的适用边界。
+
+### 必须用 Docker 的场景
+
+| 能力 | 原因 |
+|------|------|
+| **Docker 命令**（`docker build/run/compose`） | sandbox 无 `/var/run/docker.sock`，且 Seatbelt 阻断 socket 通信 |
+| **`apt-get install` 系统包** | 宿主机是 macOS，没有 apt；Docker 提供完整 Ubuntu 用户空间 |
+| **PostgreSQL 自动启动** | Docker 容器内 systemd/entrypoint 管服务生命周期；sandbox 依赖宿主机已有 PG |
+| **ALL_PROXY 自动注入** | Docker 容器环境变量对所有进程生效；sandbox 只是上下文告知 Claude |
+| **完整 Linux 文件系统** | Docker 有独立 rootfs，容器内随便折腾；sandbox 跑在 macOS 文件系统上 |
+
+### sandbox 足够的场景
+
+| 能力 | 说明 |
+|------|------|
+| **代码编辑、跑测试** | 文件在 worktree 内，sandbox 保护不越界 |
+| **npm/pip/gem 安装** | `allowedDomains` 预填 + 预安装，无提示 |
+| **起 dev server** | `excludedCommands` 排除出 sandbox，`PORT` 环境变量自动设 |
+| **git 操作** | 直接操作 worktree，不受 sandbox 影响 |
+| **mig25 数据库迁移** | 连宿主机 PG，sandbox 允许 localhost 连接 |
+| **多 Agent 并行** | git worktree 隔离代码，每个 Agent 独立 sandbox |
+
+### 选择指南
+
+```
+需要 docker 命令或 apt-get？
+  ├── 是 → kyb create (Docker)
+  └── 否 → 项目需要完整 Linux 环境？
+            ├── 是 → kyb create (Docker)
+            └── 否 → kyb sandbox
+```
+
+---
+
 ## kyb sandbox 实战踩坑记录
 
 实现 `kyb sandbox`（宿主机直跑 Claude Code sandbox）过程中遇到的核心问题和解决方案。
