@@ -78,7 +78,7 @@ module Kyb::CLI
 
   def help
     puts <<~EOF
-      (◕‿‿◕)  kyb — kubernate your branches
+      ／人◕ ‿‿ ◕人＼  kyb — kubernate your branches
 
       Usage:  kyb COMMAND
 

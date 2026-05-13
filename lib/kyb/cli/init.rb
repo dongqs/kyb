@@ -48,7 +48,7 @@ module Kyb::CLI
     end
 
     Kyb::Config.save(name, data)
-    puts "==> #{name} added to #{Kyb::CONFIG_FILE}  (◕‿‿◕)"
+    puts "==> #{name} added to #{Kyb::CONFIG_FILE}"
     puts "    path: #{path}"
     puts "    base_branch: #{base_branch}"
     puts "    ports: #{ports.join(', ')}" unless ports.empty?

@@ -7,6 +7,6 @@ module Kyb::CLI
     Kyb::Config.load
     path = Kyb::Config.base_image_path
     Kyb::Docker.build(Kyb::Container::BASE_IMAGE, path)
-    puts "==> (◕‿‿◕) Build complete: #{Kyb::Container::BASE_IMAGE}"
+    puts "==> Build complete: #{Kyb::Container::BASE_IMAGE}"
   end
 end

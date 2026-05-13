@@ -6,7 +6,7 @@ module Kyb::CLI
   def ps
     list = Kyb::Docker.ps_list
     if list.empty?
-      puts "(◕‿‿◕) No containers — create one with: kyb create <project-branch>"
+      puts "／人◕ ‿‿ ◕人＼ No containers — create one with: kyb create <project-branch>"
       return
     end
     printf "%-30s  %-24s  %s\n", 'PROJECT-BRANCH', 'STATUS', 'PORTS'
@@ -51,7 +51,7 @@ module Kyb::CLI
 
     Kyb::Docker.volume_rm(c.claude_volume)
 
-    puts "==> Done: #{c.name} removed  (◕‿‿◕)"
+    puts "==> Done: #{c.name} removed"
   end
 
   def prune
@@ -79,6 +79,6 @@ module Kyb::CLI
       end
     end
 
-    puts "==> All containers cleaned  (◕‿‿◕)"
+    puts "==> All containers cleaned"
   end
 end

@@ -92,6 +92,7 @@ fi
 
 # Generate container CLAUDE.md
 if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
+    mascot="／人◕ ‿‿ ◕人＼"
     if [ -n "${KYB_PROJECT:-}" ]; then
         cat > /home/dev/.claude/CLAUDE.md << CLAUDE
 # Container Environment
@@ -115,7 +116,7 @@ You are running inside a **kyb-managed Docker container** for project ${KYB_PROJ
 - Project code is in \`~/projects/${KYB_PROJECT}\`
 - Use \`mig25\` for database migrations (DSN in \`.env\`)
 - Commit and push changes — they persist on the host via volume mount
-- End each conversation with the kyb mascot: (◕‿‿◕)
+- End each conversation with: ${mascot}
 CLAUDE
     else
         cat > /home/dev/.claude/CLAUDE.md << CLAUDE
@@ -128,7 +129,7 @@ You are running inside a **kyb-managed disposable Docker container** — no proj
 - **ClickHouse** — running on host, no auth (`host.orb.internal:9000`)
 - **Docker** — available via mounted socket
 - **glab** — pre-configured for git.leyantech.com
-- End each conversation with the kyb mascot: (◕‿‿◕)
+- End each conversation with: ${mascot}
 CLAUDE
     fi
     chown dev:dev /home/dev/.claude/CLAUDE.md

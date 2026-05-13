@@ -10,7 +10,7 @@ module Kyb::CLI
     image = Kyb::Docker.project_image(project, File.join(proj[:path], proj[:dockerfile]), proj[:path]) if proj[:dockerfile]
 
     puts
-    puts "==> (◕‿‿◕) Container ready! Container: #{container}  Image: #{image}  Ports: #{ports || 'none'}"
+    puts "==> ／人◕ ‿‿ ◕人＼ Container ready! Container: #{container}  Image: #{image}  Ports: #{ports || 'none'}"
     puts "    kyb enter #{project}-#{branch}"
   end
 end
