@@ -241,9 +241,9 @@ module Kyb::CLI
           'vite',
           'next',
           'webpack',
-          'clickhouse client',
-          'python -m http.server',
-          'ruby -run'
+          'clickhouse *',
+          'curl',
+          'python -m http.server'
         ]
       },
       permissions: { allow: ['*'] },
