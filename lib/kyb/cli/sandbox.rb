@@ -175,20 +175,21 @@ module Kyb::CLI
     # Build Claude Code arguments
     claude_args = ['--dangerously-skip-permissions']
 
-    # @file context references
+    # @file context references — join into single arg, same as Docker enter mode
+    refs = []
     [
       [File.join(wt_path, 'CLAUDE.md'), '@CLAUDE.md'],
       [File.join(wt_path, 'README.md'), '@README.md'],
       [sandbox_claude_md_path(wt_path), '@.kyb-claude.md'],
       [File.expand_path('~/.claude/CLAUDE.md'), '@~/.claude/CLAUDE.md']
     ].each do |file, ref|
-      claude_args << ref if File.exist?(file)
+      refs << ref if File.exist?(file)
     end
 
     if prompt
-      claude_args += ['-p', prompt]
+      claude_args += ['-p', "#{refs.join(' ')} #{prompt}"]
     else
-      claude_args << '先读一下项目文档和环境说明'
+      claude_args << "#{refs.join(' ')} 先读一下项目文档和环境说明"
     end
 
     # Pass assigned ports as environment variable (vite etc. auto-detect PORT)
