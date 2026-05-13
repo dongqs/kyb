@@ -68,6 +68,15 @@ class SandboxTest < Minitest::Test
     assert_raises(SystemExit) { dispatch('sandbox', 'rm') }
   end
 
+  def test_sandbox_cd
+    out, = capture_io { dispatch('sandbox', 'cd', 'niao-water') }
+    assert_match %r{worktrees/niao/kyb-niao-water$}, out.strip
+  end
+
+  def test_sandbox_cd_no_arg_dies
+    assert_raises(SystemExit) { dispatch('sandbox', 'cd') }
+  end
+
   def test_sandbox_multi_dash_project
     result = dispatch('sandbox', 'tts-server-test')
     assert_equal :create, result[0]
