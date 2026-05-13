@@ -225,7 +225,21 @@ module Kyb::CLI
         },
         filesystem: {
           allowWrite: [NODE_MODULES_BASE + '/' + project]
-        }
+        },
+        excludedCommands: [
+          'npm run dev',
+          'npm run serve',
+          'npm run start',
+          'npm start',
+          'npx vite',
+          'vite',
+          'npx next dev',
+          'next dev',
+          'npx webpack serve',
+          'npx webpack-dev-server',
+          'python -m http.server',
+          'ruby -run'
+        ]
       },
       permissions: { allow: ['*'] }
     }
@@ -283,7 +297,8 @@ module Kyb::CLI
       ## Ports
       - This sandbox has assigned ports: #{ports_text}
       - Use these ports when starting dev servers
-      - **Important**: Bind to `127.0.0.1` not `0.0.0.0` (sandbox blocks all-interface binding)
+      - Dev server commands (`npm run dev`, `vite`, etc.) are excluded from sandbox
+        and run with full network access — no permission prompts needed
     CLAUDE
 
     if mounts_text.empty?
