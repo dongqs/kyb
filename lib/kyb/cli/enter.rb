@@ -5,7 +5,7 @@ module Kyb::CLI
 
   module_function
 
-  def enter(project, branch)
+  def enter(project, branch, agent: nil)
     Kyb::Config.load
     container = Kyb::Container.new(project, branch)
     cname = container.name
@@ -37,7 +37,8 @@ module Kyb::CLI
     end
 
     title = "kyb:#{cname}"
-    cmd = "cd ~/projects/#{project} && mise trust && claude '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 先读一下项目文档和环境说明'"
+    agent_flag = agent ? " --model #{agent}" : ''
+    cmd = "cd ~/projects/#{project} && mise trust && claude#{agent_flag} '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 先读一下项目文档和环境说明'"
     dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
 

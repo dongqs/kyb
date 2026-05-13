@@ -33,9 +33,15 @@ module Kyb::CLI
     when 'ps', 'ls'
       ps
     when 'enter'
-      Kyb.die("enter requires a project-branch\n  Usage: kyb enter PROJECT-BRANCH") unless args.first
+      Kyb.die("enter requires a project-branch\n  Usage: kyb enter PROJECT-BRANCH [--agent AGENT]") unless args.first
       project, branch = Kyb::Parser.parse(args.shift)
-      enter(project, branch)
+      agent = nil
+      if args.first == '--agent'
+        args.shift
+        agent = args.shift
+        Kyb.die("--agent requires a value") unless agent
+      end
+      enter(project, branch, agent: agent)
     when 'exec'
       Kyb.die("exec requires a project-branch\n  Usage: kyb exec PROJECT-BRANCH [CMD...]") unless args.first
       project, branch = Kyb::Parser.parse(args.shift)
@@ -90,7 +96,8 @@ module Kyb::CLI
         create PROJECT-BRANCH [--ports HOST:CONTAINER]
                                          Create and start a container
         ps, ls                           List containers
-        enter PROJECT-BRANCH             Enter container via interactive shell
+        enter PROJECT-BRANCH [--agent AGENT]
+                                         Enter container via interactive shell
         exec  PROJECT-BRANCH [CMD...]    Run command in container
         stop  PROJECT-BRANCH             Stop container
         start PROJECT-BRANCH             Start stopped container
