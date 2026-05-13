@@ -191,6 +191,9 @@ module Kyb::CLI
       claude_args << '先读一下项目文档和环境说明'
     end
 
+    # Pass assigned ports as environment variable (vite etc. auto-detect PORT)
+    ENV['PORT'] = ports.first.to_s unless ports.empty?
+
     Dir.chdir(wt_path)
     exec('claude', *claude_args)
   rescue Errno::ENOENT
