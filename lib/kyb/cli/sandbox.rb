@@ -282,6 +282,10 @@ module Kyb::CLI
       - **PostgreSQL 16** — running on host, trust auth, timezone Asia/Shanghai
         - Connect at `postgresql://postgres:postgres@127.0.0.1:5432/postgres`
         - Create a database for this sandbox if needed: `CREATE DATABASE #{db_name};`
+      - **ClickHouse** — running on host, no auth
+        - Native: `127.0.0.1:9000`
+        - HTTP: `http://127.0.0.1:8123`
+        - CLI: `clickhouse client --host 127.0.0.1`
       - **Network proxy** — if you need to access external services (GitHub, APIs, etc.):
         ```
         export ALL_PROXY=socks5://127.0.0.1:2080
