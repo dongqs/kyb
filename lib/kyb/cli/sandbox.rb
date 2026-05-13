@@ -4,7 +4,6 @@ require 'json'
 require 'shellwords'
 
 module Kyb::CLI
-  NODE_MODULES_BASE = File.expand_path('~/.kyb/node_modules')
   SANDBOX_WORKTREE_BASE = File.expand_path('~/.kyb/worktrees')
 
   module_function
@@ -124,13 +123,15 @@ module Kyb::CLI
     ports_path = sandbox_ports_path(wt_path)
     File.write(ports_path, ports.join(',')) unless ports.empty?
 
-    # Shared node_modules
-    shared_modules = File.join(NODE_MODULES_BASE, project)
+    # Read-only node_modules from repo
+    repo_modules = File.join(path, 'node_modules')
+    unless File.directory?(repo_modules) && !Dir.empty?(repo_modules)
+      Kyb.die("node_modules not found at #{repo_modules}. Run `npm install` in the repo first.")
+    end
     wt_modules = File.join(wt_path, 'node_modules')
     unless File.symlink?(wt_modules)
       FileUtils.rm_rf(wt_modules) if File.exist?(wt_modules)
-      FileUtils.mkdir_p(shared_modules)
-      File.symlink(shared_modules, wt_modules)
+      File.symlink(repo_modules, wt_modules)
     end
 
     # Symlinks from config
@@ -171,8 +172,7 @@ module Kyb::CLI
     if File.exist?(File.join(wt_path, 'package.json'))
       nm = File.join(wt_path, 'node_modules')
       unless File.directory?(nm) && !Dir.empty?(nm)
-        puts '==> npm install (shared)'
-        system('npm', 'install', chdir: wt_path)
+        puts '==> node_modules not found, sandbox will use repo node_modules'
       end
     end
 
@@ -230,9 +230,6 @@ module Kyb::CLI
             'localhost',
             '127.0.0.1'
           ]
-        },
-        filesystem: {
-          allowWrite: [NODE_MODULES_BASE + '/' + project]
         },
         excludedCommands: [
           'npm run *',
@@ -299,9 +296,8 @@ module Kyb::CLI
         Set NO_PROXY to exclude internal hosts.
 
       ## Node modules
-      - `node_modules` is shared across all sandboxes for project `#{project}`
-      - Run `npm install` if dependencies are missing
-      - Other sandboxes may also be modifying dependencies — coordinate if needed
+      - `node_modules` is read-only from `#{project_path}/node_modules`
+      - Run `npm install` in the original repo if dependencies are missing
 
       ## Ports
       - This sandbox has assigned ports: #{ports_text}
