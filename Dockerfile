@@ -68,6 +68,7 @@ RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]' -U
 
 # kimi-cli — Moonshot AI coding agent (installs uv + kimi)
+ARG KIMI_VERSION=1.43.0
 RUN --mount=type=cache,target=/home/dev/.cache/uv \
     sudo mkdir -p /home/dev/.cache/uv /home/dev/.local/share/uv && \
     sudo chown -R dev:dev /home/dev/.cache/uv /home/dev/.local/share && \
