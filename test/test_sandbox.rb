@@ -151,6 +151,29 @@ class SandboxTest < Minitest::Test
     end
   end
 
+  # -- settings -----------------------------------------------------------
+
+  def test_write_sandbox_settings_no_filesystem_key
+    Dir.mktmpdir do |dir|
+      Kyb::CLI.write_sandbox_settings(dir, 'test-proj')
+      settings = JSON.parse(File.read(File.join(dir, '.claude', 'settings.json')))
+      refute settings.key?('filesystem')
+      refute settings.dig('sandbox', 'filesystem')
+    end
+  end
+
+  # -- claude md ----------------------------------------------------------
+
+  def test_write_sandbox_claude_md_node_modules
+    Dir.mktmpdir do |dir|
+      proj = { mounts_rw: nil, mounts_ro: nil }
+      Kyb::CLI.write_sandbox_claude_md(dir, 'test-proj', 'feature', '/repo/test-proj', [], proj)
+      content = File.read(File.join(dir, '.kyb-claude.md'))
+      assert_match 'read-only from `/repo/test-proj/node_modules`', content
+      assert_match 'Run `npm install` in the original repo', content
+    end
+  end
+
   def test_sandbox_ps_with_sandboxes
     Dir.mktmpdir do |dir|
       old = Kyb::CLI::SANDBOX_WORKTREE_BASE
