@@ -241,6 +241,7 @@ module Kyb::CLI
           'vite',
           'next',
           'webpack',
+          'clickhouse client',
           'python -m http.server',
           'ruby -run'
         ]
