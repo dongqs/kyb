@@ -153,12 +153,11 @@ class SandboxTest < Minitest::Test
 
   # -- settings -----------------------------------------------------------
 
-  def test_write_sandbox_settings_no_filesystem_key
+  def test_write_sandbox_settings_filesystem_allowWrite
     Dir.mktmpdir do |dir|
       Kyb::CLI.write_sandbox_settings(dir, 'test-proj')
       settings = JSON.parse(File.read(File.join(dir, '.claude', 'settings.json')))
-      refute settings.key?('filesystem')
-      refute settings.dig('sandbox', 'filesystem')
+      assert_equal [dir], settings.dig('sandbox', 'filesystem', 'allowWrite')
       assert settings.dig('sandbox', 'enableWeakerNetworkIsolation')
     end
   end

@@ -234,6 +234,9 @@ module Kyb::CLI
           ]
         },
         enableWeakerNetworkIsolation: true,
+        filesystem: {
+          allowWrite: [wt_path]
+        },
         excludedCommands: [
           'npm run *',
           'npm start',
