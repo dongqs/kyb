@@ -241,7 +241,8 @@ module Kyb::CLI
           'ruby -run'
         ]
       },
-      permissions: { allow: ['*'] }
+      permissions: { allow: ['*'] },
+      skipDangerousModePermissionPrompt: true
     }
     File.write(settings_path, JSON.pretty_generate(settings))
   end
@@ -367,7 +368,7 @@ module Kyb::CLI
 
     return unless File.directory?(wt_path)
 
-    # Kill process if running
+    # Kill main process if running
     pid_path = sandbox_pid_path(wt_path)
     if File.exist?(pid_path)
       pid = File.read(pid_path).strip.to_i
@@ -376,6 +377,19 @@ module Kyb::CLI
         Process.kill('TERM', pid)
         sleep 0.5
         Process.kill('KILL', pid) rescue nil if process_alive?(pid)
+      end
+    end
+
+    # Kill processes holding assigned ports (dev servers etc.)
+    ports_path = sandbox_ports_path(wt_path)
+    if File.exist?(ports_path)
+      File.read(ports_path).strip.split(',').map(&:to_i).each do |port|
+        `lsof -ti :#{port} 2>/dev/null`.lines.map(&:strip).each do |pid|
+          pid = pid.to_i
+          next if pid <= 0
+          puts "==> killing port #{port} (pid #{pid})"
+          Process.kill('TERM', pid) rescue nil
+        end
       end
     end
 
