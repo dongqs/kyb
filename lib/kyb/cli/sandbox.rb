@@ -233,6 +233,7 @@ module Kyb::CLI
             '127.0.0.1'
           ]
         },
+        enableWeakerNetworkIsolation: true,
         excludedCommands: [
           'npm run *',
           'npm start',

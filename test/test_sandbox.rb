@@ -159,6 +159,7 @@ class SandboxTest < Minitest::Test
       settings = JSON.parse(File.read(File.join(dir, '.claude', 'settings.json')))
       refute settings.key?('filesystem')
       refute settings.dig('sandbox', 'filesystem')
+      assert settings.dig('sandbox', 'enableWeakerNetworkIsolation')
     end
   end
 
