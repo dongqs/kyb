@@ -13,6 +13,10 @@ module Kyb::CLI
     case args.first
     when 'ps', 'ls'
       sandbox_ps
+    when 'cd'
+      Kyb.die("cd requires a project-branch\n  Usage: kyb sandbox cd PROJECT-BRANCH") unless args[1]
+      project, branch = Kyb::Parser.parse(args[1])
+      puts sandbox_worktree_path(project, branch)
     when 'rm'
       Kyb.die("rm requires a project-branch\n  Usage: kyb sandbox rm PROJECT-BRANCH") unless args[1]
       project, branch = Kyb::Parser.parse(args[1])
