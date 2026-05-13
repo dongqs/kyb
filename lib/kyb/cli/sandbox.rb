@@ -123,15 +123,17 @@ module Kyb::CLI
     ports_path = sandbox_ports_path(wt_path)
     File.write(ports_path, ports.join(',')) unless ports.empty?
 
-    # Read-only node_modules from repo
-    repo_modules = File.join(path, 'node_modules')
-    unless File.directory?(repo_modules) && !Dir.empty?(repo_modules)
-      Kyb.die("node_modules not found at #{repo_modules}. Run `npm install` in the repo first.")
-    end
-    wt_modules = File.join(wt_path, 'node_modules')
-    unless File.symlink?(wt_modules)
-      FileUtils.rm_rf(wt_modules) if File.exist?(wt_modules)
-      File.symlink(repo_modules, wt_modules)
+    # Read-only node_modules from repo (only for Node.js projects)
+    if File.exist?(File.join(path, 'package.json'))
+      repo_modules = File.join(path, 'node_modules')
+      unless File.directory?(repo_modules) && !Dir.empty?(repo_modules)
+        Kyb.die("node_modules not found at #{repo_modules}. Run `npm install` in the repo first.")
+      end
+      wt_modules = File.join(wt_path, 'node_modules')
+      unless File.symlink?(wt_modules)
+        FileUtils.rm_rf(wt_modules) if File.exist?(wt_modules)
+        File.symlink(repo_modules, wt_modules)
+      end
     end
 
     # Symlinks from config
