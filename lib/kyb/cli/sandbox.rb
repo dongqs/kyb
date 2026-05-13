@@ -303,6 +303,7 @@ module Kyb::CLI
       - Use these ports when starting dev servers
       - Dev server commands (`npm run dev`, `vite`, etc.) are excluded from sandbox
         and run with full network access — no permission prompts needed
+      - End each conversation with: ／人◕ ‿‿ ◕人＼
     CLAUDE
 
     if mounts_text.empty?
