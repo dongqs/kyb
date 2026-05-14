@@ -153,6 +153,11 @@ module Kyb::Docker
 
   def create_container(project, branch, port_overrides = nil)
     Kyb::Config.load
+
+    if %w[master main].include?(branch)
+      Kyb.die("creating containers for '#{branch}' branch is not allowed.\n  Use a feature branch instead: kyb create #{project}-<branch-name>")
+    end
+
     proj = Kyb::Config.project(project)
     path = proj[:path]
     base = Kyb::Config.base_image_path
