@@ -89,6 +89,9 @@ RUN mkdir -p ~/.pip && \
     printf '%s\n' '---' 'sources:' '  - https://gems.ruby-china.com' > ~/.gemrc && \
     printf '%s\n' '[global]' 'index-url = https://mirrors.aliyun.com/pypi/simple/' > ~/.pip/pip.conf
 
+RUN eval "$($HOME/.local/bin/mise activate bash)" && \
+    bundle config set --global mirror.https://rubygems.org https://gems.ruby-china.com
+
 RUN mkdir -p /home/dev/projects
 
 USER root
