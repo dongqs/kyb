@@ -170,6 +170,37 @@ CLAUDE
             echo "  \`\`\`"
         } >> /home/dev/.claude/CLAUDE.md
     fi
+
+    # Append TTS Notify section
+    {
+        echo ""
+        echo "## 主动通知（TTS Notify）"
+        echo ""
+        echo "长时间任务完成、巡检发现异常或需要外部操作确认时，主动通过 TTS 叫人。"
+        echo ""
+        echo "### 通知等级"
+        echo "- \`done\` — 任务完成（一声提示音）"
+        echo "- \`blocked\` — 巡检发现异常需人工干预（两声提示音，60秒后重试，最多3次）"
+        echo "- \`urgent\` — 外部操作前确认（三声提示音，60秒后重试，最多3次）"
+        echo ""
+        echo "### 使用方式"
+        echo '```bash'
+        echo "# 任务完成时"
+        echo "kyb notify done \"编译通过，测试全部绿\""
+        echo ""
+        echo "# 巡检异常需人工介入"
+        echo "kyb notify blocked \"检测到服务器 502 错误，请检查\""
+        echo ""
+        echo "# 外部操作前确认"
+        echo "kyb notify urgent \"准备推送生产环境，请确认\""
+        echo '```'
+        echo ""
+        echo "### 规则"
+        echo "- \`done\`: 超过 30 秒的任务完成后必通知"
+        echo "- \`blocked\`: 巡检发现异常立即通知，60秒后未回应重试（最多3次）"
+        echo "- \`urgent\`: 外部操作前立即通知，60秒后未回应重试（最多3次）"
+    } >> /home/dev/.claude/CLAUDE.md
+
     chown dev:dev /home/dev/.claude/CLAUDE.md
 fi
 
