@@ -12,7 +12,7 @@ class TTSServerTest < Minitest::Test
   def tts_running?
     Net::HTTP.get_response(URI("#{BASE}/health"))
     true
-  rescue Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EADDRNOTAVAIL
+  rescue SystemCallError, Net::OpenTimeout, Net::ReadTimeout, SocketError
     false
   end
 
