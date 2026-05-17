@@ -17,6 +17,45 @@
 3. **原子切换** — build 成功后才更新 `kyb-base:latest` tag
 4. **容器内闭环** — build 所有操作（编辑 Dockerfile → docker build → git commit）可在容器内完成
 
+## Dockerfile 过长问题
+
+当前 `Dockerfile` 144 行，各层间存在以下问题：
+
+1. **逻辑混在一起** — 系统包、工具安装、项目配置、镜像源全部揉在一个文件
+2. **层顺序不合理** — 缓存利用率低，改一处影响大片（如 `mkdir -p` 孤悬第 103 行）
+3. **缓存样板代码重复** — 每个 `--mount=type=cache` 的 RUN 都要 `sudo mkdir + chown`
+
+### 目标：三分层 + 按变化频率分离
+
+| 层 | 文件名 | 内容 | 变化频率 |
+|---|---|---|---|
+| 系统层 | `Dockerfile.base` | Ubuntu + apt + PostgreSQL + locale + dev 用户 + mise 安装 | 几乎不变 |
+| 工具链 | `Dockerfile.tools` | COPY mise.config.toml → GraalVM 预缓存 → `mise install` | mise.config.toml 变化时 |
+| 最终层 | `Dockerfile` | 镜像源配置 + bundle/yarn config + kimi-wrapper + entrypoint | 相对频繁 |
+
+### 项目工具运行时安装
+
+以下工具从 Dockerfile 移除，改为 entrypoint 首次运行时安装（每个容器独立缓存，互不干扰）：
+
+- `pip install mig25 mig25-codegen requests[socks]`（从 base 移出）
+- `curl https://code.kimi.com/install.sh \| bash`（从 base 移出）
+- `pip install playwright && python -m playwright install chromium --with-deps`（从 base 移出）
+- `npm install -g puppeteer`（从 base 移出）
+- Gradle Nexus 凭据 / npm/pip/gem 镜像源 → 保持或移到 entrypoint
+
+### 缓存目录集中化
+
+当前 BuilderKit cache mount 的样板代码：
+```
+RUN --mount=type=cache,target=/path \
+    sudo mkdir -p /path && \
+    sudo chown -R dev:dev /parent && ...
+```
+
+在 Dockerfile.tools 末尾加入一条 `USER root` 一次性创建所有 cache 目录（mise downloads / pip / uv / ms-playwright），后续各 RUN 省去 sudo 样板。
+
+最终 Dockerfile 从 144 行 → ~70 行。
+
 ## Builder 容器方案
 
 ### 创建方式
