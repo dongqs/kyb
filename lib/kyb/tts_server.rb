@@ -104,6 +104,43 @@ module Kyb
       res.body = 'ok'
     end
 
+    server.mount_proc '/notify' do |_req, res|
+      res['Content-Type'] = 'application/json'
+      data = parse_json(_req)
+
+      level = data['level'] || 'done'
+      text  = data['text'] || 'Agent is calling'
+
+      unless %w[done blocked urgent].include?(level)
+        res.status = 400
+        res.body = { status: 'error', message: "level must be done/blocked/urgent" }.to_json
+        next
+      end
+
+      voice = DEFAULT_VOICE
+      rate = case level
+             when 'done'    then 180
+             when 'blocked' then 160
+             else 140
+             end
+
+      speak(text, voice: voice, rate: rate)
+
+      pings = case level
+              when 'done'    then 1
+              when 'blocked' then 2
+              else 3
+              end
+      pings.times { ping }
+
+      retry_hint = "blocked/urgent: notify again after 60s if user hasn't responded (max 3 retries)"
+      res.body = {
+        status: 'ok',
+        level: level,
+        retry_hint: (%w[blocked urgent].include?(level) ? retry_hint : nil)
+      }.compact.to_json
+    end
+
     server
   end
 

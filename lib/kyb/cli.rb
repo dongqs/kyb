@@ -83,6 +83,12 @@ module Kyb::CLI
       when 'done'   then tts_done(args[1..].join(' '))
       else Kyb.die("unknown tts subcommand: #{args[0]}")
       end
+    when 'notify'
+      Kyb.die("Usage: kyb notify <done|blocked|urgent> <message>") if args.empty? || args.size < 2
+      level = args[0]
+      message = args[1..].join(' ')
+      Kyb.die("level must be done/blocked/urgent, got: #{level}") unless %w[done blocked urgent].include?(level)
+      notify(level, message)
     when 'version', '--version', '-v'
       puts "kyb #{Kyb::VERSION}"
     when 'help', '--help', '-h'
@@ -120,6 +126,8 @@ module Kyb::CLI
         did rm <name>                   DID: remove container
         did ps, ls                      DID: list containers
         tts {start|stop|speak...}        macOS TTS controls
+        notify <done|blocked|urgent> <message>
+                                         Send TTS notification (done: 1 ping, blocked: 2, urgent: 3)
         version                          Show version
 
     EOF

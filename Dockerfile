@@ -135,6 +135,14 @@ RUN --mount=type=cache,target=/home/dev/.cache/pip \
     python -m playwright install chromium --with-deps && \
     PUPPETEER_SKIP_DOWNLOAD=true npm install -g puppeteer
 
+# kyb CLI for notify command (copy lib, create wrapper script)
+COPY --chown=dev:dev lib /home/dev/.kyb/lib
+RUN mkdir -p /home/dev/.kyb/bin && \
+    printf '#!/usr/bin/env ruby\n$LOAD_PATH.unshift("/home/dev/.kyb/lib")\nrequire "kyb"\nKyb::CLI.dispatch(ARGV)\n' \
+    > /home/dev/.kyb/bin/kyb && \
+    chmod +x /home/dev/.kyb/bin/kyb && \
+    ln -s /home/dev/.kyb/bin/kyb /home/dev/.local/bin/kyb
+
 USER root
 # Clear proxy from final image — agent reads proxy config from CLAUDE.md
 ENV ALL_PROXY= all_proxy= NO_PROXY= no_proxy=
