@@ -1,77 +1,42 @@
 # frozen_string_literal: true
 
+require 'digest'
+
 module Kyb::Docker
   module_function
+
+  BUILD_HASH_FILES = %w[Dockerfile entrypoint.sh].freeze
 
   def build(tag, path)
     puts "==> Building base image: #{tag}"
     env = { 'DOCKER_BUILDKIT' => '1' }
-    system(env, 'docker', 'build', '-t', tag, path.to_s) || Kyb.die('docker build failed')
+    build_hash = compute_build_hash(path)
+    system(env, 'docker', 'build', '-t', tag, '--label', "kyb.build-hash=#{build_hash}", path.to_s) || Kyb.die('docker build failed')
   end
 
   def image_exists?(image)
     `docker images -q #{image}`.strip.length.positive?
   end
 
+  # Compare SHA256 hash of Dockerfile + entrypoint.sh against the label stored
+  # on the image at build time. Returns true if source files have changed.
+  # Does NOT run a full docker build (unlike the old approach which could hang).
   def stale?(tag, path)
-    check_tag = "#{tag}:stale-check-#{Time.now.to_i}"
-
-    rd, wr = IO.pipe
-    pid = spawn(
-      { 'DOCKER_BUILDKIT' => '1' },
-      'docker', 'build', '--progress=plain', '-t', check_tag, path.to_s,
-      out: wr, err: [:child, :out]
-    )
-    wr.close
-
-    stale = false
-    buffer = +''
-    loop do
-      ready = IO.select([rd], nil, nil, 0.1)
-      if ready
-        begin
-          buffer << rd.read_nonblock(4096)
-          # Intermediate build output:  #N M.Ns TEXT (not DONE, not CACHED)
-          # Triggers early: first non-cached step → kill process immediately
-          if build_output_contains_build_line?(buffer)
-            stale = true
-            Process.kill('TERM', pid)
-            break
-          end
-        rescue IO::EAGAINWaitReadable
-        rescue EOFError
-        end
-      end
-
-      _, status = Process.wait2(pid, Process::WNOHANG)
-      next unless status
-
-      # Process exited. For builds that produced no intermediate output
-      # (e.g. trivial RUN commands), fall back to layer digest comparison.
-      stale = layers_differ?(tag, check_tag)
-      break
-    end
-
-    rd.close
-    Process.wait(pid) rescue nil
-    system('docker', 'rmi', '-f', check_tag, out: File::NULL, err: File::NULL)
-    stale
+    image_hash = `docker inspect --format='{{index .Config.Labels "kyb.build-hash"}}' #{tag} 2>/dev/null`.strip
+    return false if image_hash.empty?
+    compute_build_hash(path) != image_hash
   rescue => e
     warn "stale check failed: #{e.message}"
     false
   end
 
-  def build_output_contains_build_line?(output)
-    # Matches intermediate build output: #N M.Ns TEXT
-    # Does NOT match: #N CACHED, #N DONE M.Ns, #N [internal]...
-    output.match?(/#\d+ \d+\.\d+s /)
-  end
-
-  def layers_differ?(tag1, tag2)
-    layers1 = `docker inspect --format='{{.RootFS.Layers}}' #{tag1} 2>/dev/null`.strip
-    layers2 = `docker inspect --format='{{.RootFS.Layers}}' #{tag2} 2>/dev/null`.strip
-    return false if layers1.empty? || layers2.empty?
-    layers1 != layers2
+  def compute_build_hash(path)
+    hasher = Digest::SHA256.new
+    BUILD_HASH_FILES.each do |f|
+      file = File.join(path, f)
+      hasher.update(File.read(file)) if File.exist?(file)
+    end
+    hasher.hexdigest
   end
 
   def project_image(name, dockerfile, context)

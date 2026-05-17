@@ -8,7 +8,7 @@ require 'net/http'
 require 'uri'
 
 module Kyb
-  VERSION = '0.8.0'
+  VERSION = '0.8.1'
 
   class TimestampedOutput < SimpleDelegator
     def puts(*args)
