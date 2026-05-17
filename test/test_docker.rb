@@ -177,6 +177,16 @@ class DockerTest < Minitest::Test
     FileUtils.rm_rf('/tmp/test-wt-tz')
   end
 
+  def test_run_passes_kyb_branch_env_var
+    wt_path = '/tmp/test-wt-branch'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path, branch: 'sandbox'))
+    assert args.each_cons(2).any? { |f, v| f == '-e' && v == 'KYB_BRANCH=sandbox' },
+           'expected -e KYB_BRANCH=sandbox'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-branch')
+  end
+
   # --- run (DinD mode) ---
 
   def test_run_dind_uses_named_volume

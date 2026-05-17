@@ -10,10 +10,10 @@ module Kyb::CLI
 
     # Inside a DID container, show only sibling DID containers for display isolation.
     # When you're inside DID container A, `kyb ps` shows only other containers
-    # with the same kyb-did=<parent> label — not the parent itself, not unrelated ones.
+    # with the same did_parent=<parent> label — not the parent itself, not unrelated ones.
     if ENV['KYB_PARENT']
       parent = ENV['KYB_PARENT']
-      did_list = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter label=kyb-did=#{parent} 2>/dev/null`
+      did_list = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter label=did_parent=#{parent} 2>/dev/null`
                  .lines.map { |l| l.strip.split("\t", 3) }
     end
 
@@ -26,7 +26,7 @@ module Kyb::CLI
       puts "DID containers:"
       printf "  %-28s  %-24s  %s\n", 'NAME', 'STATUS', 'PARENT'
       did_list.each do |name, status, ports|
-        label = `docker inspect --format '{{index .Config.Labels "kyb-did"}}' #{name}`.strip rescue ''
+        label = `docker inspect --format '{{index .Config.Labels "did_parent"}}' #{name}`.strip rescue ''
         printf "  %-28s  %-24s  %s\n", name.sub(/^did-/, ''), status, label
       end
       puts
@@ -69,10 +69,10 @@ module Kyb::CLI
     c = Kyb::Container.new(project, branch)
 
     # Clean up any DID children first (cascade: children → parent)
-    # DID containers are labeled kyb-did=<parent-container>, so without
+    # DID containers are labeled did_parent=<parent-container>, so without
     # this cascade the parent volume would be removed while children still
     # reference parent-owned networks.
-    `docker ps -a --format '{{.Names}}' --filter label=kyb-did=#{c.name}`.lines.map(&:strip).each do |did_child|
+    `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name}`.lines.map(&:strip).each do |did_child|
       puts "==> #{did_child}: removing DID child container"
       system('docker', 'rm', '-f', did_child)
       system('docker', 'volume', 'rm', "#{did_child}-worktree", out: File::NULL)
@@ -105,7 +105,7 @@ module Kyb::CLI
         puts "==> #{cname}: removing container"
 
         # Clean up DID children first
-        `docker ps -a --format '{{.Names}}' --filter label=kyb-did=#{cname}`.lines.map(&:strip).each do |did_child|
+        `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{cname}`.lines.map(&:strip).each do |did_child|
           puts "       #{did_child}: removing DID child"
           system('docker', 'rm', '-f', did_child)
           system('docker', 'volume', 'rm', "#{did_child}-worktree", out: File::NULL)

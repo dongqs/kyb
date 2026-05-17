@@ -30,8 +30,8 @@ class CLITest < Minitest::Test
     Kyb::CLI.define_singleton_method(:did_rm) do |args|
       @__captured = [:did_rm, args]
     end
-    Kyb::CLI.define_singleton_method(:did_ps) do
-      @__captured = [:did_ps]
+    Kyb::CLI.define_singleton_method(:did_ps) do |show_all: false|
+      @__captured = [:did_ps, show_all]
     end
   end
 
@@ -229,13 +229,33 @@ class CLITest < Minitest::Test
   end
 
   def test_did_ps
-    cmd, _args = dispatch('did', 'ps')
+    cmd, show_all = dispatch('did', 'ps')
     assert_equal :did_ps, cmd
+    refute show_all
   end
 
   def test_did_ls
-    cmd, _args = dispatch('did', 'ls')
+    cmd, show_all = dispatch('did', 'ls')
     assert_equal :did_ps, cmd
+    refute show_all
+  end
+
+  def test_did_ps_all
+    cmd, show_all = dispatch('did', 'ps', '--all')
+    assert_equal :did_ps, cmd
+    assert show_all
+  end
+
+  def test_did_ps_a
+    cmd, show_all = dispatch('did', 'ps', '-a')
+    assert_equal :did_ps, cmd
+    assert show_all
+  end
+
+  def test_did_ls_all
+    cmd, show_all = dispatch('did', 'ls', '--all')
+    assert_equal :did_ps, cmd
+    assert show_all
   end
 
   def test_did_no_args_shows_help
