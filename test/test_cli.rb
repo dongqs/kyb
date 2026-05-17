@@ -254,6 +254,6 @@ class CLITest < Minitest::Test
   # --- version ---
 
   def test_version
-    assert_equal '0.6.0', Kyb::VERSION
+    assert_equal '0.7.0', Kyb::VERSION
   end
 end

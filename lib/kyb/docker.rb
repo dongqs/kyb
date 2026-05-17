@@ -9,6 +9,10 @@ module Kyb::Docker
     system(env, 'docker', 'build', '-t', tag, path.to_s) || Kyb.die('docker build failed')
   end
 
+  def image_exists?(image)
+    `docker images -q #{image}`.strip.length.positive?
+  end
+
   def project_image(name, dockerfile, context)
     image = Kyb::Container.new(name, nil).project_image
     puts "==> #{name}: building project image (#{dockerfile})"
@@ -191,7 +195,9 @@ module Kyb::Docker
 
     ports = port_overrides || assign_ports(proj[:ports])
 
-    build(Kyb::Container::BASE_IMAGE, base)
+    unless image_exists?(Kyb::Container::BASE_IMAGE)
+      Kyb.die("Base image '#{Kyb::Container::BASE_IMAGE}' not found.\n  Build it first: kyb build")
+    end
 
     image = Kyb::Container::BASE_IMAGE
 
