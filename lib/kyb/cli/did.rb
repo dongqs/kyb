@@ -33,14 +33,14 @@ module Kyb::CLI
   end
 
   # After mounting kyb-swift-cache volume, add Swift to PATH in .bashrc
-  # so non-interactive shells (docker exec) can find swift immediately.
+  # so login shells (docker exec bash -l -c) can find swift immediately.
   def fix_did_swift_path(cname)
     swift_bin = '/home/dev/.local/swift/usr/bin/swift'
     return unless system('docker', 'exec', '-u', 'dev', cname,
                          'test', '-f', swift_bin, out: File::NULL, err: File::NULL)
     system('docker', 'exec', '-u', 'dev', cname,
            'sed', '-i',
-           '/^\\[ -z "\\$PS1" \\]/iexport PATH=/home/dev/.local/swift/usr/bin:$PATH',
+           '/^case \\$- in/iexport PATH=/home/dev/.local/swift/usr/bin:$PATH',
            '/home/dev/.bashrc')
   end
 

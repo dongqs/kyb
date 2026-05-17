@@ -1,5 +1,4 @@
 [tools]
-java = ["graalvm-community-21.0.2", "corretto-8.452.09.1"]
 ruby = "3.3"
 node = "25"
 python = "3.10"

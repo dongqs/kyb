@@ -58,21 +58,9 @@ RUN for i in 1 2 3 4 5; do \
       sleep 5; \
     done
 
-# mise global config — copied before GraalVM/mise-install so config changes
-# only invalidate those two slow layers, not mise itself
+# mise global config — copied before mise-install so config changes
+# only invalidate the install layer, not mise itself
 COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
-
-# Pre-fetch GraalVM into mise cache (large tarball, retry-friendly)
-RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
-    GRAALVM_DIR="/home/dev/.local/share/mise/downloads/java/graalvm-community-21.0.2" && \
-    GRAALVM_FILE="graalvm-community-jdk-21.0.2_linux-aarch64_bin.tar.gz" && \
-    if [ ! -f "$GRAALVM_DIR/$GRAALVM_FILE" ]; then \
-        sudo mkdir -p "$GRAALVM_DIR" && \
-        sudo chown -R dev:dev /home/dev/.local/share/mise && \
-        curl -fsSL --retry 5 --retry-delay 15 \
-            "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-21.0.2/$GRAALVM_FILE" \
-            -o "$GRAALVM_DIR/$GRAALVM_FILE"; \
-    fi
 
 # Install mise tools (node, python, claude-code, clickhouse, glab)
 # Cache mount only covers downloads — installs/shim go into the image layer
