@@ -45,7 +45,7 @@ module Kyb::CLI
     c = Kyb::Container.new(project, branch)
     Kyb.die("container '#{c.name}' is not running") unless c.running?
 
-    exec('docker', 'exec', '-it', '-u', 'dev', '-w', "/home/dev/projects/#{project}", c.name, *args)
+    exec('docker', 'exec', '-i', '-u', 'dev', '-w', "/home/dev/projects/#{project}", c.name, *args)
   end
 
   def stop(project, branch)
