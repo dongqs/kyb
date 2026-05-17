@@ -64,3 +64,65 @@ apt install swiftlang
 
 宿主机维护 `kyb-swift-cache` 命名 volume，预装 Swift 6.2（aarch64），
 `kyb did create` 自动挂载，DID 容器秒级可用。
+
+## DID 容器运行 Swift 测试的注意事项
+
+### SSH 认证
+
+`kyb did create` 会复制宿主机的 `~/.ssh/` 到 DID 容器，但 **known_hosts 中可能没有 GitHub**，
+首次 SSH 连接会因 `Host key verification failed` 被拒。
+
+**解决：** 以 `dev` 用户执行一次 SSH（`accept-new` 自动接受 host key）：
+```bash
+docker exec -u dev did-<name> ssh -o StrictHostKeyChecking=accept-new -T git@github.com
+```
+
+验证：
+```bash
+docker exec -u dev did-<name> ssh -T git@github.com 2>&1 | head -3
+# 应输出：Hi dongqs! You've successfully authenticated...
+```
+
+### docker exec 用户
+
+`docker exec` 默认以 `root` 用户进入容器，但 SSH 私钥（`600` 权限）属主是 `dev`，
+root 无法读取。首次 clone 会因认证失败被拒。
+
+**必须加 `-u dev`**：
+```bash
+docker exec -u dev did-<name> bash -c 'cd ~/projects/niao/swift-core && swift test'
+```
+
+验证（以 root 执行会失败，`-u dev` 正常）：
+```bash
+# ❌ 不加 -u 会失败
+docker exec did-<name> bash -c 'cd ~/projects/niao/swift-core && swift test' 2>&1 | tail -3
+
+# ✅ 加 -u dev 正常
+docker exec -u dev did-<name> bash -c 'cd ~/projects/niao/swift-core && swift test' 2>&1 | tail -3
+```
+
+### PATH 配置
+
+`~/.bashrc` 的结构是：
+```
+eval "$(mise activate bash)"      # 非交互式也能用
+alias ...
+[ -z "$PS1" ] && return           # ← 非交互式在这里 return
+...
+export PATH=...:/home/dev/.local/swift/usr/bin:$PATH   # ← 追加在末尾，非交互式不生效
+```
+
+Swift 的 `PATH` 如果追加在文件末尾，非交互式 shell（`bash -c`、`docker exec` 不分配 tty 时）
+不会执行到。**必须插入到 `return` 守卫之前**：
+```bash
+sed -i '3iexport PATH=/home/dev/.local/swift/usr/bin:$PATH' ~/.bashrc
+```
+
+或者直接 `docker exec -u dev ... bash -l -c 'cd ... && swift test'`（login shell 会读所有配置）。
+
+验证：
+```bash
+docker exec -u dev did-<name> bash -l -c 'swift --version'
+# 应输出：Swift version 6.2 (swift-6.2-RELEASE)
+```
