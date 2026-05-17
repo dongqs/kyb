@@ -5,7 +5,7 @@ require 'json'
 
 module Kyb
   module TTSServer
-  DEFAULT_VOICE = 'Zarvox'
+  DEFAULT_VOICE = 'Tingting'
   DEFAULT_RATE  = 180
   PORT = (ENV['TTS_PORT'] || 10666).to_i
 

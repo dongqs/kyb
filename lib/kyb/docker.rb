@@ -107,9 +107,6 @@ module Kyb::Docker
     args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
     args += ['-v', "#{container.claude_volume}:/home/dev/.claude"]
     if dind
-      # Docker-in-Docker: bind-mounting container-local paths fails because
-      # host Docker daemon can't see the path. Use a named volume instead,
-      # then copy the worktree into it after container starts.
       args += ['-v', "#{container.name}-worktree:/home/dev/projects/#{project_name}"]
     else
       args += ['-v', "#{wt_path}:/home/dev/projects/#{project_name}"]
@@ -138,12 +135,13 @@ module Kyb::Docker
       args += ['-v', "#{File.expand_path(host_path)}:#{container_path}:ro"]
     end
 
-    # Mount host build-tool caches so dependencies survive container recreation
-    gradle_home = File.expand_path('~/.gradle')
-    if File.exist?(File.join(wt_path, 'gradlew')) || File.directory?(File.join(wt_path, 'gradle'))
-      FileUtils.mkdir_p(gradle_home)
-      args += ['-v', "#{gradle_home}:/home/dev/.gradle"]
+    # Mount shared build-tool caches so dependencies survive container recreation.
+    # Volumes are global (never cleaned by kyb rm/prune) — all containers share them.
+    %w[kyb-gradle-cache kyb-maven-cache].each do |vol|
+      system('docker', 'volume', 'create', vol, out: File::NULL)
     end
+    args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
+    args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
 
     ports.to_s.split(',').each do |p|
       next if p.empty?

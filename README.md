@@ -120,6 +120,7 @@ projects:
 - [方案对比](./docs/comparison.md) — kyb vs 其他 AI 沙箱方案，Docker vs sandbox 模式选择
 - [OS 级沙箱对比](./docs/os-sandbox.md) — Claude Code / Codex / Zerobox / mise 底层原语深度对比
 - [实现踩坑](./docs/sandbox-pitfalls.md) — kyb sandbox 实现过程中遇到的问题和解决方案
+- [kyb did 设计](./docs/kyb-did.md) — Docker-in-Docker 场景下的容器管理子系统设计
 - [终端标题](./docs/terminal-title.md) — iTerm2 标题设置调试记录
 
 ## 清理
