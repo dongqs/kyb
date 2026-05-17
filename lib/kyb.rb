@@ -10,6 +10,44 @@ require 'uri'
 module Kyb
   VERSION = '0.8.1'
 
+  ALIASES = %w[
+    可以不
+    可以吧
+    不可以？
+    可以嘛
+    可以哟
+    可以的
+    可以可以
+    可以啊
+    很可以
+    太可以
+    不太可以
+    不可以太
+    狠不可以
+    可不可以
+    可可以以
+    合意味
+    和味道
+    可以太
+    大可以
+    斯阔以
+  ].freeze
+
+  VERSION_FORMATS = [
+    -> { "kyb #{VERSION} (／人◕ ‿‿ ◕人＼ #{ALIASES.sample})" },
+    -> { "kyb #{VERSION} —— #{ALIASES.sample}" },
+    -> { "#{ALIASES.sample} v#{VERSION}" },
+    -> { "kyb #{VERSION} | #{ALIASES.sample}" },
+  ].freeze
+
+  def self.version_string
+    VERSION_FORMATS.sample.call
+  end
+
+  def self.alias_line
+    ALIASES.shuffle.join('、')
+  end
+
   class TimestampedOutput < SimpleDelegator
     def puts(*args)
       if args.empty?

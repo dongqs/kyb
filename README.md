@@ -1,4 +1,4 @@
-# kyb — kubernate your branches ／人◕ ‿‿ ◕人＼
+# kyb — kubernate your branches 可以不 ／人◕ ‿‿ ◕人＼
 
 一键创建隔离的 AI 开发沙箱。Docker 容器即用即抛，权限全开无中断，宿主机零污染。
 
