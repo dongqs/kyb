@@ -254,6 +254,56 @@ class CLITest < Minitest::Test
   # --- version ---
 
   def test_version
-    assert_equal '0.7.0', Kyb::VERSION
+    assert_equal '0.8.0', Kyb::VERSION
+  end
+
+  # --- notify ---
+
+  def test_notify_dispatch_done
+    Kyb::CLI.define_singleton_method(:notify) do |level, message|
+      @__captured = [:notify, level, message]
+    end
+    cmd, level, msg = dispatch('notify', 'done', 'hello world')
+    assert_equal :notify, cmd
+    assert_equal 'done', level
+    assert_equal 'hello world', msg
+  ensure
+    Kyb::CLI.singleton_class.remove_method(:notify)
+  end
+
+  def test_notify_dispatch_blocked
+    Kyb::CLI.define_singleton_method(:notify) do |level, message|
+      @__captured = [:notify, level, message]
+    end
+    cmd, level, msg = dispatch('notify', 'blocked', 'server 502')
+    assert_equal :notify, cmd
+    assert_equal 'blocked', level
+    assert_equal 'server 502', msg
+  ensure
+    Kyb::CLI.singleton_class.remove_method(:notify)
+  end
+
+  def test_notify_dispatch_urgent
+    Kyb::CLI.define_singleton_method(:notify) do |level, message|
+      @__captured = [:notify, level, message]
+    end
+    cmd, level, msg = dispatch('notify', 'urgent', 'push prod')
+    assert_equal :notify, cmd
+    assert_equal 'urgent', level
+    assert_equal 'push prod', msg
+  ensure
+    Kyb::CLI.singleton_class.remove_method(:notify)
+  end
+
+  def test_notify_no_args_dies
+    assert_raises(SystemExit) { dispatch('notify') }
+  end
+
+  def test_notify_one_arg_dies
+    assert_raises(SystemExit) { dispatch('notify', 'done') }
+  end
+
+  def test_notify_invalid_level_dies
+    assert_raises(SystemExit) { dispatch('notify', 'invalid', 'msg') }
   end
 end
