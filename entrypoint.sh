@@ -188,11 +188,16 @@ runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliu
 if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
     runuser -u dev -- bash -l << EOF
         cd /home/dev/projects/${KYB_PROJECT}
-        ~/.local/bin/mise trust 2>/dev/null || true
-        eval "\$(~/.local/bin/mise activate bash)"
+        # Trust system mise config first so mise activate works cleanly
+        /home/dev/.local/bin/mise trust /home/dev/.config/mise/config.toml 2>/dev/null || true
+        eval "\$(/home/dev/.local/bin/mise activate bash)"
+        # Trust project-level mise config if any
+        if [ -f mise.toml ]; then
+            mise trust mise.toml 2>/dev/null || true
+        fi
 
         # Node dependencies
-        if [ -f package.json ] && [ ! -d node_modules -o -z "\$(ls -A node_modules 2>/dev/null)" ]; then
+        if [ -f package.json ] && { [ ! -d node_modules ] || [ -z "\$(ls -A node_modules 2>/dev/null)" ]; }; then
             if [ -f yarn.lock ]; then
                 yarn install --frozen-lockfile || true
             else
