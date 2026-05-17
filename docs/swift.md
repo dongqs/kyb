@@ -12,7 +12,10 @@
 
 具体步骤详见下游项目的 `.kyb.md`：
 
-- [niao 的 kyb DID 流程](https://github.com/dongqs/niao/blob/master/.kyb.md)
+- niao 项目根目录的 `.kyb.md`（克隆后可见）
+
+> **注意：** 如果下游项目包含 `mise.toml`，克隆后先执行 `mise trust`，
+> 否则 `swift test` 首次运行时会报 `mise ERROR config files not trusted` 警告。
 
 ## 维护缓存
 
@@ -69,8 +72,8 @@ apt install swiftlang
 
 ### SSH 认证
 
-`kyb did create` 会复制宿主机的 `~/.ssh/` 到 DID 容器，但 **known_hosts 中可能没有 GitHub**，
-首次 SSH 连接会因 `Host key verification failed` 被拒。
+`kyb did create` 会复制宿主机的 `~/.ssh/` 到 DID 容器。
+**如遇** `Host key verification failed`，说明 known_hosts 缺少 GitHub 的 host key：
 
 **解决：** 以 `dev` 用户执行一次 SSH（`accept-new` 自动接受 host key）：
 ```bash
