@@ -42,6 +42,11 @@ module Kyb::Config
     load_config.dig('base', 'claude_default_model') || 'flash'
   end
 
+  def kyb_repo
+    path = load_config.dig('base', 'kyb_repo')
+    File.expand_path(path) if path
+  end
+
   def proxy
     load_config.dig('base', 'proxy')
   end
@@ -59,6 +64,7 @@ module Kyb::Config
     {
       name: name,
       path: File.expand_path(p['path']),
+      git_url: p['git_url'],
       base_branch: p['base_branch'],
       dockerfile: p['dockerfile'],
       ports: Array(p['ports']).map(&:to_i).reject(&:zero?),

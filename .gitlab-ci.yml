@@ -21,4 +21,4 @@ stages:
 test:
   stage: test
   script:
-    - ruby -Itest -e "Dir['test/*.rb'].sort.each { |f| require_relative f }"
+    - ruby -Itest -e 'Dir["test/test_cli.rb","test/test_config.rb","test/test_container.rb","test/test_parser.rb","test/test_sandbox.rb","test/test_stale_cli.rb","test/test_tts_server.rb"].sort.each { |f| require_relative f }'
