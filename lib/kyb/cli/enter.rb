@@ -36,10 +36,36 @@ module Kyb::CLI
       end
     end
 
+    stale_msg = nil
+    if Kyb::Docker.image_exists?(Kyb::Container::BASE_IMAGE)
+      path = Kyb::Config.base_image_path
+      if Kyb::Docker.stale?(Kyb::Container::BASE_IMAGE, path)
+        puts
+        puts "==> ⚠ kyb-base:latest is outdated (Dockerfile changed)."
+        puts "    Run 'kyb build' on host to update."
+        print "    Continue? [Y/n] (5s auto: Y) "
+        STDOUT.flush
+        input = IO.select([STDIN], nil, nil, 5)
+        if input
+          ans = STDIN.gets.to_s.strip.downcase
+          if ans == 'n' || ans == 'no'
+            puts "    Aborted."
+            exit 0
+          end
+        else
+          puts
+        end
+        stale_msg = '（基础镜像可能已过时，建议运行 kyb build 更新）'
+      end
+    end
+
     title = "kyb:#{cname}"
     cmd = "cd ~/projects/#{project} && mise trust && #{cli}"
 
     default_prompt = '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 先读一下项目文档和环境说明'
+    if stale_msg
+      default_prompt += " #{stale_msg}"
+    end
 
     proj_config = Kyb::Config.project(project)
     if proj_config[:extra_prompt]

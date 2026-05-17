@@ -199,6 +199,7 @@ class DockerTest < Minitest::Test
     }) do
     Kyb::Config.stub(:base_image_path, '/tmp') do
     Kyb::Docker.stub(:build, true) do
+    Kyb::Docker.stub(:image_exists?, true) do
     Kyb::Docker.stub(:assign_ports, '') do
     Kyb::Docker.stub(:run, nil) do
     Kyb::Docker.stub(:exists?, false) do
@@ -209,7 +210,7 @@ class DockerTest < Minitest::Test
     FileUtils.stub(:mkdir_p, nil) do
     FileUtils.stub(:cp, nil) do
       yield
-    end; end; end; end; end; end; end; end; end; end; end; end; end
+    end; end; end; end; end; end; end; end; end; end; end; end; end; end
   end
 
   def test_create_container_dind_copies_worktree
@@ -240,5 +241,47 @@ class DockerTest < Minitest::Test
     end
 
     refute cp_called, 'docker cp should NOT be called in normal mode'
+  end
+
+  def test_stale_output_detects_build_line
+    output = <<~OUTPUT
+      #1 [internal] load build definition
+      #1 CACHED
+      #2 [2/8] RUN apt-get update
+      #2 0.315s Running apt-get update...
+    OUTPUT
+    assert Kyb::Docker.build_output_contains_build_line?(output)
+  end
+
+  def test_stale_output_returns_false_for_all_cached
+    output = <<~OUTPUT
+      #1 [internal] load build definition
+      #1 CACHED
+      #2 [2/8] RUN apt-get update
+      #2 CACHED
+      #3 [3/8] RUN apt-get install -y curl
+      #3 CACHED
+    OUTPUT
+    refute Kyb::Docker.build_output_contains_build_line?(output)
+  end
+
+  def test_stale_output_ignores_done_lines
+    output = "#5 DONE 12.5s\n#6 DONE 0.3s\n"
+    refute Kyb::Docker.build_output_contains_build_line?(output)
+  end
+
+  def test_stale_output_empty
+    refute Kyb::Docker.build_output_contains_build_line?('')
+  end
+
+  def test_layers_differ_returns_false_for_same_image
+    tmpdir = Dir.mktmpdir('test-layers-')
+    File.write(File.join(tmpdir, 'Dockerfile'), "FROM busybox:stable\nRUN echo layer-test\n")
+    system('docker', 'build', '-t', 'kyb-test-layers', tmpdir.to_s, out: File::NULL, err: File::NULL)
+    refute Kyb::Docker.layers_differ?('kyb-test-layers', 'kyb-test-layers'),
+           'same image should not differ'
+  ensure
+    system('docker', 'rmi', '-f', 'kyb-test-layers', out: File::NULL, err: File::NULL)
+    FileUtils.rm_rf(tmpdir) if tmpdir
   end
 end
