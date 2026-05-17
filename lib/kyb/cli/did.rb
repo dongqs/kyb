@@ -50,15 +50,18 @@ module Kyb::CLI
     run_args += ['-e', "KYB_PARENT=#{parent}"]
     run_args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"] if ENV['GITLAB_TOKEN']
     run_args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
-
+    run_args += ['-e', "ALL_PROXY=#{Kyb::Config.proxy}"] if Kyb::Config.proxy
+    run_args += ['-e', "NO_PROXY=#{Kyb::Config.no_proxy}"] if Kyb::Config.no_proxy
     run_args += ['-v', "#{volume}:/home/dev/projects/#{name}"]
 
     # Shared build-tool caches
-    %w[kyb-gradle-cache kyb-maven-cache].each do |vol|
+    %w[kyb-gradle-cache kyb-maven-cache kyb-mise-cache kyb-pip-cache].each do |vol|
       system('docker', 'volume', 'create', vol, out: File::NULL) || Kyb.die("failed to create volume '#{vol}'")
     end
     run_args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     run_args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
+    run_args += ['-v', 'kyb-mise-cache:/home/dev/.local/share/mise/downloads']
+    run_args += ['-v', 'kyb-pip-cache:/home/dev/.cache/pip']
 
     # Mount Swift toolchain cache if available
     swift_cache = 'kyb-swift-cache'
@@ -80,6 +83,10 @@ module Kyb::CLI
                        out: File::NULL, err: File::NULL)
       sleep 0.5
     end
+
+    # Configure mise to keep downloaded archives (shared cache volume)
+    system('docker', 'exec', '-u', 'dev', cname,
+           'bash', '-l', '-c', 'mise settings set always_keep_downloads true 2>/dev/null || true')
 
     # Copy SSH keys into container (bind mount doesn't work in DinD)
     ssh_dir = File.expand_path('~/.ssh')

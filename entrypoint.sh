@@ -24,6 +24,12 @@ fi
 
 chown -R dev:dev /home/dev 2>/dev/null || true
 
+# Clean stale Gradle locks from zombie daemons (common after failed builds)
+rm -f /home/dev/.gradle/caches/journal-*/journal-*.lock
+
+# Keep mise download archives so shared cache volumes avoid re-download
+runuser -u dev -- bash -l -c "mise settings set always_keep_downloads true" 2>/dev/null || true
+
 # Docker socket access — match host's docker group GID
 if [ -S /var/run/docker.sock ]; then
     DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
@@ -85,6 +91,9 @@ if [ ! -f /home/dev/.claude.json ]; then
   }' > /home/dev/.claude.json
   chown dev:dev /home/dev/.claude.json
 fi
+
+# Rewrite HTTPS→SSH for GitLab (CI requires HTTPS in .gitmodules, ssh complains about this often)
+git config --system url."git@git.leyantech.com:".insteadOf "https://git.leyantech.com/"
 
 # Configure glab on first run
 if [ -n "${GITLAB_TOKEN:-}" ] && [ ! -f /home/dev/.config/glab-cli/config.yml ]; then

@@ -109,20 +109,34 @@ projects:
 - `~/.gitconfig` → 容器内 `/home/dev/.gitconfig` (只读)
 - `~/.claude/settings.json` → 容器内 `/home/dev/.claude-host-settings.json` (只读)
 - `~/.config/kyb` → 容器内 `/home/dev/.config/kyb` (只读) — 容器内可发现其他项目
+- `~/.claude/skills` → 容器内 `/home/dev/.claude-skills-host` (只读)
 - `~/projects` → 容器内 `/home/dev/projects`
 - `/var/run/docker.sock` → 容器内 Docker 访问
 
 ## 共享缓存
 
-所有容器共享以下命名 volume，数据持久化在宿主机，容器删除不丢失：
+所有容器共享命名 volume，数据持久化在宿主机，容器删除不丢失。
 
 | Volume | 挂载点 | 用途 |
 |--------|--------|------|
-| `kyb-gradle-cache` | `/home/dev/.gradle` | Gradle 依赖缓存 |
-| `kyb-maven-cache` | `/home/dev/.m2/repository` | Maven 依赖缓存 |
+| `kyb-gradle-cache` | `/home/dev/.gradle` | Gradle wrapper + 依赖 |
+| `kyb-maven-cache` | `/home/dev/.m2/repository` | Maven 依赖 |
+| `kyb-mise-cache` | `/home/dev/.local/share/mise/downloads` | mise 工具链 |
+| `kyb-pip-cache` | `/home/dev/.cache/pip` | pip 包 |
 | `kyb-swift-cache` | `/home/dev/.local/swift` | Swift 6.2 工具链（可选） |
 
-`kyb build` / `kyb create` / `kyb did create` 时会自动检测并使用这些缓存。
+`kyb build` / `kyb create` / `kyb did create` 时自动检测并使用这些缓存。
+
+## 文本转语音（TTS）
+
+宿主机 macOS 语音服务，容器内通过 `host.docker.internal:10666` 调用。
+
+```bash
+curl -X POST http://host.docker.internal:10666/speak \
+  -H "Content-Type: application/json" -d '{"text":"你好"}'
+```
+
+详见宿主机 `kyb tts` 命令。
 
 ## 工作树隔离
 
@@ -133,7 +147,8 @@ projects:
 - [方案对比](./docs/comparison.md) — kyb vs 其他 AI 沙箱方案，Docker vs sandbox 模式选择
 - [OS 级沙箱对比](./docs/os-sandbox.md) — Claude Code / Codex / Zerobox / mise 底层原语深度对比
 - [实现踩坑](./docs/sandbox-pitfalls.md) — kyb sandbox 实现过程中遇到的问题和解决方案
-- [kyb did 设计](./docs/kyb-did.md) — Docker-in-Docker 场景下的容器管理子系统设计
+- [kyb did 设计](./docs/docker-in-docker.md) — Docker-in-Docker 场景下的容器管理子系统设计
+- [容器环境参考](./docs/container.md) — 容器内服务、网络、缓存等详细说明（面向 AI agent）
 - [Swift 沙箱测试](./docs/swift.md) — DID 容器跑 Swift 测试的方案和缓存维护
 - [终端标题](./docs/terminal-title.md) — iTerm2 标题设置调试记录
 
