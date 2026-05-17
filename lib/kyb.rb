@@ -4,9 +4,11 @@ require 'yaml'
 require 'fileutils'
 require 'socket'
 require 'delegate'
+require 'net/http'
+require 'uri'
 
 module Kyb
-  VERSION = '0.7.0'
+  VERSION = '0.8.0'
 
   class TimestampedOutput < SimpleDelegator
     def puts(*args)

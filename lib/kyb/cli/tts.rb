@@ -90,4 +90,29 @@ module Kyb::CLI
   rescue Errno::ESRCH
     false
   end
+
+  def containerized?
+    File.exist?('/.dockerenv')
+  end
+
+  def notify(level, message)
+    unless %w[done blocked urgent].include?(level)
+      Kyb.die "level must be done/blocked/urgent, got: #{level}"
+    end
+
+    if containerized?
+      uri = URI('http://host.docker.internal:10666/notify')
+      body = { level: level, text: message }.to_json
+      Net::HTTP.post(uri, body, 'Content-Type' => 'application/json')
+    else
+      tts_speak(message)
+
+      pings = case level
+              when 'done'    then 1
+              when 'blocked' then 2
+              when 'urgent'  then 3
+              end
+      pings.times { tts_ping }
+    end
+  end
 end
