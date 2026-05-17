@@ -17,9 +17,6 @@ class StaleIntegrationTest < Minitest::Test
   def teardown
     FileUtils.rm_rf(@tmpdir)
     system('docker', 'rmi', '-f', TEST_TAG, out: File::NULL, err: File::NULL)
-    # Clean up any stale-check tags left behind
-    tags = `docker images --format '{{.Repository}}:{{.Tag}}' #{TEST_TAG}`.lines.map(&:strip)
-    tags.each { |t| system('docker', 'rmi', '-f', t, out: File::NULL, err: File::NULL) }
   end
 
   def write_dockerfile(*lines)
@@ -31,11 +28,12 @@ class StaleIntegrationTest < Minitest::Test
   end
 
   def build_base
-    _, err = capture_io do
-      system({ 'DOCKER_BUILDKIT' => '1' },
-             'docker', 'build', '-t', TEST_TAG, @tmpdir.to_s,
-             out: File::NULL, err: File::NULL)
-    end
+    hash = Kyb::Docker.compute_build_hash(@tmpdir)
+    system({ 'DOCKER_BUILDKIT' => '1' },
+           'docker', 'build', '-t', TEST_TAG,
+           '--label', "kyb.build-hash=#{hash}",
+           @tmpdir.to_s,
+           out: File::NULL, err: File::NULL)
     assert system('docker', 'image', 'inspect', TEST_TAG, out: File::NULL, err: File::NULL),
            "base image #{TEST_TAG} should exist after build"
   end
@@ -59,27 +57,29 @@ class StaleIntegrationTest < Minitest::Test
     assert result, 'should be stale when Dockerfile changed'
   end
 
-  def test_stale_cleans_up_temp_tags
+  def test_stale_returns_false_for_unlabeled_image
     build_base
+    system({ 'DOCKER_BUILDKIT' => '1' },
+           'docker', 'build', '-t', "#{TEST_TAG}-unlabeled",
+           @tmpdir.to_s,
+           out: File::NULL, err: File::NULL)
+    result = nil
     capture_io do
-      Kyb::Docker.stale?(TEST_TAG, @tmpdir)
+      result = Kyb::Docker.stale?("#{TEST_TAG}-unlabeled", @tmpdir)
     end
-    tags = `docker images --format '{{.Repository}}:{{.Tag}}' #{TEST_TAG}`.lines.map(&:strip)
-    stale_tags = tags.select { |t| t.include?('stale-check') }
-    assert_empty stale_tags, "expected no stale-check tags, got: #{stale_tags.join(', ')}"
+    refute result, 'unlabeled image should return false (conservative)'
+  ensure
+    system('docker', 'rmi', '-f', "#{TEST_TAG}-unlabeled", out: File::NULL, err: File::NULL)
   end
 
   def test_stale_no_base_image_does_not_crash
-    # Ensure the tag does NOT exist by using a fresh one
     fresh_tag = 'kyb-test-stale-nonexistent'
     system('docker', 'rmi', '-f', fresh_tag, out: File::NULL, err: File::NULL)
     result = nil
     capture_io do
       result = Kyb::Docker.stale?(fresh_tag, @tmpdir)
     end
-    # Without a base image, every layer is built — so stale? returns true
-    # But more importantly: no crash, no hang.
-    assert_includes [true, false], result
+    refute result, 'nonexistent image should not crash and return false'
   ensure
     system('docker', 'rmi', '-f', fresh_tag, out: File::NULL, err: File::NULL)
   end
