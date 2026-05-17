@@ -242,4 +242,18 @@ class CLITest < Minitest::Test
     out, = capture_io { dispatch('did') }
     assert_match(/kyb did/, out)
   end
+
+  def test_did_create_no_name_dies
+    assert_raises(SystemExit) { capture_io { dispatch('did', 'create') } }
+  end
+
+  def test_did_rm_no_name_dies
+    assert_raises(SystemExit) { capture_io { dispatch('did', 'rm') } }
+  end
+
+  # --- version ---
+
+  def test_version
+    assert_equal '0.6.0', Kyb::VERSION
+  end
 end

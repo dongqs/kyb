@@ -136,9 +136,12 @@ module Kyb::Docker
     end
 
     # Mount shared build-tool caches so dependencies survive container recreation.
-    # Volumes are global (never cleaned by kyb rm/prune) — all containers share them.
+    # Use named volumes (not host bind mounts) so they work in DinD where host
+    # paths are invisible to the Docker daemon. All containers share the same
+    # volumes — first container gets a cold cache, subsequent ones are hot.
+    # Volumes are global (never cleaned by kyb rm/prune).
     %w[kyb-gradle-cache kyb-maven-cache].each do |vol|
-      system('docker', 'volume', 'create', vol, out: File::NULL)
+      system('docker', 'volume', 'create', vol, out: File::NULL) || Kyb.die("failed to create volume '#{vol}'")
     end
     args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']

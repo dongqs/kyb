@@ -6,7 +6,7 @@ require 'socket'
 require 'delegate'
 
 module Kyb
-  VERSION = '0.5.31'
+  VERSION = '0.6.0'
 
   class TimestampedOutput < SimpleDelegator
     def puts(*args)

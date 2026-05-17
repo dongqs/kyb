@@ -11,8 +11,10 @@ module Kyb::CLI
 
     case cmd
     when 'create'
+      Kyb.die("Usage: kyb did create <name>") unless args.first
       did_create(args)
     when 'rm'
+      Kyb.die("Usage: kyb did rm <name>") unless args.first
       did_rm(args)
     when 'ps', 'ls'
       did_ps
@@ -21,21 +23,24 @@ module Kyb::CLI
     end
   end
 
+  # Determine the parent container name for label/ENV.
+  # When run inside a kyb container, KYB_PARENT is set explicitly.
+  # When run inside a DinD container (KYB_PROJECT set but no KYB_PARENT),
+  # fall back to the container hostname.
+  # When run on the host, returns nil — caller defaults to 'host'.
   def did_parent_name
-    ENV['KYB_PARENT'] || ENV['KYB_PROJECT'] && `hostname`.strip rescue nil
+    ENV['KYB_PARENT'] || (ENV['KYB_PROJECT'] && `hostname`.strip) rescue nil
   end
 
   def did_create(args)
     name = args.first
-    Kyb.die("Usage: kyb did create <name>") unless name
-
     cname = "#{DID_PREFIX}#{name}"
     Kyb.die("container '#{cname}' already exists") if Kyb::Docker.exists?(cname)
 
     parent = did_parent_name || 'host'
     volume = "#{cname}-worktree"
 
-    system('docker', 'volume', 'create', volume)
+    system('docker', 'volume', 'create', volume) || Kyb.die("failed to create volume '#{volume}'")
 
     run_args = %w[docker run -d --name]
     run_args << cname
@@ -50,7 +55,7 @@ module Kyb::CLI
 
     # Shared build-tool caches
     %w[kyb-gradle-cache kyb-maven-cache].each do |vol|
-      system('docker', 'volume', 'create', vol, out: File::NULL)
+      system('docker', 'volume', 'create', vol, out: File::NULL) || Kyb.die("failed to create volume '#{vol}'")
     end
     run_args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     run_args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
@@ -88,8 +93,6 @@ module Kyb::CLI
 
   def did_rm(args)
     name = args.first
-    Kyb.die("Usage: kyb did rm <name>") unless name
-
     cname = "#{DID_PREFIX}#{name}"
 
     # Remove child containers (DID-in-DID nesting)
