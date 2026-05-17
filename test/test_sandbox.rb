@@ -156,10 +156,12 @@ class SandboxTest < Minitest::Test
 
   def test_write_sandbox_settings_filesystem_allowWrite
     Dir.mktmpdir do |dir|
-      Kyb::CLI.write_sandbox_settings(dir, 'test-proj')
+      proj = { sandbox_allowed_domains: Kyb::Config::DEFAULT_SANDBOX_DOMAINS }
+      Kyb::CLI.write_sandbox_settings(dir, proj)
       settings = JSON.parse(File.read(File.join(dir, '.claude', 'settings.json')))
       assert_equal [dir], settings.dig('sandbox', 'filesystem', 'allowWrite')
       assert settings.dig('sandbox', 'enableWeakerNetworkIsolation')
+      assert_includes settings.dig('sandbox', 'network', 'allowedDomains'), '*.npmjs.org'
     end
   end
 

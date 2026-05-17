@@ -30,6 +30,12 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境。
 编辑 `~/.config/kyb/config.yml`：
 
 ```yaml
+base:
+  image: ~/kyb                      # Dockerfile 路径
+  proxy: socks5://host.orb.internal:2080   # 全局代理（可选）
+  no_proxy: .leyantech.com,...      # 全局直连列表（可选）
+  claude_default_model: flash       # 默认模型（可选，flash/pro）
+
 projects:
   my-project:
     path: "~/path/to/project"
@@ -42,6 +48,10 @@ projects:
     - /host/path:/container/path
     mounts_ro:                # 可选
     - /host/path:/container/path
+    timezone: Asia/Shanghai   # 可选，默认 Asia/Shanghai
+    proxy: http://local:3128  # 项目级代理覆盖（可选）
+    sandbox_allowed_domains:  # sandbox 额外域名白名单（可选）
+    - '*.internal.corp.com'
 ```
 
 ## 沙箱环境

@@ -159,7 +159,7 @@ module Kyb::CLI
     end
 
     # Project-level Claude settings (sandbox + permissions)
-    write_sandbox_settings(wt_path, project)
+    write_sandbox_settings(wt_path, proj)
 
     # CLAUDE.md context
     write_sandbox_claude_md(wt_path, project, branch, path, ports, proj)
@@ -207,7 +207,7 @@ module Kyb::CLI
     Kyb.die('claude not found in PATH. Is Claude Code installed?')
   end
 
-  def write_sandbox_settings(wt_path, project)
+  def write_sandbox_settings(wt_path, proj)
     settings_dir = File.join(wt_path, '.claude')
     FileUtils.mkdir_p(settings_dir)
     settings_path = File.join(settings_dir, 'settings.json')
@@ -215,23 +215,7 @@ module Kyb::CLI
       sandbox: {
         enabled: true,
         network: {
-          allowedDomains: [
-            '*.npmjs.org',
-            '*.npmmirror.com',
-            'registry.npmjs.org',
-            'registry.npmmirror.com',
-            'github.com',
-            '*.github.com',
-            '*.githubusercontent.com',
-            'git.leyantech.com',
-            '*.leyantech.com',
-            'nexus.leyantech.com',
-            'api.anthropic.com',
-            'api.deepseek.com',
-            '*.deepseek.com',
-            'localhost',
-            '127.0.0.1'
-          ]
+          allowedDomains: proj[:sandbox_allowed_domains]
         },
         enableWeakerNetworkIsolation: true,
         filesystem: {
@@ -295,12 +279,7 @@ module Kyb::CLI
         - Native: `127.0.0.1:9000`
         - HTTP: `http://127.0.0.1:8123`
         - CLI: `clickhouse client --host 127.0.0.1`
-      - **Network proxy** — if you need to access external services (GitHub, APIs, etc.):
-        ```
-        export ALL_PROXY=socks5://127.0.0.1:2080
-        ```
-        Internal hosts (git.leyantech.com, .leyantech.com, nexus.leyantech.com) go directly.
-        Set NO_PROXY to exclude internal hosts.
+      - **Network proxy** — #{proxy_for_claude(proj)}
 
       ## Node modules
       - `node_modules` is read-only from `#{project_path}/node_modules`
@@ -321,6 +300,26 @@ module Kyb::CLI
     end
 
     File.write(sandbox_claude_md_path(wt_path), content)
+  end
+
+  # -- proxy helper -----------------------------------------------------
+
+  def proxy_for_claude(proj)
+    proxy = proj[:proxy]
+    no_proxy = proj[:no_proxy]
+
+    if proxy
+      text = "available at `#{proxy}`."
+      text += " Bypass proxy for: `#{no_proxy}`." if no_proxy
+      text += "\n        Configure manually:"
+      text += "\n        ```"
+      text += "\n        export ALL_PROXY=#{proxy}"
+      text += "\n        export NO_PROXY=#{no_proxy}" if no_proxy
+      text += "\n        ```"
+      text
+    else
+      'not configured. Set `proxy` in config.yml to enable.'
+    end
   end
 
   # -- ps ---------------------------------------------------------------

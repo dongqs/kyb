@@ -69,7 +69,7 @@ module Kyb::Docker
     out.lines.map(&:strip).reject(&:empty?)
   end
 
-  def run(container:, image:, wt_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil)
+  def run(container:, image:, wt_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil)
     puts "==> #{container.name}: starting (#{wt_path} -> /home/dev/projects/#{project_name})"
 
     args = %w[docker run -d]
@@ -82,7 +82,10 @@ module Kyb::Docker
     args += ['-e', "CLAUDE_CODE_EFFORT_LEVEL=#{ENV['CLAUDE_CODE_EFFORT_LEVEL']}"]
     args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"]
     args += ['-e', "KYB_PROJECT=#{project_name}"]
-    args += ['-e', "KYB_MODEL=#{model || 'flash'}"]
+    args += ['-e', "KYB_MODEL=#{model || Kyb::Config.claude_default_model}"]
+    args += ['-e', "TZ=#{timezone}"]
+    args += ['-e', "KYB_PROXY=#{kyb_proxy}"] if kyb_proxy
+    args += ['-e', "KYB_NO_PROXY=#{kyb_no_proxy}"] if kyb_no_proxy
     args += ['-l', Kyb::Container::LABEL]
 
     ssh_dir = File.expand_path('~/.ssh')
@@ -202,7 +205,10 @@ module Kyb::Docker
       symlinks: proj[:symlinks],
       mounts_rw: proj[:mounts_rw],
       mounts_ro: proj[:mounts_ro],
-      model: model
+      model: model,
+      timezone: proj[:timezone],
+      kyb_proxy: proj[:proxy],
+      kyb_no_proxy: proj[:no_proxy]
     )
 
     60.times do
