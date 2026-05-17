@@ -174,3 +174,53 @@ kyb notify urgent "准备推送生产环境，请确认"
 - 不增加 watcher/daemon 进程（依赖 AI 自行实现重试逻辑）
 - 不修改 Docker 网络配置（已有 host.docker.internal 访问能力）
 - 容器内其他 kyb 命令（build/create/enter 等）保持不可用
+
+## 愿望清单
+
+以下功能不在本次实现范围内，但架构设计时为后续扩展预留接口。
+
+### 1. 宿主浏览器打开网页
+
+场景：AI 在容器内完成前端开发后，希望在宿主机浏览器中直接预览效果。
+
+需要考虑的问题：
+- **端口映射**：容器内 dev server 通过端口映射暴露到宿主机（如 `3000:3000`），AI 需要知道映射后的宿主机端口
+- **打开方式**：宿主机提供端点（如 `POST /open?url=http://localhost:3000`），AI 从容器内调用
+- **端口查询**：容器 AI 需要知道当前容器的端口映射关系，可通过 `kyb notify` 命令扩展获取端口信息，或通过 TTS 服务新增 `/open` 端点
+
+实现形态示例：
+
+```bash
+# 容器内 AI 调用
+curl -X POST http://host.docker.internal:10666/open \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "http://localhost:3000/path"}'
+
+# 或扩展 kyb notify
+kyb notify open "http://localhost:3000"
+```
+
+宿主机 TTS 服务收到请求后，调用 `open <url>` 命令在默认浏览器中打开。
+
+### 2. 消息推送（钉钉/IM/电话）
+
+场景：TTS 叫人不到（重复 3 次后仍未回应），升级到更可靠的通知渠道。
+
+预留接口设计：
+
+```
+POST /notify
+{
+  "level": "urgent",
+  "text": "服务器异常，请立即处理",
+  "fallback": ["dingtalk", "sms"]  // 预留字段，后续启用
+}
+```
+
+未来扩展方向：
+- **钉钉机器人**：通过 Webhook 发送消息到钉钉群
+- **其他 IM**：企业微信、飞书等 Webhook
+- **短信/电话**：通过云服务 API 发送短信或自动语音电话（用于真正紧急的场景）
+- **通知链**：TTS → 重复 TTS → IM 消息 → 电话，逐级升级
+
+不在此次实现中接入，但 /notify 端点预留 `fallback` 字段，后续可扩展而不破坏接口兼容性。
