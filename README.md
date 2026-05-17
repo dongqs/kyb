@@ -108,8 +108,21 @@ projects:
 - `~/.ssh` → 容器内 `/home/dev/.ssh` (只读)
 - `~/.gitconfig` → 容器内 `/home/dev/.gitconfig` (只读)
 - `~/.claude/settings.json` → 容器内 `/home/dev/.claude-host-settings.json` (只读)
+- `~/.config/kyb` → 容器内 `/home/dev/.config/kyb` (只读) — 容器内可发现其他项目
 - `~/projects` → 容器内 `/home/dev/projects`
 - `/var/run/docker.sock` → 容器内 Docker 访问
+
+## 共享缓存
+
+所有容器共享以下命名 volume，数据持久化在宿主机，容器删除不丢失：
+
+| Volume | 挂载点 | 用途 |
+|--------|--------|------|
+| `kyb-gradle-cache` | `/home/dev/.gradle` | Gradle 依赖缓存 |
+| `kyb-maven-cache` | `/home/dev/.m2/repository` | Maven 依赖缓存 |
+| `kyb-swift-cache` | `/home/dev/.local/swift` | Swift 6.2 工具链（可选） |
+
+`kyb build` / `kyb create` / `kyb did create` 时会自动检测并使用这些缓存。
 
 ## 工作树隔离
 

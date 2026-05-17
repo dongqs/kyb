@@ -163,6 +163,8 @@ module Kyb::Docker
     args += ['-v', "#{ENV['HOME']}/.kimi:/home/dev/.kimi"]
     args += ['-v', "#{ENV['HOME']}/.gitconfig:/home/dev/.gitconfig:ro"]
     args += ['-v', "#{ENV['HOME']}/.claude/settings.json:/home/dev/.claude-host-settings.json:ro"]
+    kyb_config = File.expand_path('~/.config/kyb')
+    args += ['-v', "#{kyb_config}:/home/dev/.config/kyb:ro"] if File.directory?(kyb_config)
     skills = File.expand_path('~/.claude/skills')
     args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
     agents = File.expand_path('~/.agents')
@@ -210,6 +212,12 @@ module Kyb::Docker
     end
     args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
+
+    # Mount Swift toolchain cache if available
+    swift_cache = 'kyb-swift-cache'
+    if `docker volume ls -q --filter name=^#{swift_cache}$`.strip == swift_cache
+      args += ['-v', "#{swift_cache}:/home/dev/.local/swift"]
+    end
 
     ports.to_s.split(',').each do |p|
       next if p.empty?

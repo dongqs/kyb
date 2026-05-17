@@ -93,9 +93,15 @@ module Kyb::CLI
       system('docker', 'cp', gitconfig, "#{cname}:/home/dev/.gitconfig")
     end
 
+    # Copy kyb config so container can discover other projects
+    kyb_config = File.expand_path('~/.config/kyb')
+    if File.directory?(kyb_config)
+      system('docker', 'cp', "#{kyb_config}/.", "#{cname}:/home/dev/.config/kyb/")
+    end
+
     # Fix ownership of copied files (docker cp preserves root ownership)
     system('docker', 'exec', '-u', 'root', cname,
-           'chown', '-R', 'dev:dev', '/home/dev/.ssh', '/home/dev/.gitconfig')
+           'chown', '-R', 'dev:dev', '/home/dev/.ssh', '/home/dev/.gitconfig', '/home/dev/.config')
 
     puts
     puts "==> ／人◕ ‿‿ ◕人＼ DID container ready! Container: #{cname}"

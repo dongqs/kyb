@@ -187,6 +187,67 @@ class DockerTest < Minitest::Test
     FileUtils.rm_rf('/tmp/test-wt-dind')
   end
 
+  # --- run (Swift cache volume) ---
+
+  def test_run_mounts_swift_cache_volume_when_exists
+    skip 'docker not available' unless docker_available?
+    # Ensure the volume exists (idempotent)
+    system('docker', 'volume', 'create', 'kyb-swift-cache', out: File::NULL, err: File::NULL)
+    wt_path = '/tmp/test-wt-swift'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-swift-cache:/home/dev/.local/swift' },
+           'expected kyb-swift-cache volume mount'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-swift')
+  end
+
+  def test_run_skips_non_existent_volume
+    skip 'docker not available' unless docker_available?
+    unknown_vol = 'kyb-volet-xyxy'
+    system('docker', 'volume', 'rm', unknown_vol, out: File::NULL, err: File::NULL) # ensure missing
+    wt_path = '/tmp/test-wt-noswift'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    refute args.each_cons(2).any? { |f, v| f == '-v' && v.include?(unknown_vol) },
+           'expected no mount for non-existent volume'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-noswift')
+  end
+
+  # --- run (kyb config mount) ---
+
+  def test_run_mounts_kyb_config_when_dir_exists
+    kyb_config = '/tmp/test-kyb-config'
+    FileUtils.mkdir_p(kyb_config)
+    real_expand = File.method(:expand_path)
+    File.stub(:expand_path, ->(p) { p == '~/.config/kyb' ? kyb_config : real_expand.call(p) }) do
+      wt_path = '/tmp/test-wt-cfg'
+      FileUtils.mkdir_p(wt_path)
+      args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+      assert args.each_cons(2).any? { |f, v| f == '-v' && v == "#{kyb_config}:/home/dev/.config/kyb:ro" },
+             'expected kyb config mount'
+    end
+  ensure
+    FileUtils.rm_rf('/tmp/test-kyb-config')
+    FileUtils.rm_rf('/tmp/test-wt-cfg')
+  end
+
+  def test_run_skips_kyb_config_when_dir_missing
+    missing_path = '/tmp/test-kyb-config-missing'
+    FileUtils.rm_rf(missing_path)
+    real_expand = File.method(:expand_path)
+    File.stub(:expand_path, ->(p) { p == '~/.config/kyb' ? missing_path : real_expand.call(p) }) do
+      wt_path = '/tmp/test-wt-nocfg'
+      FileUtils.mkdir_p(wt_path)
+      args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+      refute args.each_cons(2).any? { |f, v| f == '-v' && v.include?('kyb') && v.include?('config') },
+             'expected no kyb config mount when dir missing'
+    end
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-nocfg')
+  end
+
   # --- create_container (DinD cp) ---
 
   def stub_create_container_deps
@@ -283,5 +344,9 @@ class DockerTest < Minitest::Test
   ensure
     system('docker', 'rmi', '-f', 'kyb-test-layers', out: File::NULL, err: File::NULL)
     FileUtils.rm_rf(tmpdir) if tmpdir
+  end
+
+  def docker_available?
+    system('docker', 'version', out: File::NULL, err: File::NULL)
   end
 end
