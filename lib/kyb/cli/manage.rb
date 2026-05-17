@@ -4,13 +4,36 @@ module Kyb::CLI
   module_function
 
   def ps
-    list = Kyb::Docker.ps_list
-    if list.empty?
+    normal = Kyb::Docker.ps_list
+    did_list = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter 'name=did-' 2>/dev/null`
+               .lines.map { |l| l.strip.split("\t", 3) }
+
+    # Inside a DID container, show only sibling DID containers
+    if ENV['KYB_PARENT']
+      parent = ENV['KYB_PARENT']
+      did_list = `docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Ports}}' --filter label=kyb-did=#{parent} 2>/dev/null`
+                 .lines.map { |l| l.strip.split("\t", 3) }
+    end
+
+    if normal.empty? && did_list.empty?
       puts "／人◕ ‿‿ ◕人＼ No containers — create one with: kyb create <project-branch>"
       return
     end
-    printf "%-30s  %-24s  %s\n", 'PROJECT-BRANCH', 'STATUS', 'PORTS'
-    list.each { |name, status, ports| printf "%-30s  %-24s  %s\n", name.sub(/^kyb-/, ''), status, ports }
+
+    unless did_list.empty?
+      puts "DID containers:"
+      printf "  %-28s  %-24s  %s\n", 'NAME', 'STATUS', 'PARENT'
+      did_list.each do |name, status, ports|
+        label = `docker inspect --format '{{index .Config.Labels "kyb-did"}}' #{name}`.strip rescue ''
+        printf "  %-28s  %-24s  %s\n", name.sub(/^did-/, ''), status, label
+      end
+      puts
+    end
+
+    unless normal.empty?
+      printf "%-30s  %-24s  %s\n", 'PROJECT-BRANCH', 'STATUS', 'PORTS'
+      normal.each { |name, status, ports| printf "%-30s  %-24s  %s\n", name.sub(/^kyb-/, ''), status, ports }
+    end
   end
   singleton_class.alias_method :ls, :ps
 
@@ -42,6 +65,14 @@ module Kyb::CLI
     Kyb.die("#{path} not found") unless File.directory?(path)
 
     c = Kyb::Container.new(project, branch)
+
+    # Clean up any DID children first
+    `docker ps -a --format '{{.Names}}' --filter label=kyb-did=#{c.name}`.lines.map(&:strip).each do |did_child|
+      puts "==> #{did_child}: removing DID child container"
+      system('docker', 'rm', '-f', did_child)
+      system('docker', 'volume', 'rm', "#{did_child}-worktree", out: File::NULL)
+    end
+
     Kyb::Docker.remove_container(c.name)
 
     wt_path = Kyb::Git.worktree_path(project, c)
@@ -67,6 +98,14 @@ module Kyb::CLI
       Kyb::Docker.containers_for_project(proj_name).each do |cname|
         c = Kyb::Container.new(nil, nil, name: cname)
         puts "==> #{cname}: removing container"
+
+        # Clean up DID children first
+        `docker ps -a --format '{{.Names}}' --filter label=kyb-did=#{cname}`.lines.map(&:strip).each do |did_child|
+          puts "       #{did_child}: removing DID child"
+          system('docker', 'rm', '-f', did_child)
+          system('docker', 'volume', 'rm', "#{did_child}-worktree", out: File::NULL)
+        end
+
         system('docker', 'rm', '-f', cname)
 
         wt_path = Kyb::Git.worktree_path(proj_name, c)

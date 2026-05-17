@@ -70,6 +70,8 @@ module Kyb::CLI
       prune
     when 'sandbox'
       sandbox(args)
+    when 'did'
+      did(args)
     when 'tts'
       Kyb.die("tts requires a subcommand\n  Usage: kyb tts {start|stop|status|speak|ping|done}") unless args.first
       case args[0]
@@ -114,6 +116,9 @@ module Kyb::CLI
         sandbox PROJECT-BRANCH [PROMPT]  Run in host sandbox (no Docker)
         sandbox ps, ls                   List host sandboxes
         sandbox rm PROJECT-BRANCH        Remove host sandbox
+        did create <name>               DID: create container (Docker-in-Docker)
+        did rm <name>                   DID: remove container
+        did ps, ls                      DID: list containers
         tts {start|stop|speak...}        macOS TTS controls
         version                          Show version
 
@@ -128,3 +133,4 @@ require_relative 'cli/enter'
 require_relative 'cli/manage'
 require_relative 'cli/sandbox'
 require_relative 'cli/tts'
+require_relative 'cli/did'

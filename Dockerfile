@@ -9,6 +9,7 @@ RUN apt-get update && apt-get upgrade -y && \
     libpq-dev libssl-dev libreadline-dev zlib1g-dev libffi-dev libyaml-dev \
     vim tmux htop gnupg unzip jq docker-compose-v2 \
     ripgrep fd-find fzf \
+    lsof net-tools dnsutils iputils-ping traceroute tcpdump \
     docker.io docker-buildx sudo postgresql postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 

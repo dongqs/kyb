@@ -22,6 +22,17 @@ class CLITest < Minitest::Test
     Kyb::CLI.define_singleton_method(:enter) do |project, branch, **|
       @__captured = [:enter, [project, branch]]
     end
+
+    # DID subcommands
+    Kyb::CLI.define_singleton_method(:did_create) do |args|
+      @__captured = [:did_create, args]
+    end
+    Kyb::CLI.define_singleton_method(:did_rm) do |args|
+      @__captured = [:did_rm, args]
+    end
+    Kyb::CLI.define_singleton_method(:did_ps) do
+      @__captured = [:did_ps]
+    end
   end
 
   def teardown
@@ -29,6 +40,9 @@ class CLITest < Minitest::Test
     Kyb::Config.singleton_class.remove_method(:project_names)
 
     %i[create enter stop start rm].each do |m|
+      Kyb::CLI.singleton_class.remove_method(m)
+    end
+    %i[did_create did_rm did_ps].each do |m|
       Kyb::CLI.singleton_class.remove_method(m)
     end
   end
@@ -74,13 +88,13 @@ class CLITest < Minitest::Test
   def test_enter_project_only
     cmd, args = dispatch('enter', 'niao')
     assert_equal :enter, cmd
-    assert_equal ['niao', 'kyb'], args
+    assert_equal ['niao', 'kyb'], args[0..1]
   end
 
   def test_enter_project_branch
     cmd, args = dispatch('enter', 'niao-water')
     assert_equal :enter, cmd
-    assert_equal ['niao', 'water'], args
+    assert_equal ['niao', 'water'], args[0..1]
   end
 
   def test_enter_no_arg_dies
@@ -198,5 +212,34 @@ class CLITest < Minitest::Test
     ensure
       $stdout = original
     end
+  end
+
+  # --- did ---
+
+  def test_did_create
+    cmd, args = dispatch('did', 'create', 'mybox')
+    assert_equal :did_create, cmd
+    assert_equal ['mybox'], args
+  end
+
+  def test_did_rm
+    cmd, args = dispatch('did', 'rm', 'mybox')
+    assert_equal :did_rm, cmd
+    assert_equal ['mybox'], args
+  end
+
+  def test_did_ps
+    cmd, _args = dispatch('did', 'ps')
+    assert_equal :did_ps, cmd
+  end
+
+  def test_did_ls
+    cmd, _args = dispatch('did', 'ls')
+    assert_equal :did_ps, cmd
+  end
+
+  def test_did_no_args_shows_help
+    out, = capture_io { dispatch('did') }
+    assert_match(/kyb did/, out)
   end
 end
