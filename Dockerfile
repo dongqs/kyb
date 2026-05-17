@@ -135,6 +135,8 @@ RUN --mount=type=cache,target=/home/dev/.cache/pip \
     PUPPETEER_SKIP_DOWNLOAD=true npm install -g puppeteer
 
 USER root
+# Clear proxy from final image — agent reads proxy config from CLAUDE.md
+ENV ALL_PROXY= all_proxy= NO_PROXY= no_proxy=
 COPY --chmod=+x entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["sleep", "infinity"]

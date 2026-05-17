@@ -55,4 +55,40 @@ class DockerTest < Minitest::Test
   def test_assign_ports_empty_array
     assert_equal '', Kyb::Docker.assign_ports([])
   end
+
+  # --- run with timezone ---
+
+  def test_run_passes_tz_env_var
+    container = Kyb::Container.new('niao', 'sandbox')
+    docker_args = []
+    config_called = false
+
+    Kyb::Docker.define_singleton_method(:system) do |*args|
+      docker_args = args if args[0] == 'docker' && args[1] == 'run'
+      true
+    end
+
+    wt_path = '/tmp/test-wt'
+    FileUtils.mkdir_p(wt_path)
+    Kyb::Docker.run(
+      container: container,
+      image: 'kyb-base',
+      wt_path: wt_path,
+      project_name: 'niao',
+      project_path: '/tmp/test-project',
+      ports: '',
+      symlinks: '',
+      mounts_rw: '',
+      mounts_ro: '',
+      model: 'flash',
+      timezone: 'America/Sao_Paulo'
+    )
+
+    assert docker_args.each_cons(2).any? { |flag, val|
+             flag == '-e' && val == 'TZ=America/Sao_Paulo'
+           }, 'expected -e TZ=America/Sao_Paulo in docker run args'
+  ensure
+    Kyb::Docker.singleton_class.remove_method(:system) rescue nil
+    FileUtils.rm_rf('/tmp/test-wt')
+  end
 end

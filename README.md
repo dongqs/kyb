@@ -34,7 +34,7 @@ macOS 宿主机
 | **Claude Code** | npm 全局安装 | 权限 `allow: ["*"]` |
 | **Docker** | daemon.json 镜像加速 | `docker.1ms.run`, `docker.xuanyuan.me` |
 | **包管理器镜像** | 国内源直连 | apt→aliyun, npm→npmmirror, gem→ruby-china, pip→aliyun |
-| **外网代理** | ALL_PROXY socks5 | `host.orb.internal:2080` → 宿主机 sing-box |
+| **外网代理** | CLAUDE.md 中说明 | 宿主机 sing-box, agent 自行配置 |
 | **内网** | NO_PROXY 排除 | git.leyantech.com 直连 |
 | **用户** | 与 macOS 同名 | 无密码, sudo NOPASSWD, docker 组 |
 
@@ -44,10 +44,9 @@ macOS 宿主机
 容器内                        →    宿主机
 apt/npm/gem/pip (国内镜像)     →    直连
 git clone git.leyantech.com   →    SSH 直连
-git clone github.com          →    ALL_PROXY → socks5:2080 (sing-box)
-DeepSeek API                  →    ALL_PROXY → socks5:2080
+外网请求                       →    agent 根据 CLAUDE.md 自行配代理
 Docker pull                   →    镜像源, 不翻墙
-mise 下载 runtime              →    ALL_PROXY → socks5:2080
+mise 下载 runtime              →    镜像源直接下载
 ```
 
 ## kyb CLI
@@ -72,7 +71,37 @@ kyb prune                     # 删除所有沙箱
 
 ## 添加新项目
 
-编辑 `~/.config/kyb/config.yml`，添加项目配置，然后 `kyb create <name>`。
+编辑 `~/.config/kyb/config.yml`：
+
+```yaml
+base:
+  image: ~/kyb                      # Dockerfile 路径，默认 ~/kyb
+  proxy: socks5://host.orb.internal:2080   # 全局代理（可选）
+  no_proxy: .leyantech.com,...      # 全局直连列表（可选）
+  claude_default_model: flash       # 默认模型（可选，flash/pro）
+
+projects:
+  my-project:
+    path: "~/path/to/project"       # 项目本地路径
+    base_branch: master             # worktree 基准分支
+    ports:                          # 端口映射（可选）
+    - 3000:3000
+    symlinks:                       # 只读符号链接（可选）
+    - shared/vendor
+    mounts_rw:                      # 读写挂载（可选）
+    - /host/path:/container/path
+    mounts_ro:                      # 只读挂载（可选）
+    - /host/path:/container/path
+    timezone: Asia/Shanghai         # 容器时区（可选，默认 Asia/Shanghai）
+    dockerfile: Dockerfile          # 项目级 Dockerfile（可选）
+    env_template: .env.example      # 环境变量模板（可选）
+    proxy: http://local:3128        # 项目级代理覆盖（可选）
+    sandbox_allowed_domains:        # sandbox 额外域名白名单（可选）
+    - '*.internal.corp.com'
+    extra_prompt: "项目级提示词"    # 附加到 CLAUDE.md 的提示词（可选）
+```
+
+然后 `kyb create <name>` 即可创建沙箱。
 
 ## 宿主机挂载
 

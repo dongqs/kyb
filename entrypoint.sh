@@ -88,6 +88,11 @@ fi
 
 # Configure glab on first run
 if [ -n "${GITLAB_TOKEN:-}" ] && [ ! -f /home/dev/.config/glab-cli/config.yml ]; then
+    # Resolve GitLab username from token
+    GL_USER=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+        "https://git.leyantech.com/api/v4/user" | jq -r '.username // empty')
+    GL_USER="${GL_USER:-user}"
+
     mkdir -p /home/dev/.config/glab-cli
     cat > /home/dev/.config/glab-cli/config.yml << YAML
 git_protocol: ssh
@@ -97,7 +102,7 @@ hosts:
         api_host: git.leyantech.com
         git_protocol: ssh
         api_protocol: https
-        user: dongqs
+        user: ${GL_USER}
         token: ${GITLAB_TOKEN}
 YAML
     chown -R dev:dev /home/dev/.config/glab-cli
@@ -146,6 +151,24 @@ You are running inside a **kyb-managed disposable Docker container** — no proj
 - **glab** — pre-configured for git.leyantech.com
 - End each conversation with: ${mascot}
 CLAUDE
+    fi
+    # Append proxy info if configured
+    if [ -n "${KYB_PROXY:-}" ]; then
+        {
+            echo ""
+            echo "## Network Proxy"
+            echo "- The container proxy is available at \`${KYB_PROXY}\`"
+            if [ -n "${KYB_NO_PROXY:-}" ]; then
+                echo "- Bypass proxy for: \`${KYB_NO_PROXY}\`"
+            fi
+            echo "- Configure it manually:"
+            echo "  \`\`\`bash"
+            echo "  export ALL_PROXY=${KYB_PROXY}"
+            if [ -n "${KYB_NO_PROXY:-}" ]; then
+                echo "  export NO_PROXY=${KYB_NO_PROXY}"
+            fi
+            echo "  \`\`\`"
+        } >> /home/dev/.claude/CLAUDE.md
     fi
     chown dev:dev /home/dev/.claude/CLAUDE.md
 fi
