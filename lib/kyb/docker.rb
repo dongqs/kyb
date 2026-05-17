@@ -69,7 +69,7 @@ module Kyb::Docker
     out.lines.map(&:strip).reject(&:empty?)
   end
 
-  def run(container:, image:, wt_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:)
+  def run(container:, image:, wt_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil)
     puts "==> #{container.name}: starting (#{wt_path} -> /home/dev/projects/#{project_name})"
 
     args = %w[docker run -d]
@@ -82,6 +82,7 @@ module Kyb::Docker
     args += ['-e', "CLAUDE_CODE_EFFORT_LEVEL=#{ENV['CLAUDE_CODE_EFFORT_LEVEL']}"]
     args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"]
     args += ['-e', "KYB_PROJECT=#{project_name}"]
+    args += ['-e', "KYB_MODEL=#{model || 'flash'}"]
     args += ['-l', Kyb::Container::LABEL]
 
     ssh_dir = File.expand_path('~/.ssh')
@@ -151,7 +152,7 @@ module Kyb::Docker
     puts "==> Done: #{container} started"
   end
 
-  def create_container(project, branch, port_overrides = nil)
+  def create_container(project, branch, port_overrides = nil, model: nil)
     Kyb::Config.load
 
     if %w[master main].include?(branch)
@@ -200,7 +201,8 @@ module Kyb::Docker
       ports: ports,
       symlinks: proj[:symlinks],
       mounts_rw: proj[:mounts_rw],
-      mounts_ro: proj[:mounts_ro]
+      mounts_ro: proj[:mounts_ro],
+      model: model
     )
 
     60.times do

@@ -4,8 +4,12 @@ set -e
 HOST_UID="${HOST_UID:-1000}"
 HOST_GID="${HOST_GID:-1000}"
 
-# Adjust UID
+# Adjust UID (remove conflicting user first, e.g. ubuntu from base image)
 if [ "$HOST_UID" != "$(id -u dev)" ]; then
+    if getent passwd "$HOST_UID" >/dev/null 2>&1; then
+        name=$(getent passwd "$HOST_UID" | cut -d: -f1)
+        [ "$name" != "dev" ] && userdel -r "$name" 2>/dev/null || true
+    fi
     usermod -u "$HOST_UID" dev
 fi
 
@@ -42,7 +46,17 @@ if [ ! -f /home/dev/.claude/settings.json ] && [ -f /home/dev/.claude-host-setti
       hooks: .hooks,
       statusLine: .statusLine,
       enabledPlugins: .enabledPlugins
-    }' /home/dev/.claude-host-settings.json > /home/dev/.claude/settings.json
+    } | with_entries(select(.value != null))' /home/dev/.claude-host-settings.json > /home/dev/.claude/settings.json
+
+    if [ "${KYB_MODEL:-}" = "flash" ]; then
+      jq '.env.ANTHROPIC_MODEL = "deepseek-v4-flash[1m]" |
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "deepseek-v4-flash[1m]" |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "deepseek-v4-flash[1m]" |
+          .env.ANTHROPIC_REASONING_MODEL = "deepseek-v4-flash[1m]"' \
+          /home/dev/.claude/settings.json > /tmp/kyb-settings.json && \
+        mv /tmp/kyb-settings.json /home/dev/.claude/settings.json
+    fi
+
     chown -R dev:dev /home/dev/.claude
 fi
 
@@ -91,6 +105,7 @@ YAML
 fi
 
 # Generate container CLAUDE.md
+mkdir -p /home/dev/.claude
 if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
     mascot="／人◕ ‿‿ ◕人＼"
     if [ -n "${KYB_PROJECT:-}" ]; then
@@ -143,14 +158,28 @@ fi
 # Start PostgreSQL
 pg_ctlcluster 16 main start 2>/dev/null || true
 
+# pip tools (may fail during image build, retry here at runtime)
+runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]' -U" 2>/dev/null || true
+
 # Project setup: mise trust, npm install on first run
 if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
     runuser -u dev -- bash -l << EOF
         cd /home/dev/projects/${KYB_PROJECT}
         ~/.local/bin/mise trust 2>/dev/null || true
         eval "\$(~/.local/bin/mise activate bash)"
+
+        # Node dependencies
         if [ -f package.json ] && [ ! -d node_modules -o -z "\$(ls -A node_modules 2>/dev/null)" ]; then
-            npm install || true
+            if [ -f yarn.lock ]; then
+                yarn install --frozen-lockfile || true
+            else
+                npm install || true
+            fi
+        fi
+
+        # Ruby dependencies
+        if [ -f Gemfile ]; then
+            bundle install || true
         fi
 EOF
 fi

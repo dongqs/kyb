@@ -7,10 +7,20 @@ class CLITest < Minitest::Test
     Kyb::Config.define_singleton_method(:load) { nil }
     Kyb::Config.define_singleton_method(:project_names) { PROJECTS }
 
-    %i[create enter stop start rm].each do |m|
+    # Methods without keyword args
+    %i[stop start rm].each do |m|
       Kyb::CLI.define_singleton_method(m) do |*args|
         @__captured = [m, args]
       end
+    end
+
+    # Methods with keyword args — explicit signatures keep capture clean
+    Kyb::CLI.define_singleton_method(:create) do |project, branch, port_overrides = nil, **|
+      @__captured = [:create, [project, branch, port_overrides]]
+    end
+
+    Kyb::CLI.define_singleton_method(:enter) do |project, branch, **|
+      @__captured = [:enter, [project, branch]]
     end
   end
 
@@ -109,5 +119,84 @@ class CLITest < Minitest::Test
     cmd, args = dispatch('create', 'tts-server')
     assert_equal :create, cmd
     assert_equal ['tts-server', 'kyb', nil], args
+  end
+
+  # --- --profile ---
+
+  def test_profile_flag_consumed
+    # --profile before command should be consumed, dispatch unchanged
+    cmd, args = dispatch('--profile', 'create', 'niao')
+    assert_equal :create, cmd
+    assert_equal ['niao', 'kyb', nil], args
+  end
+
+  def test_profile_with_enter
+    cmd, args = dispatch('--profile', 'enter', 'niao-water')
+    assert_equal :enter, cmd
+    assert_equal ['niao', 'water'], args
+  end
+
+  def test_profile_with_stop
+    cmd, args = dispatch('--profile', 'stop', 'niao-water')
+    assert_equal :stop, cmd
+    assert_equal ['niao', 'water'], args
+  end
+
+  # --- TimestampedOutput ---
+
+  def test_timestamped_puts
+    out, = capture_io do
+      io = Kyb::TimestampedOutput.new($stdout)
+      io.puts 'hello'
+    end
+    assert_match(/^\[\d{2}:\d{2}:\d{2}\] hello\n$/, out)
+  end
+
+  def test_timestamped_puts_blank_line
+    out, = capture_io do
+      io = Kyb::TimestampedOutput.new($stdout)
+      io.puts
+    end
+    assert_equal "\n", out
+  end
+
+  def test_timestamped_puts_multiple_args
+    out, = capture_io do
+      io = Kyb::TimestampedOutput.new($stdout)
+      io.puts 'a', 'b'
+    end
+    lines = out.split("\n")
+    assert_equal 2, lines.size
+    assert_match(/^\[\d{2}:\d{2}:\d{2}\] a$/, lines[0])
+    assert_match(/^\[\d{2}:\d{2}:\d{2}\] b$/, lines[1])
+  end
+
+  def test_timestamped_print
+    out, = capture_io do
+      io = Kyb::TimestampedOutput.new($stdout)
+      io.print 'working'
+    end
+    assert_match(/^\[\d{2}:\d{2}:\d{2}\] working$/, out)
+  end
+
+  def test_timestamped_printf
+    out, = capture_io do
+      io = Kyb::TimestampedOutput.new($stdout)
+      io.printf "%-10s %s\n", 'A', 'B'
+    end
+    assert_match(/^\[\d{2}:\d{2}:\d{2}\] A          B\n$/, out)
+  end
+
+  def test_enable_profile_timestamps_puts
+    original = $stdout
+    begin
+      out, = capture_io do
+        Kyb.enable_profile
+        puts 'test'
+      end
+      assert_match(/^\[\d{2}:\d{2}:\d{2}\] test\n$/, out)
+    ensure
+      $stdout = original
+    end
   end
 end

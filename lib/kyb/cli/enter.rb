@@ -5,7 +5,7 @@ module Kyb::CLI
 
   module_function
 
-  def enter(project, branch, agent: nil)
+  def enter(project, branch, cli: 'claude')
     Kyb::Config.load
     container = Kyb::Container.new(project, branch)
     cname = container.name
@@ -37,12 +37,19 @@ module Kyb::CLI
     end
 
     title = "kyb:#{cname}"
-    if agent
-      bin = agent
-      cmd = "cd ~/projects/#{project} && mise trust && #{bin}"
-    else
-      bin = 'claude'
-      cmd = "cd ~/projects/#{project} && mise trust && #{bin} '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 先读一下项目文档和环境说明'"
+    cmd = "cd ~/projects/#{project} && mise trust && #{cli}"
+
+    default_prompt = '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 先读一下项目文档和环境说明'
+
+    proj_config = Kyb::Config.project(project)
+    if proj_config[:extra_prompt]
+      default_prompt += " #{proj_config[:extra_prompt]}"
+    end
+
+    if cli == 'claude'
+      cmd += " '#{default_prompt}'"
+    elsif cli == 'kimi'
+      cmd += " -p '#{default_prompt}'"
     end
     dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     dexec += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']

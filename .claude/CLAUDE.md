@@ -60,3 +60,48 @@ projects:
 - `~/projects` → `/home/dev/projects`
 - `/var/run/docker.sock` → 容器内 Docker 访问
 - `mounts_rw` / `mounts_ro` → 项目级外部目录挂载
+
+## TTS Server（文本转语音）
+
+宿主机 macOS 上运行，通过 `say`/`afplay` 朗读文本。**不运行在容器内部。**
+
+### 宿主机操作（CLI）
+
+```bash
+kyb tts start          # 启动 HTTP 服务（默认 10666）
+kyb tts stop           # 停止服务
+kyb tts speak 你好     # 直接说话（不经过 HTTP）
+kyb tts ping           # 播放提示音
+kyb tts done           # 说话 + 提示音
+```
+
+### 容器内访问（HTTP API）
+
+容器内 agent 可通过 `host.docker.internal` 调用：
+
+```bash
+# 健康检查
+curl http://host.docker.internal:10666/health
+
+# 获取可用语音列表
+curl http://host.docker.internal:10666/voices
+
+# 英文朗读
+curl "http://host.docker.internal:10666/speak?text=Hello+world"
+
+# 中文朗读
+curl -X POST http://host.docker.internal:10666/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text":"你好世界"}'
+
+# 完成通知（说话 + 提示音）
+curl "http://host.docker.internal:10666/done?text=构建完成"
+```
+
+OpenAPI 规范：`http://host.docker.internal:10666/openapi.yml`
+
+### 环境要求
+
+- macOS 系统（依赖 `say` 和 `afplay` 命令）
+- 端口可通过 `TTS_PORT` 环境变量修改（默认 10666）
+- 仅 macOS 宿主机可用
