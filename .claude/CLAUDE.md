@@ -18,6 +18,7 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境。
 - `kyb stop <name>` — 停止沙箱
 - `kyb rm <name>` — 删除沙箱
 - `kyb prune` — 删除所有沙箱
+- `kyb notify <done|blocked|urgent> <msg>` — TTS 主动通知
 
 ## 修改沙箱配置
 
@@ -83,11 +84,31 @@ kyb tts stop           # 停止服务
 kyb tts speak 你好     # 直接说话（不经过 HTTP）
 kyb tts ping           # 播放提示音
 kyb tts done           # 说话 + 提示音
+kyb notify done "编译完成"     # 三级通知：任务完成（一声 ping）
+kyb notify blocked "服务器异常" # 三级通知：需要人工干预（两声 ping）
+kyb notify urgent "准备推送"   # 三级通知：外部操作确认（三声 ping）
 ```
+
+### 容器内使用（`kyb notify`）
+
+容器内 AI 可通过 `kyb notify` 主动叫人。容器镜像已预装 kyb CLI。
+
+```bash
+# 任务完成时
+kyb notify done "编译通过，测试全部绿"
+
+# 巡检异常需人工介入
+kyb notify blocked "检测到服务器 502 错误，请检查"
+
+# 外部操作前确认
+kyb notify urgent "准备推送生产环境，请确认"
+```
+
+容器内 `kyb notify` 自动通过 HTTP 调用宿主机 TTS 服务，无需手动指定端点。
 
 ### 容器内访问（HTTP API）
 
-容器内 agent 可通过 `host.docker.internal` 调用：
+容器内 agent 可直接通过 `host.docker.internal` 调用 TTS 服务：
 
 ```bash
 # 健康检查
@@ -106,9 +127,24 @@ curl -X POST http://host.docker.internal:10666/speak \
 
 # 完成通知（说话 + 提示音）
 curl "http://host.docker.internal:10666/done?text=构建完成"
+
+# 三级通知（带 retry_hint 返回值）
+curl -X POST http://host.docker.internal:10666/notify \
+  -H "Content-Type: application/json" \
+  -d '{"level":"blocked","text":"服务器异常"}'
 ```
 
 OpenAPI 规范：`http://host.docker.internal:10666/openapi.yml`
+
+### 通知等级
+
+| 等级 | 触发场景 | TTS 行为 | 提示音 |
+|------|---------|---------|--------|
+| `done` | 长时间任务完成 | 正常语速说消息 | 一声 Ping |
+| `blocked` | 巡检发现异常需人工干预 | 稍慢语速说消息 | 两声 Ping |
+| `urgent` | 影响容器外部的操作前确认 | 慢速说消息 | 三声 Ping |
+
+blocked/urgent 通知首次后等待 60 秒，用户未回应则重试（最多 3 次）。
 
 ### 环境要求
 
