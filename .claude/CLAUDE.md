@@ -2,11 +2,14 @@
 
 AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境。
 
+> 容器环境、DID 系统、缓存等详见 [../docs/container.md](../docs/container.md) 和 [../docs/docker-in-docker.md](../docs/docker-in-docker.md)。
+
 ## 关键文件
 
 - `Dockerfile` — 沙箱镜像定义
 - `entrypoint.sh` — 容器启动入口
 - `bin/kyb` — CLI 工具
+- `mise.config.toml` — mise 工具链配置
 - `~/.config/kyb/config.yml` — 用户级项目配置
 
 ## 常用操作
@@ -22,7 +25,7 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境。
 
 ## 修改沙箱配置
 
-1. 编辑 `Dockerfile`
+1. 编辑 `Dockerfile` / `mise.config.toml`
 2. `git commit`
 3. `kyb build` 重建基础镜像
 
@@ -32,27 +35,21 @@ AI 开发沙箱配置仓库。用 Docker 容器提供隔离的开发环境。
 
 ```yaml
 base:
-  image: ~/kyb                      # Dockerfile 路径
-  proxy: socks5://host.orb.internal:2080   # 全局代理（可选）
-  no_proxy: .leyantech.com,...      # 全局直连列表（可选）
-  claude_default_model: flash       # 默认模型（可选，flash/pro）
+  image: ~/kyb
+  proxy: socks5://host.orb.internal:2080
+  no_proxy: .leyantech.com,...
+  claude_default_model: flash
 
 projects:
   my-project:
     path: "~/path/to/project"
     base_branch: master
-    ports:                    # 可选
-    - 3000:3000
-    symlinks:                 # 可选
-    - shared/vendor
-    mounts_rw:                # 可选
-    - /host/path:/container/path
-    mounts_ro:                # 可选
-    - /host/path:/container/path
-    timezone: Asia/Shanghai   # 可选，默认 Asia/Shanghai
-    proxy: http://local:3128  # 项目级代理覆盖（可选）
-    sandbox_allowed_domains:  # sandbox 额外域名白名单（可选）
-    - '*.internal.corp.com'
+    ports: [3000:3000]           # 可选
+    mounts_rw: [/host/path:/container/path]  # 可选
+    mounts_ro: [/host/path:/container/path]  # 可选
+    timezone: Asia/Shanghai      # 可选
+    proxy: http://local:3128     # 可选，覆盖 base.proxy
+    extra_prompt: "..."          # 可选
 ```
 
 ## 沙箱环境

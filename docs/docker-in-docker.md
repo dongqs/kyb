@@ -2,6 +2,11 @@
 
 `kyb did` 是与 `kyb create/enter` 平行的独立子系统，专用于在 Docker 容器内部创建和管理沙箱容器（Docker-in-Docker）。
 
+> **项目级 kyb 指引**：
+> - [Hamilton 服务端](https://git.leyantech.com/training/hamilton/-/blob/master/.kyb.md)
+> - [Hamilton-SDK 客户端](https://git.leyantech.com/training/hamilton-sdk/-/blob/main/.kyb.md)
+> - [kyb 容器环境总览](docs/container.md)
+
 ## 背景
 
 kyb 现有 `kyb create` 架构基于 git worktree + bind mount 创建沙箱，这在宿主机（macOS）上工作正常。但当你 **在 kyb 容器内再跑 kyb**（Docker-in-Docker），这套架构失效了：
@@ -79,114 +84,31 @@ kyb did rm <name>
 | 生命周期 | 独立 | 绑定 parent 容器 |
 | 网络隔离 | 前缀 `kyb-*` | 独立前缀 `did-*` |
 
-## 联调示例：Hamilton + Hamilton-SDK
+## 项目级 kyb 指引
 
-以 Hamilton（Quarkus 服务）和 Hamilton-SDK（Java 8 客户端）的联合调试为例，演示 DID 容器的实际使用流程。
+各项目的 `.kyb.md` 文件包含该项目的联调启动步骤和踩坑记录：
 
-### 准备工作
+- [Hamilton 服务端](https://git.leyantech.com/training/hamilton/-/blob/master/.kyb.md)
+- [Hamilton-SDK 客户端](https://git.leyantech.com/training/hamilton-sdk/-/blob/main/.kyb.md)
 
-确保 `kyb-base` 镜像已构建（`kyb build`），两个项目的 MR 已合并到 master。
-
-### 启动 Hamilton 服务
-
-```bash
-# 1. 克隆项目（外层宿主）
-cd ~/projects && git clone git@git.leyantech.com:training/hamilton.git
-
-# 2. 准备数据库（需要先启动 PostgreSQL）
-sudo pg_ctlcluster 16 main start
-createdb hamilton_dev
-createdb hamilton_test
-
-# 3. 初始化子模块（注意：用 SSH，不要用 HTTPS）
-cd hamilton
-git submodule update --init --recursive
-# 如果报 HTTPS 认证错误：
-git config submodule.Norland.url git@git.leyantech.com:base-service/Norland.git
-git submodule sync && git submodule update --init Norland
-
-# 4. 数据库迁移 + 代码生成
-cp env.sample .env
-MIG25_DSN=postgresql://postgres:postgres@127.0.0.1:5432/hamilton_dev mig25 upgrade
-MIG25_DSN=postgresql://postgres:postgres@127.0.0.1:5432/hamilton_test mig25 upgrade
-mig25-codegen generate     # ← 写入 build/generated/，clean 后需重跑
-
-# 5. 启动 Quarkus dev mode（端口 8081，全接口监听）
-QUARKUS_HTTP_HOST=0.0.0.0 \
-QUARKUS_HTTP_PORT=8081 \
-QUARKUS_DEV_SERVICES_ENABLED=false \
-QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/hamilton_dev \
-QUARKUS_DATASOURCE_USERNAME=postgres \
-QUARKUS_DATASOURCE_PASSWORD= \
-QUARKUS_OTEL_ENABLED=false \
-JINGDONG_SERVICE_APP_KEY=placeholder \
-JINGDONG_SERVICE_APP_SECRET=placeholder \
-DOUYIN_SERVICE_DY_ATX_APP_KEY=placeholder \
-DOUYIN_SERVICE_DY_ATX_APP_SECRET=placeholder \
-DOUYIN_SERVICE_DY_BOT_APP_KEY=placeholder \
-DOUYIN_SERVICE_DY_BOT_APP_SECRET=placeholder \
-./gradlew quarkusDev --no-daemon --no-configuration-cache
-```
-
-> **坑：port 8080 被占**：Quarkus 默认 8080，上一个进程退出后端口可能被残留进程占用。
-> 用 `lsof -ti :8080 | xargs kill -9` 清理，或指定不同端口（`QUARKUS_HTTP_PORT=8081`）。
->
-> **坑：127.0.0.1 绑定**：Quarkus 默认绑定 localhost，其他容器无法访问。必须设置 `QUARKUS_HTTP_HOST=0.0.0.0`。
-
-### 启动 Hamilton-SDK Demo（DID 容器）
-
-```bash
-# 6. 查看 Hamilton 容器 IP
-docker inspect kyb-hamilton-kyb --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
-# → 192.168.215.16
-
-# 7. 创建 DID 容器
-kyb did create hamilton-sdk
-
-# 8. 把 SDK 项目代码复制进去
-docker cp ~/projects/hamilton-sdk/. did-hamilton-sdk:/home/dev/projects/hamilton-sdk/
-docker exec did-hamilton-sdk sudo chown -R dev:dev /home/dev/projects/hamilton-sdk
-
-# 9. 安装 Java 8（SDK demo 需要 Java 8 toolchain）
-docker exec -u dev did-hamilton-sdk bash -c '
-  eval "$(~/.local/bin/mise activate bash)"
-  mise install java@corretto-8.452.09.1
-  JAVA8_HOME=$HOME/.local/share/mise/installs/java/corretto-8.452.09.1
-  mkdir -p ~/.gradle
-  printf "org.gradle.java.installations.paths=%s\n" "$JAVA8_HOME" >> ~/.gradle/gradle.properties
-'
-
-# 10. 启动 demo server（指向 Hamilton 容器）
-docker exec -d -u dev did-hamilton-sdk bash -c "
-  eval \"\$(~/.local/bin/mise activate bash)\"
-  cd /home/dev/projects/hamilton-sdk
-  HAMILTON_SERVICE_URL=http://192.168.215.16:8081/api \
-  ./gradlew :demo:run --no-daemon --no-configuration-cache > /tmp/demo.log 2>&1
-"
-
-# 11. 验证链路
-docker exec did-hamilton-sdk bash -c '
-  curl -s "http://localhost:8080/sdk/sellers/1/trades/1001/seller_orders?fields=tid,status,title"
-'
-# → [{...数据...}]  通！
-```
-
-> **坑：Java 8 缺失**：sdk demo 需要 Java 8 toolchain，而 `kyb-base` 只预装了 Java 21。
-> DID 容器内需要通过 `mise install java@corretto-8` 手动安装。
-> 将来可以考虑加入 kyb 共享 volume 的 toolchain 缓存。
-
-### 踩坑清单
+### 踩坑清单（跨项目通用）
 
 | # | 问题 | 现象 | 修复 |
 |---|------|------|------|
-| 1 | Git submodule HTTPS 认证 | `fatal: could not read Username` | 改用 SSH URL |
-| 2 | `mig25-codegen` 输出被 clean 清除 | `Unresolved reference 'generated'` | 重跑 `mig25-codegen generate` |
-| 3 | Dev mode 缺 platform key | Quarkus 启动即挂 | `application.properties` 加 placeholder（已合） |
-| 4 | Quarkus 只绑 127.0.0.1 | 其他容器连不上 | `quarkus.http.host=0.0.0.0`（已合） |
-| 5 | Quarkus port 8080 冲突 | `Port 8080 seems to be in use` | `lsof -ti :8080 \| xargs kill -9` |
-| 6 | Gradle 锁争夺 | `Timeout waiting to lock journal cache` | 共享 volume 避免并发（已实现） |
-| 7 | Java 8 缺失 | Gradle: `Cannot find Java installation matching 8` | `mise install java@corretto-8` |
-| 8 | Nexus 403 | `Received status code 403` | 换网络 / 换凭据 |
+| 1 | Gradle wrapper 下载超时 | `Read timed out` | 镜像已配好（腾讯→华为云 fallback），或预下载到 `kyb-gradle-cache` |
+| 2 | Gradle 锁冲突 | `Timeout waiting to lock journal cache` | entrypoint 自动清理僵尸 daemon 锁 |
+| 3 | Nexus 403 | `Received status code 403` | 换网络 / 换凭据 |
+
+### 优化效果
+
+缓存 + 共享 volume 后，DID 容器侧联调耗时：
+
+| 步骤 | 优化前 | 优化后 |
+|------|--------|--------|
+| Java 8 安装 | 5min+ 超时（需代理 + 重试） | **1m9s**（缓存命中） |
+| Gradle wrapper 下载 | 10s 超时 → 手动预下载 | **0s**（`kyb-gradle-cache`） |
+| Gradle 编译 + 启动 | ~4min（冷启动） | **~30s**（warm） |
+| **DID 侧总耗时** | **~30min**（大部分排障） | **~2min** |
 
 ## 已知问题
 
