@@ -219,6 +219,10 @@ module Kyb::Docker
       args += ['-v', "#{swift_cache}:/home/dev/.local/swift"]
     end
 
+    # Mount kyb repo for agent to read docs
+    kyb_repo = Kyb::Config.kyb_repo
+    args += ['-v', "#{kyb_repo}:/home/dev/kyb:ro"] if kyb_repo
+
     ports.to_s.split(',').each do |p|
       next if p.empty?
       args += ['-p', p]

@@ -122,93 +122,54 @@ fi
 mkdir -p /home/dev/.claude
 if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
     mascot="／人◕ ‿‿ ◕人＼"
-    if [ -n "${KYB_PROJECT:-}" ]; then
-        cat > /home/dev/.claude/CLAUDE.md << CLAUDE
-# Container Environment
-
-You are running inside a **kyb-managed Docker container** for project ${KYB_PROJECT}.
-
-## Project
-- **Name**: ${KYB_PROJECT}
-- **Path**: /home/dev/projects/${KYB_PROJECT}
-
-## Services
-- **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
-  - DSN: \`postgresql://postgres:postgres@127.0.0.1:5432/postgres\`
-- **ClickHouse** — running on host, no auth
-  - Native: \`host.orb.internal:9000\`
-  - CLI: \`clickhouse-client --host host.orb.internal\`
-- **Docker** — available via mounted socket
-- **glab** — pre-configured for git.leyantech.com
-
-## Workflow
-- Project code is in \`~/projects/${KYB_PROJECT}\`
-- Use \`mig25\` for database migrations (DSN in \`.env\`)
-- Commit and push changes — they persist on the host via volume mount
-- End each conversation with: ${mascot}
-CLAUDE
-    else
-        cat > /home/dev/.claude/CLAUDE.md << CLAUDE
-# Container Environment
-
-You are running inside a **kyb-managed disposable Docker container** — no project mounted.
-
-## Services
-- **PostgreSQL 16** — running, trust auth, timezone Asia/Shanghai
-- **ClickHouse** — running on host, no auth (`host.orb.internal:9000`)
-- **Docker** — available via mounted socket
-- **glab** — pre-configured for git.leyantech.com
-- End each conversation with: ${mascot}
-CLAUDE
-    fi
-    # Append proxy info if configured
-    if [ -n "${KYB_PROXY:-}" ]; then
-        {
-            echo ""
-            echo "## Network Proxy"
-            echo "- The container proxy is available at \`${KYB_PROXY}\`"
-            if [ -n "${KYB_NO_PROXY:-}" ]; then
-                echo "- Bypass proxy for: \`${KYB_NO_PROXY}\`"
-            fi
-            echo "- Configure it manually:"
-            echo "  \`\`\`bash"
-            echo "  export ALL_PROXY=${KYB_PROXY}"
-            if [ -n "${KYB_NO_PROXY:-}" ]; then
-                echo "  export NO_PROXY=${KYB_NO_PROXY}"
-            fi
-            echo "  \`\`\`"
-        } >> /home/dev/.claude/CLAUDE.md
-    fi
-
-    # Append TTS Notify section
     {
+        echo "# ${mascot} kyb Sandbox"
         echo ""
-        echo "## 主动通知（TTS Notify）"
+        echo "You are an AI coding agent inside a **kyb-managed Docker container**."
         echo ""
-        echo "长时间任务完成、巡检发现异常或需要外部操作确认时，主动通过 TTS 叫人。"
+        echo "## Project"
+
+        if [ -n "${KYB_PROJECT:-}" ]; then
+            echo "- **Name**: ${KYB_PROJECT}"
+            echo "- **Source**: \`~/projects/${KYB_PROJECT}\`"
+            echo "- **DB migrations**: \`mig25\` (DSN in project \`.env\`)"
+        else
+            echo "- No project mounted."
+        fi
+
         echo ""
-        echo "### 通知等级"
-        echo "- \`done\` — 任务完成（一声提示音）"
-        echo "- \`blocked\` — 巡检发现异常需人工干预（两声提示音，60秒后重试，最多3次）"
-        echo "- \`urgent\` — 外部操作前确认（三声提示音，60秒后重试，最多3次）"
+        echo "## Workflow"
+        echo "1. **Understand** — what does the human want?"
+        echo "2. **Code** — edit, build, test in \`~/projects/${KYB_PROJECT:-<project>}\`"
+        echo "3. **Commit & push** — changes persist on host via volume mount"
+        echo "4. **Notify** — \`kyb notify done|blocked|urgent <msg>\` to alert the human"
+        echo "   - \`done\`: task complete (long tasks must notify)"
+        echo "   - \`blocked\`: need human intervention"
+        echo "   - \`urgent\`: confirm before external actions"
+        echo "5. **End** each conversation with: ${mascot}"
+
         echo ""
-        echo "### 使用方式"
-        echo '```bash'
-        echo "# 任务完成时"
-        echo "kyb notify done \"编译通过，测试全部绿\""
+        echo "## Services"
+        echo "- **PostgreSQL 16**: \`postgresql://postgres:postgres@127.0.0.1:5432/postgres\` (trust auth)"
+        echo "- **ClickHouse**: \`clickhouse-client --host host.orb.internal\`"
+        echo "- **Docker**: via mounted \`/var/run/docker.sock\`"
+        echo "- **glab**: GitLab CLI, pre-configured for git.leyantech.com"
+        echo "- **mise**: manages Node/Ruby/Java versions"
+
+        if [ -n "${KYB_PROXY:-}" ]; then
+            echo "- **Proxy**: ${KYB_PROXY}"
+            if [ -n "${KYB_NO_PROXY:-}" ]; then
+                echo "  (bypass: ${KYB_NO_PROXY})"
+            fi
+        fi
+
         echo ""
-        echo "# 巡检异常需人工介入"
-        echo "kyb notify blocked \"检测到服务器 502 错误，请检查\""
+        echo "## kyb Docs"
+        echo "- Read \`/home/dev/kyb\` for container setup, config reference, and how-tos."
         echo ""
-        echo "# 外部操作前确认"
-        echo "kyb notify urgent \"准备推送生产环境，请确认\""
-        echo '```'
-        echo ""
-        echo "### 规则"
-        echo "- \`done\`: 超过 30 秒的任务完成后必通知"
-        echo "- \`blocked\`: 巡检发现异常立即通知，60秒后未回应重试（最多3次）"
-        echo "- \`urgent\`: 外部操作前立即通知，60秒后未回应重试（最多3次）"
-    } >> /home/dev/.claude/CLAUDE.md
+        echo "---"
+        echo "<sub>Auto-generated by entrypoint.sh — do not edit manually.</sub>"
+    } > /home/dev/.claude/CLAUDE.md
 
     chown dev:dev /home/dev/.claude/CLAUDE.md
 fi

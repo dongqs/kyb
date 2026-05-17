@@ -107,22 +107,14 @@ docker exec -u dev did-<name> bash -c 'cd ~/projects/niao/swift-core && swift te
 
 ### PATH 配置
 
-`~/.bashrc` 的结构是：
-```
-eval "$(mise activate bash)"      # 非交互式也能用
-alias ...
-[ -z "$PS1" ] && return           # ← 非交互式在这里 return
-...
-export PATH=...:/home/dev/.local/swift/usr/bin:$PATH   # ← 追加在末尾，非交互式不生效
-```
+> 注：`kyb did create` 已自动处理以下配置，无需手动操作。
 
-Swift 的 `PATH` 如果追加在文件末尾，非交互式 shell（`bash -c`、`docker exec` 不分配 tty 时）
-不会执行到。**必须插入到 `return` 守卫之前**：
-```bash
-sed -i '3iexport PATH=/home/dev/.local/swift/usr/bin:$PATH' ~/.bashrc
-```
+Swift 的工具链通过 `kyb-swift-cache` volume 挂载到 `/home/dev/.local/swift`。
+`kyb did create` 在创建容器时会自动检测该 volume，若存在则：
 
-或者直接 `docker exec -u dev ... bash -l -c 'cd ... && swift test'`（login shell 会读所有配置）。
+1. 挂载 volume 到容器内 `/home/dev/.local/swift`
+2. 将 `export PATH=/home/dev/.local/swift/usr/bin:$PATH` 插入到 `~/.bashrc` 的
+   `return` 守卫之前，确保非交互式 shell 也能找到 `swift`
 
 验证：
 ```bash

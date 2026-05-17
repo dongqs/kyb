@@ -306,4 +306,33 @@ class CLITest < Minitest::Test
   def test_notify_invalid_level_dies
     assert_raises(SystemExit) { dispatch('notify', 'invalid', 'msg') }
   end
+
+  # -- fix_did_swift_path ----------------------------------------------------
+
+  def test_fix_did_swift_path_adds_path_when_swift_exists
+    calls = []
+    stubbed = ->(*args) { calls << args; true }
+
+    Kyb::CLI.stub(:system, stubbed) do
+      Kyb::CLI.fix_did_swift_path('did-niao')
+    end
+
+    sed_call = calls.find { |a| a.include?('sed') }
+    assert sed_call, 'expected sed call to fix PATH'
+    assert_includes sed_call.join(' '), '/home/dev/.local/swift/usr/bin'
+  end
+
+  def test_fix_did_swift_path_skips_when_no_swift
+    calls = []
+    stubbed = ->(*args) { calls << args; false }
+
+    Kyb::CLI.stub(:system, stubbed) do
+      Kyb::CLI.fix_did_swift_path('did-niao')
+    end
+
+    sed_call = calls.find { |a| a.include?('sed') }
+    assert_nil sed_call, 'no sed call expected when swift missing'
+    assert_equal 1, calls.length
+    assert_includes calls.first, 'test'
+  end
 end

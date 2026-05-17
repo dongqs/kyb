@@ -88,7 +88,9 @@ class DockerTest < Minitest::Test
     Kyb::Docker.stub(:system, sys_stub) do
       File.stub(:exist?, ->(p) { p == '/.dockerenv' ? dind : real_exist.call(p) }) do
         Kyb::Config.stub(:claude_default_model, 'flash') do
+        Kyb::Config.stub(:kyb_repo, nil) do
           Kyb::Docker.run(**run_kwargs)
+        end
         end
       end
     end

@@ -32,6 +32,18 @@ module Kyb::CLI
     ENV['KYB_PARENT'] || (ENV['KYB_PROJECT'] && `hostname`.strip) rescue nil
   end
 
+  # After mounting kyb-swift-cache volume, add Swift to PATH in .bashrc
+  # so non-interactive shells (docker exec) can find swift immediately.
+  def fix_did_swift_path(cname)
+    swift_bin = '/home/dev/.local/swift/usr/bin/swift'
+    return unless system('docker', 'exec', '-u', 'dev', cname,
+                         'test', '-f', swift_bin, out: File::NULL, err: File::NULL)
+    system('docker', 'exec', '-u', 'dev', cname,
+           'sed', '-i',
+           '/^\\[ -z "\\$PS1" \\]/iexport PATH=/home/dev/.local/swift/usr/bin:$PATH',
+           '/home/dev/.bashrc')
+  end
+
   def did_create(args)
     name = args.first
     cname = "#{DID_PREFIX}#{name}"
@@ -65,8 +77,10 @@ module Kyb::CLI
 
     # Mount Swift toolchain cache if available
     swift_cache = 'kyb-swift-cache'
+    swift_mounted = false
     if `docker volume ls -q --filter name=^#{swift_cache}$`.strip == swift_cache
       run_args += ['-v', "#{swift_cache}:/home/dev/.local/swift"]
+      swift_mounted = true
     end
 
     run_args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
@@ -109,6 +123,9 @@ module Kyb::CLI
     # Fix ownership of copied files (docker cp preserves root ownership)
     system('docker', 'exec', '-u', 'root', cname,
            'chown', '-R', 'dev:dev', '/home/dev/.ssh', '/home/dev/.gitconfig', '/home/dev/.config')
+
+    # Auto-configure Swift PATH if swift cache volume was mounted
+    fix_did_swift_path(cname) if swift_mounted
 
     puts
     puts "==> ／人◕ ‿‿ ◕人＼ DID container ready! Container: #{cname}"

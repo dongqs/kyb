@@ -59,6 +59,20 @@ class ConfigTest < Minitest::Test
     end
   end
 
+  # -- kyb_repo ----------------------------------------------------------------
+
+  def test_kyb_repo_nil_when_not_set
+    stub_config('base' => {}) do
+      assert_nil Kyb::Config.kyb_repo
+    end
+  end
+
+  def test_kyb_repo_when_set
+    stub_config('base' => { 'kyb_repo' => '~/github/kyb' }) do
+      assert_equal File.expand_path('~/github/kyb'), Kyb::Config.kyb_repo
+    end
+  end
+
   # -- proxy --------------------------------------------------------------
 
   def test_proxy_default_nil
@@ -158,6 +172,22 @@ class ConfigTest < Minitest::Test
                 'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main', 'extra_prompt' => '项目规则' } }) do
       proj = Kyb::Config.project('niao')
       assert_equal '全局规则 项目规则', proj[:extra_prompt]
+    end
+  end
+
+  # -- git_url ----------------------------------------------------------------
+
+  def test_git_url_nil_when_not_set
+    stub_config('projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_nil proj[:git_url]
+    end
+  end
+
+  def test_git_url_when_set
+    stub_config('projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main', 'git_url' => 'git@github.com:dongqs/niao.git' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal 'git@github.com:dongqs/niao.git', proj[:git_url]
     end
   end
 end

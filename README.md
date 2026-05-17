@@ -76,6 +76,7 @@ kyb prune                     # 删除所有沙箱
 ```yaml
 base:
   image: ~/kyb                      # Dockerfile 路径，默认 ~/kyb
+  kyb_repo: ~/github/kyb            # kyb 项目路径（可选），挂载到容器 /home/dev/kyb 供 agent 读文档
   proxy: socks5://host.orb.internal:2080   # 全局代理（可选）
   no_proxy: .leyantech.com,...      # 全局直连列表（可选）
   claude_default_model: flash       # 默认模型（可选，flash/pro）
@@ -83,6 +84,7 @@ base:
 projects:
   my-project:
     path: "~/path/to/project"       # 项目本地路径
+    git_url: "git@github.com:user/repo.git"  # git clone URL（可选，DID 容器参考用）
     base_branch: master             # worktree 基准分支
     ports:                          # 端口映射（可选）
     - 3000:3000
