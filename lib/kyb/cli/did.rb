@@ -50,6 +50,7 @@ module Kyb::CLI
     run_args += ['-e', "KYB_PARENT=#{parent}"]
     run_args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"] if ENV['GITLAB_TOKEN']
     run_args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
+
     run_args += ['-v', "#{volume}:/home/dev/projects/#{name}"]
 
     # Shared build-tool caches
@@ -58,6 +59,12 @@ module Kyb::CLI
     end
     run_args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     run_args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
+
+    # Mount Swift toolchain cache if available
+    swift_cache = 'kyb-swift-cache'
+    if `docker volume ls -q --filter name=^#{swift_cache}$`.strip == swift_cache
+      run_args += ['-v', "#{swift_cache}:/home/dev/.local/swift"]
+    end
 
     run_args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
     run_args += ['--hostname', cname]
@@ -85,6 +92,10 @@ module Kyb::CLI
     if File.exist?(gitconfig) && !File.directory?(gitconfig)
       system('docker', 'cp', gitconfig, "#{cname}:/home/dev/.gitconfig")
     end
+
+    # Fix ownership of copied files (docker cp preserves root ownership)
+    system('docker', 'exec', '-u', 'root', cname,
+           'chown', '-R', 'dev:dev', '/home/dev/.ssh', '/home/dev/.gitconfig')
 
     puts
     puts "==> ／人◕ ‿‿ ◕人＼ DID container ready! Container: #{cname}"
