@@ -131,6 +131,7 @@ if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
 
         if [ -n "${KYB_PROJECT:-}" ]; then
             echo "- **Name**: ${KYB_PROJECT}"
+            echo "- **Aka**: 「可以不」「可以吧」「不可以？」— 根据上下文选一个"
             echo "- **Source**: \`~/projects/${KYB_PROJECT}\`"
             echo "- **DB migrations**: \`mig25\` (DSN in project \`.env\`)"
         else

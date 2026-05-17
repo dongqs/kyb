@@ -90,7 +90,7 @@ module Kyb::CLI
       Kyb.die("level must be done/blocked/urgent, got: #{level}") unless %w[done blocked urgent].include?(level)
       notify(level, message)
     when 'version', '--version', '-v'
-      puts "kyb #{Kyb::VERSION}"
+      puts Kyb.version_string
     when 'help', '--help', '-h'
       help
     else
@@ -100,7 +100,7 @@ module Kyb::CLI
 
   def help
     puts <<~EOF
-      ／人◕ ‿‿ ◕人＼  kyb — kubernate your branches
+      kyb — kubernate your branches 可以不 ／人◕ ‿‿ ◕人＼
 
       Usage:  kyb COMMAND
 
@@ -130,6 +130,7 @@ module Kyb::CLI
                                          Send TTS notification (done: 1 ping, blocked: 2, urgent: 3)
         version                          Show version
 
+      #{Kyb.alias_line}
     EOF
   end
 end
