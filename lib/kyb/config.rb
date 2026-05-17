@@ -20,6 +20,7 @@ module Kyb::Config
     @config ||= YAML.safe_load_file(Kyb::CONFIG_FILE, permitted_classes: [Symbol])
   end
   alias load load_config
+  module_function :load
 
   def save(project_name, project_data)
     config = if File.exist?(Kyb::CONFIG_FILE)
