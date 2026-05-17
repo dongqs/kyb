@@ -9,7 +9,7 @@ RUN apt-get update && apt-get upgrade -y && \
     libpq-dev libssl-dev libreadline-dev zlib1g-dev libffi-dev libyaml-dev \
     vim tmux htop gnupg unzip jq docker-compose-v2 \
     ripgrep fd-find fzf \
-    docker.io sudo postgresql postgresql-client \
+    docker.io docker-buildx sudo postgresql postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # PostgreSQL: trust local connections + Asia/Shanghai timezone (mig25 requirement)

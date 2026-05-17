@@ -5,13 +5,15 @@ module Kyb::Docker
 
   def build(tag, path)
     puts "==> Building base image: #{tag}"
-    system('docker', 'build', '-t', tag, path.to_s) || Kyb.die('docker build failed')
+    env = { 'DOCKER_BUILDKIT' => '1' }
+    system(env, 'docker', 'build', '-t', tag, path.to_s) || Kyb.die('docker build failed')
   end
 
   def project_image(name, dockerfile, context)
     image = Kyb::Container.new(name, nil).project_image
     puts "==> #{name}: building project image (#{dockerfile})"
-    system('docker', 'build', '-t', image, '-f', dockerfile.to_s, context.to_s) || Kyb.die('docker build failed')
+    env = { 'DOCKER_BUILDKIT' => '1' }
+    system(env, 'docker', 'build', '-t', image, '-f', dockerfile.to_s, context.to_s) || Kyb.die('docker build failed')
     image
   end
 
@@ -90,6 +92,9 @@ module Kyb::Docker
 
     ssh_dir = File.expand_path('~/.ssh')
     args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
+    kyb_dir = File.expand_path('~/.kyb')
+    FileUtils.mkdir_p(kyb_dir) unless File.directory?(kyb_dir)
+    args += ['-v', "#{kyb_dir}:#{kyb_dir}"]
     args += ['-v', "#{ENV['HOME']}/.kimi:/home/dev/.kimi"]
     args += ['-v', "#{ENV['HOME']}/.gitconfig:/home/dev/.gitconfig:ro"]
     args += ['-v', "#{ENV['HOME']}/.claude/settings.json:/home/dev/.claude-host-settings.json:ro"]
@@ -97,11 +102,22 @@ module Kyb::Docker
     args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
     agents = File.expand_path('~/.agents')
     args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
+    dind = File.exist?('/.dockerenv')
+
     args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
     args += ['-v', "#{container.claude_volume}:/home/dev/.claude"]
-    args += ['-v', "#{wt_path}:/home/dev/projects/#{project_name}"]
+    if dind
+      # Docker-in-Docker: bind-mounting container-local paths fails because
+      # host Docker daemon can't see the path. Use a named volume instead,
+      # then copy the worktree into it after container starts.
+      args += ['-v', "#{container.name}-worktree:/home/dev/projects/#{project_name}"]
+    else
+      args += ['-v', "#{wt_path}:/home/dev/projects/#{project_name}"]
+    end
     args += ['-v', "#{container.node_modules_volume}:/home/dev/projects/#{project_name}/node_modules"]
-    args += ['-v', "#{project_path}:#{project_path}"]
+    unless project_path == "/home/dev/projects/#{project_name}"
+      args += ['-v', "#{project_path}:#{project_path}"]
+    end
 
     symlinks.to_s.split(',').each do |link|
       next if link.empty?
@@ -216,6 +232,11 @@ module Kyb::Docker
                       'test', '-f', '/home/dev/.claude/settings.json',
                       out: File::NULL, err: File::NULL)
       sleep 0.5
+    end
+
+    if File.exist?('/.dockerenv')
+      puts "==> #{container.name}: copying worktree into container"
+      system('docker', 'cp', "#{wt_path}/.", "#{container.name}:/home/dev/projects/#{project}/")
     end
 
     [container.name, ports]

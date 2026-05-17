@@ -56,39 +56,189 @@ class DockerTest < Minitest::Test
     assert_equal '', Kyb::Docker.assign_ports([])
   end
 
-  # --- run with timezone ---
+  # --- helpers ---
 
-  def test_run_passes_tz_env_var
-    container = Kyb::Container.new('niao', 'sandbox')
-    docker_args = []
-    config_called = false
+  # Stub File.exist? so that /.dockerenv returns the given boolean;
+  # all other paths fall through to the real method.
+  def with_dind(dind)
+    real = File.method(:exist?)
+    File.stub(:exist?, ->(p) { p == '/.dockerenv' ? dind : real.call(p) }) { yield }
+  end
 
-    Kyb::Docker.define_singleton_method(:system) do |*args|
-      docker_args = args if args[0] == 'docker' && args[1] == 'run'
-      true
-    end
-
-    wt_path = '/tmp/test-wt'
-    FileUtils.mkdir_p(wt_path)
-    Kyb::Docker.run(
-      container: container,
+  def default_run_kwargs(overrides = {})
+    {
+      container: Kyb::Container.new('niao', 'sandbox'),
       image: 'kyb-base',
-      wt_path: wt_path,
+      wt_path: '/tmp/test-wt',
       project_name: 'niao',
       project_path: '/tmp/test-project',
-      ports: '',
-      symlinks: '',
-      mounts_rw: '',
-      mounts_ro: '',
-      model: 'flash',
-      timezone: 'America/Sao_Paulo'
-    )
+      ports: '', symlinks: '', mounts_rw: '', mounts_ro: ''
+    }.merge(overrides)
+  end
 
-    assert docker_args.each_cons(2).any? { |flag, val|
-             flag == '-e' && val == 'TZ=America/Sao_Paulo'
-           }, 'expected -e TZ=America/Sao_Paulo in docker run args'
+  # Run Kyb::Docker.run under all necessary stubs (Dind detection + config).
+  # Returns the captured docker CLI args array.
+  def with_run_stubs(dind:, **run_kwargs)
+    args = nil
+    sys_stub = ->(*a) {
+      args = a if a[0] == 'docker' && a[1] == 'run'
+      true
+    }
+    real_exist = File.method(:exist?)
+    Kyb::Docker.stub(:system, sys_stub) do
+      File.stub(:exist?, ->(p) { p == '/.dockerenv' ? dind : real_exist.call(p) }) do
+        Kyb::Config.stub(:claude_default_model, 'flash') do
+          Kyb::Docker.run(**run_kwargs)
+        end
+      end
+    end
+    args
+  end
+
+  # --- build ---
+
+  def test_build_sets_docker_buildkit
+    captured_env = nil
+    stub = ->(*args) { captured_env = args.first if args.first.is_a?(Hash); true }
+
+    Kyb::Docker.stub(:system, stub) do
+      Kyb::Docker.build('kyb-base', '/tmp')
+    end
+
+    assert_equal '1', captured_env['DOCKER_BUILDKIT']
+  end
+
+  # --- project_image ---
+
+  def test_project_image_sets_docker_buildkit
+    captured_env = nil
+    stub = ->(*args) { captured_env = args.first if args.first.is_a?(Hash); true }
+
+    Kyb::Docker.stub(:system, stub) do
+      Kyb::Docker.project_image('niao', '/tmp/Dockerfile', '/tmp')
+    end
+
+    assert_equal '1', captured_env['DOCKER_BUILDKIT']
+  end
+
+  # --- run (normal mode) ---
+
+  def test_run_mounts_kyb_dir
+    kyb_dir = File.expand_path('~/.kyb')
+    wt_path = '/tmp/test-wt-kyb'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == "#{kyb_dir}:#{kyb_dir}" },
+           "expected -v #{kyb_dir}:#{kyb_dir}"
   ensure
-    Kyb::Docker.singleton_class.remove_method(:system) rescue nil
-    FileUtils.rm_rf('/tmp/test-wt')
+    FileUtils.rm_rf('/tmp/test-wt-kyb')
+  end
+
+  def test_run_normal_mode_binds_wt_path
+    wt_path = '/tmp/test-wt-bind'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    count = args.each_cons(2).count { |f, v| f == '-v' && v == "#{wt_path}:/home/dev/projects/niao" }
+    assert_equal 1, count, 'expected exactly one bind mount for wt_path'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-bind')
+  end
+
+  def test_run_binds_project_path_when_different
+    pp = '/tmp/test-project-pp'
+    wt_path = '/tmp/test-wt-pp'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path, project_path: pp))
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == "#{pp}:#{pp}" },
+           'expected project_path bind mount'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-pp')
+  end
+
+  def test_run_skips_project_path_when_matches_wt_target
+    # When project_path equals the mount target, only the wt_path bind mount
+    # (line 115) should appear — NOT a second project_path mount (line 119).
+    args = with_run_stubs(dind: false, **default_run_kwargs(
+      wt_path: '/home/dev/projects/niao', project_path: '/home/dev/projects/niao'))
+    mount_count = args.each_cons(2).count { |f, v| f == '-v' && v == '/home/dev/projects/niao:/home/dev/projects/niao' }
+    assert_equal 1, mount_count, 'expected exactly one bind mount (from wt_path, not project_path)'
+  end
+
+  def test_run_passes_tz_env_var
+    wt_path = '/tmp/test-wt-tz'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(
+      wt_path: wt_path, model: 'flash', timezone: 'America/Sao_Paulo'))
+    assert args.each_cons(2).any? { |f, v| f == '-e' && v == 'TZ=America/Sao_Paulo' },
+           'expected -e TZ=America/Sao_Paulo'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-tz')
+  end
+
+  # --- run (DinD mode) ---
+
+  def test_run_dind_uses_named_volume
+    wt_path = '/tmp/test-wt-dind'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: true, **default_run_kwargs(wt_path: wt_path))
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-niao-sandbox-worktree:/home/dev/projects/niao' },
+           'expected named volume in DinD mode'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-dind')
+  end
+
+  # --- create_container (DinD cp) ---
+
+  def stub_create_container_deps
+    Kyb::Config.stub(:load, nil) do
+    Kyb::Config.stub(:project, ->(name) {
+      { name: name, path: '/tmp/test-cp-project', base_branch: 'master',
+        dockerfile: nil, ports: [], symlinks: '', mounts_rw: '', mounts_ro: '',
+        env_template: nil, extra_prompt: nil, timezone: 'Asia/Shanghai',
+        proxy: nil, no_proxy: nil }
+    }) do
+    Kyb::Config.stub(:base_image_path, '/tmp') do
+    Kyb::Docker.stub(:build, true) do
+    Kyb::Docker.stub(:assign_ports, '') do
+    Kyb::Docker.stub(:run, nil) do
+    Kyb::Docker.stub(:exists?, false) do
+    Kyb::Docker.stub(:running?, false) do
+    Kyb::Git.stub(:setup_worktree, nil) do
+    Kyb::Git.stub(:remove_worktree, nil) do
+    Kyb::Git.stub(:delete_local_branch, nil) do
+    FileUtils.stub(:mkdir_p, nil) do
+    FileUtils.stub(:cp, nil) do
+      yield
+    end; end; end; end; end; end; end; end; end; end; end; end; end
+  end
+
+  def test_create_container_dind_copies_worktree
+    cp_called = false
+    sys_stub = ->(*args) { cp_called = true if args[0] == 'docker' && args[1] == 'cp'; true }
+
+    with_dind(true) do
+      Kyb::Docker.stub(:system, sys_stub) do
+        stub_create_container_deps do
+          Kyb::Docker.create_container('niao', 'water')
+        end
+      end
+    end
+
+    assert cp_called, 'docker cp should be called in DinD mode'
+  end
+
+  def test_create_container_normal_skips_cp
+    cp_called = false
+    sys_stub = ->(*args) { cp_called = true if args[0] == 'docker' && args[1] == 'cp'; true }
+
+    with_dind(false) do
+      Kyb::Docker.stub(:system, sys_stub) do
+        stub_create_container_deps do
+          Kyb::Docker.create_container('niao', 'water')
+        end
+      end
+    end
+
+    refute cp_called, 'docker cp should NOT be called in normal mode'
   end
 end
