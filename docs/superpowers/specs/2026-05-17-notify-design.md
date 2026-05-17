@@ -11,8 +11,8 @@ kyb 已提供 TTS 服务（macOS 宿主机），容器 CLAUDE.md 也文档化了
 | 等级 | 触发场景 | TTS 行为 | 提示音 |
 |------|---------|---------|--------|
 | `done` | 长时间任务完成（编译、测试、部署等） | 正常语速（180）说消息 | 一声 Ping |
-| `blocked` | 遇到错误、缺信息、需要用户决策 | 稍慢语速说消息 | 两声 Ping |
-| `urgent` | 高风险操作前确认（删除、覆盖、push 等） | 慢速+大声说消息 | 三声 Ping |
+| `blocked` | 日常巡检发现异常，需要人工干预（服务器异常、账单异常等） | 稍慢语速说消息 | 两声 Ping |
+| `urgent` | 影响容器外部的操作前确认（推送服务器、生产环境变更等） | 慢速+大声说消息 | 三声 Ping |
 
 ## 架构
 
@@ -29,7 +29,7 @@ kyb 已提供 TTS 服务（macOS 宿主机），容器 CLAUDE.md 也文档化了
           └─ TTS 服务 → say/afplay
 
 AI agent 在容器内统一用:
-  $ kyb notify blocked "缺少数据库连接信息"
+  $ kyb notify blocked "服务器响应异常，状态码 502"
   无需关心底层是 HTTP 还是本地调用。
 ```
 
@@ -53,7 +53,7 @@ Content-Type: application/json
 
 {
   "level": "blocked",
-  "text": "缺少数据库连接信息"
+  "text": "检测到服务器 502 错误，需要人工介入"
 }
 ```
 
@@ -84,8 +84,8 @@ Content-Type: application/json
 
 ```bash
 kyb notify done "编译通过"
-kyb notify blocked "缺少数据库连接信息"  
-kyb notify urgent "准备删除生产分支，请确认"
+kyb notify blocked "服务器异常，需要人工介入"  
+kyb notify urgent "准备向生产环境推送，请确认"
 ```
 
 实现逻辑：
@@ -138,20 +138,20 @@ RUN mkdir -p /home/dev/.kyb/bin && \
 # 任务完成时
 kyb notify done "编译通过，测试全部绿"
 
-# 遇到阻塞时
-kyb notify blocked "数据库迁移失败，需要确认"
+# 日常巡检发现异常，需要人工干预
+kyb notify blocked "检测到服务器 502 错误，请检查"
 
-# 高风险操作前
-kyb notify urgent "准备删除 production 分支"
+# 涉及容器外部的操作前确认
+kyb notify urgent "准备推送生产环境，请确认"
 ```
 
 ### 使用规则
 - **done**: 任何超过 30 秒的任务完成后必通知
 - **blocked**: 
-  1. 遇到无法自行解决的错误或需要用户输入时立即通知
+  1. 日常巡检发现异常时立即通知（服务器异常、账单异常等需要人工干预的场景）
   2. 等待 60 秒，如果用户未回应则重复通知
 - **urgent**:
-  1. 执行破坏性操作前立即通知 (git push --force, 删除文件, 覆写配置等)
+  1. 涉及容器外部的操作前立即通知（推送服务器、生产环境变更等；本地操作不限制）
   2. 等待 60 秒，如果用户未回应则重复通知
 
 ### 重复通知机制
@@ -162,9 +162,9 @@ kyb notify urgent "准备删除 production 分支"
 
 ## 实现清单
 
-1. **TTS 服务**: 新增 `/notify` 端点，实现三级逻辑（lib/kyb/tts_server.rb）
-2. **`kyb notify` CLI**: 在 `lib/kyb/cli/tts.rb` 中新增 notify 子命令（含双后端）
-3. **Dockerfile**: 新增层复制 kyb 源码到容器，安装 `kyb` 命令
+1. **TTS 服务**: 新增 `/notify` 端点，实现三级逻辑（`lib/kyb/tts_server.rb`）
+2. **`kyb notify` CLI**: 在 `lib/kyb/cli/tts.rb` 中新增 notify 子命令（双后端：macOS 本地 + 容器 HTTP）
+3. **Dockerfile**: 新增层复制 kyb 源码到容器，确保容器内 `kyb notify` 可用
 4. **容器 entrypoint**: 修改 `entrypoint.sh`，CLAUDE.md 追加主动通知章节
 5. **测试**: 更新测试（TTS 端点和 CLI 命令）
 
