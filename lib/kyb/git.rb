@@ -55,13 +55,4 @@ module Kyb::Git
     end
   end
 
-  def delete_remote_branch(repo_path, container)
-    branch_name = container.is_a?(Kyb::Container) ? container.git_branch : branch(Kyb::Container.new(nil, nil, name: container))
-    Dir.chdir(repo_path) do
-      return unless system('git', 'ls-remote', '--heads', 'origin', branch_name, out: File::NULL) &&
-                    !`git ls-remote --heads origin #{branch_name}`.strip.empty?
-      puts "==> #{branch_name}: deleting remote branch"
-      system('git', 'push', 'origin', '--delete', branch_name)
-    end
-  end
 end

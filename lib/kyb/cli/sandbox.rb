@@ -410,8 +410,8 @@ module Kyb::CLI
 
     # Delete branches
     Kyb::Git.delete_local_branch(proj[:path], container)
-    Kyb::Git.delete_remote_branch(proj[:path], container)
 
     puts "==> #{container.name}: sandbox removed"
+    puts "==> 远端分支 #{container.git_branch} 未删除，如需清理请手动 git push origin --delete #{container.git_branch}"
   end
 end

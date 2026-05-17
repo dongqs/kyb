@@ -9,6 +9,8 @@ module Kyb
   DEFAULT_RATE  = 180
   PORT = (ENV['TTS_PORT'] || 10666).to_i
 
+  STATIC_DIR = File.join(__dir__, 'tts_server')
+
   module_function
 
   def speak(text, voice: DEFAULT_VOICE, rate: DEFAULT_RATE)
@@ -38,6 +40,11 @@ module Kyb
     {}
   end
 
+  def read_static(file)
+    template = File.read(File.join(STATIC_DIR, file))
+    template.gsub('__PORT__', PORT.to_s)
+  end
+
   def build_server
     server = WEBrick::HTTPServer.new(
       Port: PORT,
@@ -45,6 +52,16 @@ module Kyb
       Logger: WEBrick::Log.new($stdout, WEBrick::Log::INFO),
       AccessLog: [[File.open(File::NULL, 'w'), WEBrick::AccessLog::COMMON_LOG_FORMAT]]
     )
+
+    server.mount_proc '/' do |_req, res|
+      res['Content-Type'] = 'text/html'
+      res.body = read_static('index.html')
+    end
+
+    server.mount_proc '/openapi.yml' do |_req, res|
+      res['Content-Type'] = 'text/yaml'
+      res.body = read_static('openapi.yml')
+    end
 
     server.mount_proc '/health' do |_req, res|
       res['Content-Type'] = 'application/json'
@@ -91,6 +108,17 @@ module Kyb
   end
 
   def start
+    unless RbConfig::CONFIG['host_os'] =~ /darwin/i
+      warn "TTS server requires macOS (say/afplay not available)"
+      return
+    end
+    %w[say afplay].each do |cmd|
+      unless system("which #{cmd} > /dev/null 2>&1")
+        warn "TTS server requires `#{cmd}` command, not found"
+        return
+      end
+    end
+
     server = build_server
     Thread.new { sleep 2; speak('TTS server started') }
     trap('INT')  { server.shutdown }

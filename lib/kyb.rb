@@ -3,9 +3,32 @@
 require 'yaml'
 require 'fileutils'
 require 'socket'
+require 'delegate'
 
 module Kyb
-  VERSION = '0.5.18'
+  VERSION = '0.5.30'
+
+  class TimestampedOutput < SimpleDelegator
+    def puts(*args)
+      if args.empty?
+        __getobj__.puts
+      else
+        ts = Time.now.strftime('[%H:%M:%S]')
+        args.each { |arg| __getobj__.puts "#{ts} #{arg}" }
+      end
+    end
+
+    def print(*args)
+      ts = Time.now.strftime('[%H:%M:%S]')
+      __getobj__.print "#{ts} #{args.join}"
+    end
+
+    def printf(*args)
+      ts = Time.now.strftime('[%H:%M:%S]')
+      __getobj__.print "#{ts} "
+      __getobj__.printf(*args)
+    end
+  end
   CONFIG_FILE = File.expand_path('~/.config/kyb/config.yml')
 
   WORKTREE_BASE = File.expand_path('~/.kyb/worktrees')
@@ -15,6 +38,10 @@ module Kyb
   def die(msg)
     warn "ERROR: #{msg}"
     exit 1
+  end
+
+  def enable_profile
+    $stdout = TimestampedOutput.new($stdout)
   end
 end
 

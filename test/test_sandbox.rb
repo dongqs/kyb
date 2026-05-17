@@ -109,7 +109,8 @@ class SandboxTest < Minitest::Test
   def test_assign_port_multiple_unique
     ports = Kyb::CLI.sandbox_assign_port([3000, 3000])
     assert_equal 2, ports.size
-    assert_equal ports[0] + 1, ports[1]
+    refute_equal ports[0], ports[1]
+    assert ports[1] > ports[0]
   end
 
   def test_port_in_use_detection

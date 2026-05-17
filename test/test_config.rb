@@ -36,4 +36,33 @@ class ConfigTest < Minitest::Test
     proj = Kyb::Config.project('niao')
     assert_equal File.expand_path('~/niao'), proj[:path]
   end
+
+  # -- extra_prompt -------------------------------------------------------
+
+  def test_extra_prompt_nil_when_not_set
+    stub_config('base' => {}, 'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main' } })
+    proj = Kyb::Config.project('niao')
+    assert_nil proj[:extra_prompt]
+  end
+
+  def test_extra_prompt_from_base
+    stub_config('base' => { 'extra_prompt' => '全局规则' },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main' } })
+    proj = Kyb::Config.project('niao')
+    assert_equal '全局规则', proj[:extra_prompt]
+  end
+
+  def test_extra_prompt_from_project
+    stub_config('base' => {},
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main', 'extra_prompt' => '项目规则' } })
+    proj = Kyb::Config.project('niao')
+    assert_equal '项目规则', proj[:extra_prompt]
+  end
+
+  def test_extra_prompt_merged
+    stub_config('base' => { 'extra_prompt' => '全局规则' },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main', 'extra_prompt' => '项目规则' } })
+    proj = Kyb::Config.project('niao')
+    assert_equal '全局规则 项目规则', proj[:extra_prompt]
+  end
 end

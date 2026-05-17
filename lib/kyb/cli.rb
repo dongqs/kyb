@@ -13,6 +13,8 @@ module Kyb::CLI
       ENV['GITLAB_TOKEN'] ||= token&.dig('hosts', 'git.leyantech.com', 'token').to_s
     end
 
+    Kyb.enable_profile if argv.delete('--profile')
+
     cmd = argv.first || 'help'
     args = argv[1..] || []
 
@@ -22,26 +24,32 @@ module Kyb::CLI
     when 'init'
       init(args)
     when 'create'
-      Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--ports HOST:CONTAINER]") unless args.first
+      Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--ports HOST:CONTAINER] [--model flash|pro]") unless args.first
       project, branch = Kyb::Parser.parse(args.shift)
       port_overrides = nil
+      model = nil
       if args.first == '--ports'
         args.shift
         port_overrides = args.shift if args.first
       end
-      create(project, branch, port_overrides)
+      if args.first == '--model'
+        args.shift
+        model = args.shift
+        Kyb.die("--model must be 'flash' or 'pro'") unless %w[flash pro].include?(model)
+      end
+      create(project, branch, port_overrides, model: model)
     when 'ps', 'ls'
       ps
     when 'enter'
-      Kyb.die("enter requires a project-branch\n  Usage: kyb enter PROJECT-BRANCH [--agent AGENT]") unless args.first
+      Kyb.die("enter requires a project-branch\n  Usage: kyb enter PROJECT-BRANCH [--cli claude|kimi|bash]") unless args.first
       project, branch = Kyb::Parser.parse(args.shift)
-      agent = nil
-      if args.first == '--agent'
+      cli = 'claude'
+      if args.first == '--cli'
         args.shift
-        agent = args.shift
-        Kyb.die("--agent requires a value") unless agent
+        cli = args.shift || 'claude'
+        Kyb.die("--cli must be 'claude', 'kimi', or 'bash'") unless %w[claude kimi bash].include?(cli)
       end
-      enter(project, branch, agent: agent)
+      enter(project, branch, cli: cli)
     when 'exec'
       Kyb.die("exec requires a project-branch\n  Usage: kyb exec PROJECT-BRANCH [CMD...]") unless args.first
       project, branch = Kyb::Parser.parse(args.shift)
@@ -93,11 +101,11 @@ module Kyb::CLI
 
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                          Add current project to config
-        create PROJECT-BRANCH [--ports HOST:CONTAINER]
+        create PROJECT-BRANCH [--ports HOST:CONTAINER] [--model flash|pro]
                                          Create and start a container
         ps, ls                           List containers
-        enter PROJECT-BRANCH [--agent AGENT]
-                                         Enter container via interactive shell
+        enter PROJECT-BRANCH [--cli claude|kimi|bash]
+                                         Enter container (default: claude)
         exec  PROJECT-BRANCH [CMD...]    Run command in container
         stop  PROJECT-BRANCH             Stop container
         start PROJECT-BRANCH             Start stopped container

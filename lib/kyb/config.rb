@@ -27,6 +27,9 @@ module Kyb::Config
   def project(name)
     p = load.dig('projects', name)
     Kyb.die("'#{name}' not found in #{Kyb::CONFIG_FILE}") unless p
+    base_extra = load.dig('base', 'extra_prompt')
+    proj_extra = p['extra_prompt']
+    extra = [base_extra, proj_extra].compact.join(' ')
     {
       name: name,
       path: File.expand_path(p['path']),
@@ -36,7 +39,8 @@ module Kyb::Config
       symlinks: Array(p['symlinks']).map(&:to_s).reject(&:empty?).join(','),
       mounts_rw: Array(p['mounts_rw']).map(&:to_s).reject(&:empty?).join(','),
       mounts_ro: Array(p['mounts_ro']).map(&:to_s).reject(&:empty?).join(','),
-      env_template: p['env_template']
+      env_template: p['env_template'],
+      extra_prompt: extra.empty? ? nil : extra
     }
   end
 

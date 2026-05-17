@@ -17,7 +17,17 @@ module Kyb::CLI
     end
   end
 
+  def check_environment!
+    unless RbConfig::CONFIG['host_os'] =~ /darwin/i
+      die "TTS server requires macOS (say/afplay commands not available on this platform)"
+    end
+    %w[say afplay].each do |cmd|
+      die "TTS server requires `#{cmd}` command, not found in PATH" unless system("which #{cmd} > /dev/null 2>&1")
+    end
+  end
+
   def tts_start
+    check_environment!
     if tts_running?
       puts "==> tts server already running (pid #{File.read(TTS_PID_FILE).strip})"
       return
@@ -58,10 +68,12 @@ module Kyb::CLI
   end
 
   def tts_speak(text, voice: DEFAULT_VOICE, rate: DEFAULT_RATE)
+    check_environment!
     system('say', '-v', voice.to_s, '-r', rate.to_s, text.to_s)
   end
 
   def tts_ping
+    check_environment!
     system('afplay', '/System/Library/Sounds/Ping.aiff')
   end
 

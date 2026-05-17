@@ -1,0 +1,163 @@
+openapi: "3.0.3"
+info:
+  title: TTS Server API
+  description: macOS `say` command HTTP wrapper
+  version: "0.5.30"
+servers:
+  - url: "http://localhost:__PORT__"
+    description: Local TTS server
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      responses:
+        "200":
+          description: Service status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  voices:
+                    type: integer
+                    example: 52
+                  default_voice:
+                    type: string
+                    example: Zarvox
+  /voices:
+    get:
+      summary: List available system voices
+      operationId: listVoices
+      responses:
+        "200":
+          description: Array of voice objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: Zarvox
+                    language:
+                      type: string
+                      example: en-US
+                    comment:
+                      type: string
+                      example: Unique
+  /ping:
+    get:
+      summary: Play system alert sound
+      operationId: ping
+      responses:
+        "200":
+          description: Alert sound played
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+  /speak:
+    get:
+      summary: Synthesize speech (query params)
+      operationId: speakGet
+      parameters:
+        - name: text
+          in: query
+          schema:
+            type: string
+            default: "Agent is calling"
+          description: Text to speak
+        - name: voice
+          in: query
+          schema:
+            type: string
+            default: "Zarvox"
+          description: Voice name (see /voices)
+        - name: rate
+          in: query
+          schema:
+            type: integer
+            default: 180
+          description: Speech rate (words per minute)
+        - name: ping
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Play alert sound before speaking
+      responses:
+        "200":
+          description: Speech synthesized
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+    post:
+      summary: Synthesize speech (JSON body)
+      operationId: speakPost
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  default: "Agent is calling"
+                voice:
+                  type: string
+                  default: "Zarvox"
+                rate:
+                  type: integer
+                  default: 180
+                ping:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Speech synthesized
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+  /done:
+    get:
+      summary: Speak completion message and play alert
+      operationId: done
+      parameters:
+        - name: text
+          in: query
+          schema:
+            type: string
+            default: "Done"
+          description: Completion message
+        - name: voice
+          in: query
+          schema:
+            type: string
+            default: "Zarvox"
+          description: Voice name
+        - name: rate
+          in: query
+          schema:
+            type: integer
+            default: 180
+          description: Speech rate
+      responses:
+        "200":
+          description: Message spoken and alert played
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok

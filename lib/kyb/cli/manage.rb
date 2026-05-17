@@ -47,11 +47,11 @@ module Kyb::CLI
     wt_path = Kyb::Git.worktree_path(project, c)
     Kyb::Git.remove_worktree(path, wt_path)
     Kyb::Git.delete_local_branch(path, c)
-    Kyb::Git.delete_remote_branch(path, c)
 
     Kyb::Docker.volume_rm(c.claude_volume)
 
     puts "==> Done: #{c.name} removed"
+    puts "==> 远端分支 #{c.git_branch} 未删除，如需清理请手动 git push origin --delete #{c.git_branch}"
   end
 
   def prune
@@ -72,7 +72,6 @@ module Kyb::CLI
         wt_path = Kyb::Git.worktree_path(proj_name, c)
         Kyb::Git.remove_worktree(path, wt_path)
         Kyb::Git.delete_local_branch(path, c)
-        Kyb::Git.delete_remote_branch(path, c)
 
         Kyb::Docker.volume_rm(c.claude_volume)
         puts
@@ -80,5 +79,6 @@ module Kyb::CLI
     end
 
     puts "==> All containers cleaned"
+    puts "==> 远端分支未删除，如需清理请手动 git push origin --delete kyb/*"
   end
 end

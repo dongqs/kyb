@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<pre style="font:14px/1.6 SFMono-Regular,Consolas,monospace;background:#1e1e2e;color:#cdd6f4;padding:20px;border-radius:8px;max-width:720px;margin:40px auto">
+<span style="color:#6c7086"># TTS Server &mdash; __PORT__</span>
+<span style="color:#6c7086"># macOS only. Requires `say` and `afplay`.</span>
+<span style="color:#6c7086"># Port: TTS_PORT env var (default 10666)</span>
+
+<span style="color:#6c7086"># Endpoints</span>
+GET  <a href="/health" style="color:#89b4fa">/health</a>   <span style="color:#6c7086">Health check</span>
+GET  <a href="/voices" style="color:#89b4fa">/voices</a>   <span style="color:#6c7086">List voices</span>
+GET  <a href="/ping" style="color:#89b4fa">/ping</a>     <span style="color:#6c7086">Play alert</span>
+GET  <a href="/speak?text=hello" style="color:#89b4fa">/speak</a>    <span style="color:#6c7086">Speak text (GET query or POST JSON)</span>
+GET  <a href="/done?text=Done" style="color:#89b4fa">/done</a>     <span style="color:#6c7086">Speak + alert</span>
+
+<span style="color:#6c7086"># Full OpenAPI spec</span>
+<a href="/openapi.yml" style="color:#a6e3a1">/openapi.yml</a>
+
+<span style="color:#6c7086"># English example (use a English voice)</span>
+curl "http://localhost:__PORT__/speak?text=Hello+world&amp;voice=Zarvox&amp;rate=200"
+
+<span style="color:#6c7086"># Chinese example (use a Chinese voice)</span>
+curl "http://localhost:__PORT__/speak?text=%E4%BD%A0%E5%A5%BD%E4%B8%96%E7%95%8C&amp;voice=Tingting&amp;rate=200"
+<span style="color:#6c7086"># or via POST</span>
+curl -X POST http://localhost:__PORT__/speak \
+  -H <span style="color:#a6e3a1">"Content-Type: application/json"</span> \
+  -d <span style="color:#a6e3a1">'{"text":"你好世界","voice":"Tingting","rate":200}'</span>
+
+<span style="color:#6c7086"># Done notification</span>
+curl "http://localhost:__PORT__/done?text=Build+succeeded"
+
+<span style="color:#6c7086"># Each voice only supports specific languages.</span>
+<span style="color:#6c7086"># Run <a href="/voices" style="color:#89b4fa">GET /voices</a> to see the language column and pick a matching voice.</span></pre>
