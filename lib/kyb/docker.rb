@@ -121,21 +121,26 @@ module Kyb::Docker
     args += ['-e', "KYB_BRANCH=#{branch}"] if branch
     args += ['-l', Kyb::Container::LABEL]
 
-    ssh_dir = File.expand_path('~/.ssh')
-    args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
-    kyb_dir = File.expand_path('~/.kyb')
-    FileUtils.mkdir_p(kyb_dir) unless File.directory?(kyb_dir)
-    args += ['-v', "#{kyb_dir}:#{kyb_dir}"]
-    args += ['-v', "#{ENV['HOME']}/.kimi:/home/dev/.kimi"]
-    args += ['-v', "#{ENV['HOME']}/.gitconfig:/home/dev/.gitconfig:ro"]
-    args += ['-v', "#{ENV['HOME']}/.claude/settings.json:/home/dev/.claude-host-settings.json:ro"]
-    kyb_config = File.expand_path('~/.config/kyb')
-    args += ['-v', "#{kyb_config}:/home/dev/.config/kyb:ro"] if File.directory?(kyb_config)
-    skills = File.expand_path('~/.claude/skills')
-    args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
-    agents = File.expand_path('~/.agents')
-    args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
     dind = File.exist?('/.dockerenv')
+    ssh_dir = File.expand_path('~/.ssh')
+    # In DinD mode, host paths are invisible to the Docker daemon running inside
+    # the container. Skip all host-only bind mounts to avoid creating empty
+    # files that break the entrypoint.
+    unless dind
+      args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
+      kyb_dir = File.expand_path('~/.kyb')
+      FileUtils.mkdir_p(kyb_dir) unless File.directory?(kyb_dir)
+      args += ['-v', "#{kyb_dir}:#{kyb_dir}"]
+      args += ['-v', "#{ENV['HOME']}/.kimi:/home/dev/.kimi"]
+      args += ['-v', "#{ENV['HOME']}/.gitconfig:/home/dev/.gitconfig:ro"]
+      args += ['-v', "#{ENV['HOME']}/.claude/settings.json:/home/dev/.claude-host-settings.json:ro"]
+      kyb_config = File.expand_path('~/.config/kyb')
+      args += ['-v', "#{kyb_config}:/home/dev/.config/kyb:ro"] if File.directory?(kyb_config)
+      skills = File.expand_path('~/.claude/skills')
+      args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
+      agents = File.expand_path('~/.agents')
+      args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
+    end
 
     args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
     args += ['-v', "#{container.claude_volume}:/home/dev/.claude"]
@@ -145,27 +150,29 @@ module Kyb::Docker
       args += ['-v', "#{wt_path}:/home/dev/projects/#{project_name}"]
     end
     args += ['-v', "#{container.node_modules_volume}:/home/dev/projects/#{project_name}/node_modules"]
-    unless project_path == "/home/dev/projects/#{project_name}"
-      args += ['-v', "#{project_path}:#{project_path}"]
-    end
+    unless dind
+      unless project_path == "/home/dev/projects/#{project_name}"
+        args += ['-v', "#{project_path}:#{project_path}"]
+      end
 
-    symlinks.to_s.split(',').each do |link|
-      next if link.empty?
-      args += ['-v', "#{project_path}/#{link}:/home/dev/projects/#{project_name}/#{link}:ro"]
-    end
+      symlinks.to_s.split(',').each do |link|
+        next if link.empty?
+        args += ['-v', "#{project_path}/#{link}:/home/dev/projects/#{project_name}/#{link}:ro"]
+      end
 
-    mounts_rw.to_s.split(',').each do |m|
-      next if m.empty?
-      host_path, container_path = m.split(':', 2)
-      next unless host_path && container_path
-      args += ['-v', "#{File.expand_path(host_path)}:#{container_path}"]
-    end
+      mounts_rw.to_s.split(',').each do |m|
+        next if m.empty?
+        host_path, container_path = m.split(':', 2)
+        next unless host_path && container_path
+        args += ['-v', "#{File.expand_path(host_path)}:#{container_path}"]
+      end
 
-    mounts_ro.to_s.split(',').each do |m|
-      next if m.empty?
-      host_path, container_path = m.split(':', 2)
-      next unless host_path && container_path
-      args += ['-v', "#{File.expand_path(host_path)}:#{container_path}:ro"]
+      mounts_ro.to_s.split(',').each do |m|
+        next if m.empty?
+        host_path, container_path = m.split(':', 2)
+        next unless host_path && container_path
+        args += ['-v', "#{File.expand_path(host_path)}:#{container_path}:ro"]
+      end
     end
 
     # Mount shared build-tool caches so dependencies survive container recreation.
@@ -173,11 +180,13 @@ module Kyb::Docker
     # paths are invisible to the Docker daemon. All containers share the same
     # volumes — first container gets a cold cache, subsequent ones are hot.
     # Volumes are global (never cleaned by kyb rm/prune).
-    %w[kyb-gradle-cache kyb-maven-cache].each do |vol|
+    %w[kyb-gradle-cache kyb-maven-cache kyb-mise-cache kyb-pip-cache].each do |vol|
       system('docker', 'volume', 'create', vol, out: File::NULL) || Kyb.die("failed to create volume '#{vol}'")
     end
     args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
+    args += ['-v', 'kyb-mise-cache:/home/dev/.local/share/mise/downloads']
+    args += ['-v', 'kyb-pip-cache:/home/dev/.cache/pip']
 
     # Mount Swift toolchain cache if available
     swift_cache = 'kyb-swift-cache'
@@ -185,9 +194,11 @@ module Kyb::Docker
       args += ['-v', "#{swift_cache}:/home/dev/.local/swift"]
     end
 
-    # Mount kyb repo for agent to read docs
-    kyb_repo = Kyb::Config.kyb_repo
-    args += ['-v', "#{kyb_repo}:/home/dev/kyb:ro"] if kyb_repo
+    # Mount kyb repo for agent to read docs (skipped in DinD — paths are host-only)
+    unless dind
+      kyb_repo = Kyb::Config.kyb_repo
+      args += ['-v', "#{kyb_repo}:/home/dev/kyb:ro"] if kyb_repo
+    end
 
     ports.to_s.split(',').each do |p|
       next if p.empty?
@@ -288,8 +299,26 @@ module Kyb::Docker
     end
 
     if File.exist?('/.dockerenv')
+      home = Dir.home
+      tar_sources = []
+      tar_sources << '.ssh' if File.directory?("#{home}/.ssh")
+      tar_sources << '.gitconfig' if File.exist?("#{home}/.gitconfig")
+      tar_sources << '.config/kyb' if File.directory?("#{home}/.config/kyb")
+
+      if tar_sources.any?
+        system('bash', '-c',
+          "tar -C #{home} --exclude='.ssh/agent/*' -c #{tar_sources.join(' ')} 2>/dev/null | " \
+          "docker exec -i #{container.name} bash -c '" \
+          "tar -C /home/dev -x " \
+          "&& chown -R dev:dev #{tar_sources.map { |s| "/home/dev/#{s}" }.join(' ')} 2>/dev/null || true'")
+      end
+
       puts "==> #{container.name}: copying worktree into container"
-      system('docker', 'cp', "#{wt_path}/.", "#{container.name}:/home/dev/projects/#{project}/")
+      system('bash', '-c',
+        "tar -C #{File.dirname(wt_path)} -c #{File.basename(wt_path)} 2>/dev/null | " \
+        "docker exec -i #{container.name} bash -c '" \
+        "tar -C /home/dev/projects -x " \
+        "&& chown -R dev:dev /home/dev/projects/#{project} 2>/dev/null || true'")
     end
 
     [container.name, ports]
