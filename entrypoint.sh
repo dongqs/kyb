@@ -31,8 +31,10 @@ if $uid_changed || $gid_changed; then
     chown -R dev:dev /home/dev 2>/dev/null || true
 fi
 
-# Always fix shared volume permissions — fresh volumes are root-owned regardless of UID/GID
-chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository 2>/dev/null || true
+# Only fix shared volume permissions on first use (fresh volumes are root-owned)
+find /home/dev/.gradle /home/dev/.m2/repository -maxdepth 0 -user root -print -quit |
+  grep -q . &&
+  chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository 2>/dev/null || true
 
 # Clean stale Gradle locks from zombie daemons (common after failed builds)
 rm -f /home/dev/.gradle/caches/journal-*/journal-*.lock
@@ -191,6 +193,8 @@ if [ -d /home/dev/.claude-skills-host ] && [ ! -L /home/dev/.claude/skills ]; th
     ln -s /home/dev/.claude-skills-host /home/dev/.claude/skills
 fi
 
+touch /tmp/kyb-ready
+
 # pip tools (may fail during image build, retry here at runtime)
 runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]'" 2>/dev/null || true
 
@@ -223,7 +227,5 @@ if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
         fi
 EOF
 fi
-
-touch /tmp/kyb-ready
 
 exec runuser -u dev -- "$@"
