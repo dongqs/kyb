@@ -54,12 +54,13 @@ Agent 启动前先探测可用服务，根据结果决定完整流程或降级�
 ## Quick Start
 
 ```bash
-# 以下命令以 root 执行。pip3 和 java 等工具需 su - dev。
+# 以下命令以 root 执行。pip3 等需 su - dev。mise 管理的工具（java 等）需 bash -l -c 或 eval "$(mise activate bash)"。
 # 0. 前提 — 容器已创建，PG 已启动
 pg_isready                                           # → accepting connections
 
 # 1. 工具
 <安装JDK等> && mise use -g <tool>
+eval "$(mise activate bash)" && java -version   # 验证 JDK 已激活
 su - dev -c "pip3 install <工具>"
 
 # 2. 子模块
@@ -111,7 +112,7 @@ echo "" >> /tmp/.kyb-verification.md && echo "## 结果" >> /tmp/.kyb-verificati
 
 ```bash
 pg_isready                                     # → accepting connections  ✅ | ❌ 启PG
-su - dev -c "java -version"                    # → openjdk 21.0.x  ✅ | ❌ mise install + use -g
+bash -l -c "java -version"                    # → openjdk 21.0.x  ✅ | ❌ mise install + use -g
 <构建工具> --version | head -1                  # → ver  ✅ | ❌ 见排查
 ```
 
@@ -121,7 +122,7 @@ su - dev -c "java -version"                    # → openjdk 21.0.x  ✅ | ❌ m
 | `java: not found` | 未安装/未激活 | `mise install <tool>` + `mise use -g` |
 | 构建工具找不到 | 未安装 | `mise install <tool>` |
 | PG 连不上 | 服务未启 | `pg_ctlcluster 16 main start` |
-| pip3 找不到 | 用户不对 | `su - dev -c "pip3 ..."` |
+| pip3 找不到 | 用户不对 | `su - dev -c "pip3 ..."` 或 `pip3 install --user` |
 | 代理问题 | socks5 与 rustls 不兼容 | 用 `https_proxy=http` 而非 `ALL_PROXY=socks5` |
 
 ### 2. 子模块 [`依赖层`]
@@ -141,7 +142,7 @@ psql -U postgres -c "CREATE DATABASE <db>;"
 
 MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25 upgrade
 # → migrations 全部执行完毕  ✅ | ❌ 见排查
-# 执行后用 mig25 status 确认总量
+# 执行后用 mig25 list 确认总量
 ```
 
 **❌ 排查**：
@@ -149,6 +150,7 @@ MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25 upgrade
 |------|---------|------|
 | DB 名不匹配 | 与 CI/代码不一致 | 查 CI `POSTGRES_DB` |
 | mig25 找不到迁移 | 目录配置 | 确认 `m25.yml` 中 `dir` |
+| `mig25: command not found` | 未安装 | `pip3 install mig25 mig25-codegen` |
 
 ### 4. 代码生成 [`数据层`]
 
@@ -169,6 +171,8 @@ MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25-codegen gen
 export <凭据> && <构建命令> compileKotlin
 # → BUILD SUCCESS  ✅ | ❌ 见排查
 ```
+
+> 如果项目在 CI 中设置了 `GRADLE_USER_HOME`（如 `GRADLE_USER_HOME=.cache`），本地编译时也需要同步设置以复用缓存。
 
 **❌ 排查**：
 | 现象 | 可能原因 | 修复 |
@@ -399,3 +403,4 @@ Round 4 ─→ 最终检查 ─→ 丝滑通过 = 收敛
 | nova | ✅ 收敛 | 普通容器 | 未记录 | 未记录 | 未记录 | 工具层（复用） |
 | data-ant | ✅ 收敛 | 普通容器 | 未记录 | 未记录 | 未记录 | 依赖层（嵌套子模块）、项目层（集成测试） |
 | triggers-refund | ✅ 收敛 | DID 容器 | ~30min | ~2min | ~23min | 工具层（JDK 代理）、项目层（Kafka） |
+| hamilton | ✅ 收敛 | 普通容器 | ~16min | ~17s | 2min | 工具层（mise 激活、Gradle 冷启动） |
