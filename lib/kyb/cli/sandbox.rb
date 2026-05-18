@@ -198,7 +198,7 @@ module Kyb::CLI
     if prompt
       claude_args += ['-p', "#{refs.join(' ')} #{prompt}"]
     else
-      claude_args << "#{refs.join(' ')} 请按以下步骤工作：1. 先读 @CLAUDE.md 项目文档和 @~/.claude/CLAUDE.md 环境说明 2. 了解项目结构和配置后，回复「准备好了」 3. 等待我的任务指令，不要擅自开始改代码"
+      claude_args << "#{refs.join(' ')} 先读一下项目文档和环境说明"
     end
 
     # Pass assigned ports as environment variable (vite etc. auto-detect PORT)

@@ -62,7 +62,7 @@ module Kyb::CLI
     title = "kyb:#{cname}"
     cmd = "cd ~/projects/#{project} && mise trust && #{cli}"
 
-    default_prompt = '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 请按以下步骤工作：1. 先读 @CLAUDE.md 项目文档和 @~/.claude/CLAUDE.md 环境说明 2. 了解项目结构和配置后，回复"准备好了" 3. 等待我的任务指令，不要擅自开始改代码'
+    default_prompt = '@CLAUDE.md @README.md @~/.claude/CLAUDE.md 先读一下项目文档和环境说明'
     if stale_msg
       default_prompt += " #{stale_msg}"
     end
