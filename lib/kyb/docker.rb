@@ -276,7 +276,7 @@ module Kyb::Docker
 
     60.times do
       break if system('docker', 'exec', '-u', 'dev', container.name,
-                      'test', '-f', '/home/dev/.claude/settings.json',
+                      'test', '-f', '/tmp/kyb-ready',
                       out: File::NULL, err: File::NULL)
       sleep 0.5
     end

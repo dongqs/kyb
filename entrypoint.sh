@@ -4,6 +4,8 @@ set -e
 HOST_UID="${HOST_UID:-1000}"
 HOST_GID="${HOST_GID:-1000}"
 
+uid_changed=false; gid_changed=false
+
 # Adjust UID (remove conflicting user first, e.g. ubuntu from base image)
 if [ "$HOST_UID" != "$(id -u dev)" ]; then
     if getent passwd "$HOST_UID" >/dev/null 2>&1; then
@@ -11,6 +13,7 @@ if [ "$HOST_UID" != "$(id -u dev)" ]; then
         [ "$name" != "dev" ] && userdel -r "$name" 2>/dev/null || true
     fi
     usermod -u "$HOST_UID" dev
+    uid_changed=true
 fi
 
 # Adjust GID
@@ -20,12 +23,15 @@ if [ "$HOST_GID" != "$(id -g dev)" ]; then
         [ "$name" != "dev" ] && groupdel "$name" 2>/dev/null || true
     fi
     groupmod -g "$HOST_GID" dev
+    gid_changed=true
 fi
 
-chown -R dev:dev /home/dev 2>/dev/null || true
+# Only chown entire tree when UID/GID actually changed (common case: no change = skip)
+if $uid_changed || $gid_changed; then
+    chown -R dev:dev /home/dev 2>/dev/null || true
+fi
 
-# Fix shared volume permissions (kyb-gradle-cache, kyb-maven-cache, etc.
-# are owned by root when first created, breaking Maven/Gradle for dev user)
+# Always fix shared volume permissions — fresh volumes are root-owned regardless of UID/GID
 chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository 2>/dev/null || true
 
 # Clean stale Gradle locks from zombie daemons (common after failed builds)
@@ -124,6 +130,7 @@ fi
 
 # Generate container CLAUDE.md
 mkdir -p /home/dev/.claude
+chown dev:dev /home/dev/.claude 2>/dev/null || true
 if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
     mascot="／人◕ ‿‿ ◕人＼"
     {
@@ -184,11 +191,8 @@ if [ -d /home/dev/.claude-skills-host ] && [ ! -L /home/dev/.claude/skills ]; th
     ln -s /home/dev/.claude-skills-host /home/dev/.claude/skills
 fi
 
-# Start PostgreSQL
-pg_ctlcluster 16 main start 2>/dev/null || true
-
 # pip tools (may fail during image build, retry here at runtime)
-runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]' -U" 2>/dev/null || true
+runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]'" 2>/dev/null || true
 
 # Project setup: mise trust, npm install on first run
 if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
