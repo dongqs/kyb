@@ -42,6 +42,20 @@ kyb-base 已预装：PostgreSQL 16 ✅ | Python 3.10 ✅ | mise ✅
 
 ⚠️ `mise install` 后必须 `mise use -g` 激活，否则命令找不到。
 
+> **旧项目 Lombok 兼容性**：若项目使用的 Lombok 版本较旧（parent POM 为 2022 年前），
+> JDK 17+ 编译时可能报 `IllegalAccessError: cannot access com.sun.tools.javac...`。
+> 此情形需改用 JDK 11（`mise install java@corretto-11 && mise use -g java@corretto-11`）。
+> 不要试图加 `--add-exports`——旧 Lombok 访问的内部 API 太多，逐个添加不现实。
+
+> **非交互式 shell 的 mise 激活**：`docker exec su - dev -c "eval \"\$(mise activate bash)\" && java -version"`
+> 在非交互式 shell 中无效——mise 的 hook 函数无法注入。
+> 如有此场景需手动设环境变量：
+> ```bash
+> JAVA_HOME=$HOME/.local/share/mise/installs/java/corretto-<version>
+> export PATH=$JAVA_HOME/bin:$PATH
+> ```
+> 交互式 Claude Code 会话不需要此操作。
+
 ## 外部服务依赖
 
 | 服务 | CI 有? | 本地有? | 说明 |
@@ -104,6 +118,12 @@ echo "" >> /tmp/.kyb-verification.md && echo "## 结果" >> /tmp/.kyb-verificati
 
 **不要尝试修任何问题**。没有 docker sock，你修不了。卡住就是文档的问题，交给外圈修。
 
+> **DID 容器内 `docker exec` 注意事项**（供 onboarding agent 参考）：
+> `docker exec` 默认以 root 身份执行，其创建的文件（如 Maven 缓存 `~/.m2/repository`）
+> 会被 root 拥有。后续 `su - dev -c "mvn ..."` 会因权限不足失败。
+> 如需在 DID 容器内执行 Maven 命令，始终用 `su - dev -c "..."` 而非裸 `docker exec`。
+> 若已污染，执行 `docker exec ... chown -R dev:dev ~/.m2` 修复。
+
 ## 完整流程
 
 > 每步格式：**执行** → **观察**（检查预期输出）→ **判断**（✅ 继续 / ❌ 查对应层排查指引）
@@ -124,6 +144,7 @@ bash -l -c "java -version"                    # → openjdk 21.0.x  ✅ | ❌ mi
 | PG 连不上 | 服务未启 | `pg_ctlcluster 16 main start` |
 | pip3 找不到 | 用户不对 | `su - dev -c "pip3 ..."` 或 `pip3 install --user` |
 | 代理问题 | socks5 与 rustls 不兼容 | 用 `https_proxy=http` 而非 `ALL_PROXY=socks5` |
+| Lombok `IllegalAccessError`（`cannot access com.sun.tools.javac...`） | JDK 17 强封装 + 旧 Lombok | 改用 JDK 11（`mise install java@corretto-11 && mise use -g java@corretto-11`） |
 
 ### 2. 子模块 [`依赖层`]
 
@@ -231,7 +252,8 @@ export <凭据> && <构建命令> test
 
 | # | 问题 | 所属层 | 现象 | 原因 | 修复 |
 |---|------|--------|------|------|------|
-| 1 | | | | | |
+| 1 | JDK 17 + 旧 Lombok 不兼容 | 工具层 | `Fatal error compiling: IllegalAccessError: cannot access com.sun.tools.javac...` | 旧 Lombok 访问 JDK 内部 API，JDK 17 强封装 | 改用 JDK 11 |
+| 2 | DID 容器 Maven 缓存 root 权限 | 工具层 | `rm: cannot remove: Permission denied` / Maven install 失败 | `docker exec` 以 root 运行，Maven 缓存文件被 root 创建 | 始终用 `su - dev -c "..."` 而非裸 `docker exec` |
 
 ## 按层快速排查
 
