@@ -49,7 +49,15 @@ module Kyb::CLI
     branch  = ENV['KYB_BRANCH']
     Kyb.die("kyb did create must run inside a kyb container (KYB_PROJECT and KYB_BRANCH required)") unless project && branch
 
-    name = args.first
+    cpus = nil
+    rest = args.dup
+    if (idx = rest.index('--cpus'))
+      rest.delete_at(idx)
+      cpus = rest.delete_at(idx)
+      Kyb.die("--cpus requires a positive number, got: #{cpus.inspect}") unless cpus.to_f.positive?
+    end
+
+    name = rest.first
     cname = "did-#{project}-#{branch}-#{name}"
 
     all_names = `docker ps -a --format '{{.Names}}'`.lines.map(&:strip)
@@ -93,6 +101,7 @@ module Kyb::CLI
 
     run_args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
     run_args += ['--hostname', cname]
+    run_args += ['--cpus', cpus.to_s] if cpus
     run_args << Kyb::Container::BASE_IMAGE
 
     puts "==> #{cname}: creating DID container (parent: #{parent})"
@@ -204,7 +213,7 @@ module Kyb::CLI
       Usage: kyb did COMMAND
 
       Commands:
-        create <name>    Create a DID container
+        create <name> [--cpus N]    Create a DID container (--cpus: limit CPU cores)
         rm <name>        Remove a DID container (and its children)
         ps, ls [--all]   List DID containers (--all: show all, default: siblings)
     HELP
