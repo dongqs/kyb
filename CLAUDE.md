@@ -34,7 +34,8 @@ You are an AI working on the **kyb** project — a CLI tool that manages Docker-
 ```bash
 kyb build              # Build base image
 kyb create <name>      # Create and start sandbox
-kyb enter <name>       # Enter sandbox
+kyb enter <name>       # Enter sandbox (interactive — requires TTY)
+kyb exec <name> -- CMD # Run command in sandbox (non-interactive)
 kyb ps                 # List sandboxes
 kyb stop|start|rm <name>
 kyb prune              # Remove all sandboxes
@@ -62,3 +63,13 @@ kyb notify <level> <msg>  # TTS: done/blocked/urgent
 
 `entrypoint.sh` auto-generates `/home/dev/.claude/CLAUDE.md` at container startup.
 Don't edit that file manually — change `entrypoint.sh` instead.
+
+## Non-interactive workflow
+
+As an AI agent, you can't use `kyb enter` (needs TTY). Instead use:
+
+```bash
+kyb create <project-branch>  # Create a new sandbox (non-interactive)
+kyb exec <name> -- <cmd>     # Run commands in it
+kyb rm <name>                # Clean up when done
+```
