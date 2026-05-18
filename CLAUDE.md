@@ -23,7 +23,11 @@ You are an AI working on the **kyb** project — a CLI tool that manages Docker-
 3. **Code** — edit, run tests: `ruby -Itest test/`
 4. **TDD** — write failing test first (RED → GREEN → refactor)
 5. **Commit** — conventional commits (`feat:`, `fix:`, `refactor:`, `chore:`)
-6. **Push & MR** — `git push`, then create merge request
+6. **Push** — commit 后立即 `git push`
+   - 没做完 → push 继续做
+   - 做完了 → 等 CI
+   - CI 坏了 → 自己修
+   - CI 过了或修不好 → `kyb notify done` 通知人
 
 ## Commands
 

@@ -83,6 +83,9 @@ module Kyb::CLI
       when 'done'   then tts_done(args[1..].join(' '))
       else Kyb.die("unknown tts subcommand: #{args[0]}")
       end
+    when 'session'
+      Kyb.die("Usage: kyb session wrap <cli> [args...]") unless args.first == 'wrap' && args.size >= 2
+      session_wrap(args[1], args[2..])
     when 'notify'
       Kyb.die("Usage: kyb notify <done|blocked|urgent> <message>") if args.empty? || args.size < 2
       level = args[0]
@@ -127,7 +130,8 @@ module Kyb::CLI
         did ps, ls                      DID: list containers
         tts {start|stop|speak...}        macOS TTS controls
         notify <done|blocked|urgent> <message>
-                                         Send TTS notification (done: 1 ping, blocked: 2, urgent: 3)
+                                         Send TTS notification
+        session wrap <cli> [args...]    Wrap CLI command with session tracking
         version                          Show version
 
     EOF
@@ -142,3 +146,4 @@ require_relative 'cli/manage'
 require_relative 'cli/sandbox'
 require_relative 'cli/tts'
 require_relative 'cli/did'
+require_relative 'cli/session'
