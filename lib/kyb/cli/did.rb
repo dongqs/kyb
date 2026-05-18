@@ -58,7 +58,8 @@ module Kyb::CLI
     end
 
     name = rest.first
-    cname = "did-#{project}-#{branch}-#{name}"
+    safe_branch = branch.gsub(/[^a-zA-Z0-9_.-]/, '-')
+    cname = "did-#{project}-#{safe_branch}-#{name}"
 
     all_names = `docker ps -a --format '{{.Names}}'`.lines.map(&:strip)
     Kyb.die("container '#{cname}' already exists") if all_names.include?(cname)
@@ -107,10 +108,10 @@ module Kyb::CLI
     puts "==> #{cname}: creating DID container (parent: #{parent})"
     system(*run_args) || Kyb.die('docker run failed')
 
-    # Wait for container to be ready (settings.json check)
-    30.times do
+    # Wait for container to be ready (kyb-ready sentinel from entrypoint)
+    60.times do
       break if system('docker', 'exec', '-u', 'dev', cname,
-                       'test', '-f', '/home/dev/.claude/settings.json',
+                       'test', '-f', '/tmp/kyb-ready',
                        out: File::NULL, err: File::NULL)
       sleep 0.5
     end
