@@ -39,7 +39,7 @@ module Kyb::ExitFlow
                        system('docker', 'exec', '-u', 'dev', cname,
                               'git', '-C', "/home/dev/projects/#{project}", 'diff', '--quiet',
                               %i[out err] => File::NULL)
-                     elsif wt_path && File.directory?("#{wt_path}/.git")
+                     elsif wt_path && File.exist?("#{wt_path}/.git")
                        system('git', '--git-dir', "#{wt_path}/.git", '--work-tree', wt_path,
                               'diff', '--quiet', %i[out err] => File::NULL)
                      else
@@ -49,7 +49,7 @@ module Kyb::ExitFlow
 
     remote_ok = if dind
                   `docker exec -u dev #{cname} bash -c 'cd /home/dev/projects/#{project} && git cherry' 2>/dev/null`.lines.count == 0
-                elsif wt_path && File.directory?("#{wt_path}/.git")
+                elsif wt_path && File.exist?("#{wt_path}/.git")
                   Dir.chdir(wt_path) { `git cherry 2>/dev/null`.lines.count == 0 }
                 else
                   false
