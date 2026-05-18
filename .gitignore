@@ -1,3 +1,5 @@
 cloud-init.generated.yaml
 .DS_Store
 *.swp
+.env
+.env.kyb
