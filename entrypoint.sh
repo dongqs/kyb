@@ -24,6 +24,10 @@ fi
 
 chown -R dev:dev /home/dev 2>/dev/null || true
 
+# Fix shared volume permissions (kyb-gradle-cache, kyb-maven-cache, etc.
+# are owned by root when first created, breaking Maven/Gradle for dev user)
+chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository 2>/dev/null || true
+
 # Clean stale Gradle locks from zombie daemons (common after failed builds)
 rm -f /home/dev/.gradle/caches/journal-*/journal-*.lock
 
