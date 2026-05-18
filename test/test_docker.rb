@@ -199,6 +199,44 @@ class DockerTest < Minitest::Test
     FileUtils.rm_rf('/tmp/test-wt-dind')
   end
 
+  def test_run_dind_skips_host_only_bind_mounts
+    wt_path = '/tmp/test-wt-dind-skip'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: true, **default_run_kwargs(wt_path: wt_path))
+
+    bad_mounts = args.each_cons(2).select { |f, v| f == '-v' && (
+      v.include?('/home/dev/.ssh') ||
+      v.include?('/home/dev/.gitconfig') ||
+      v.include?('/home/dev/.claude-host-settings') ||
+      v.include?('/home/dev/.claude-skills-host') ||
+      v.include?('/home/dev/.kimi') ||
+      v.include?('/home/.agents') ||
+      v.include?('/home/dev/.config/kyb')
+    ) }
+    assert_empty bad_mounts, "expected no host-only bind mounts in DinD mode, got: #{bad_mounts.map { |_, v| v }}"
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-dind-skip')
+  end
+
+  def test_run_dind_skips_project_path_and_symlinks
+    wt_path = '/tmp/test-wt-dind-skip2'
+    FileUtils.mkdir_p(wt_path)
+    pp = '/tmp/test-project-pp2'
+    args = with_run_stubs(dind: true, **default_run_kwargs(
+      wt_path: wt_path, project_path: pp,
+      symlinks: 'shared/vendor', mounts_rw: '/host/rw:/container/rw', mounts_ro: '/host/ro:/container/ro'))
+    refute args.each_cons(2).any? { |f, v| f == '-v' && v == "#{pp}:#{pp}" },
+           'project_path bind mount should be skipped in DinD'
+    refute args.each_cons(2).any? { |f, v| f == '-v' && v == "#{pp}/shared/vendor:/home/dev/projects/niao/shared/vendor:ro" },
+           'symlinks should be skipped in DinD'
+    refute args.each_cons(2).any? { |f, v| f == '-v' && v == '/host/rw:/container/rw' },
+           'mounts_rw should be skipped in DinD'
+    refute args.each_cons(2).any? { |f, v| f == '-v' && v == '/host/ro:/container/ro:ro' },
+           'mounts_ro should be skipped in DinD'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-dind-skip2')
+  end
+
   # --- run (Swift cache volume) ---
 
   def test_run_mounts_swift_cache_volume_when_exists
@@ -260,7 +298,21 @@ class DockerTest < Minitest::Test
     FileUtils.rm_rf('/tmp/test-wt-nocfg')
   end
 
-  # --- create_container (DinD cp) ---
+  # --- run (mise/pip cache volumes) ---
+
+  def test_run_mounts_mise_and_pip_cache_volumes
+    wt_path = '/tmp/test-wt-cache'
+    FileUtils.mkdir_p(wt_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-mise-cache:/home/dev/.local/share/mise/downloads' },
+           'expected kyb-mise-cache volume mount'
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-pip-cache:/home/dev/.cache/pip' },
+           'expected kyb-pip-cache volume mount'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-cache')
+  end
+
+  # --- create_container (DinD worktree tar pipe) ---
 
   def stub_create_container_deps(cp_files_val = nil)
     Kyb::Config.stub(:load, nil) do
@@ -286,9 +338,15 @@ class DockerTest < Minitest::Test
     end; end; end; end; end; end; end; end; end; end; end; end; end
   end
 
-  def test_create_container_dind_copies_worktree
-    cp_called = false
-    sys_stub = ->(*args) { cp_called = true if args[0] == 'docker' && args[1] == 'cp'; true }
+  def test_create_container_dind_copies_worktree_via_tar
+    wt_paths = []
+    sys_stub = ->(*args) {
+      cmd_str = args[2] || args.first.to_s
+      if cmd_str.include?('tar -C') && cmd_str.include?('worktrees')
+        wt_paths << cmd_str[/tar -C ([^ ]+)/, 1]
+      end
+      true
+    }
 
     with_dind(true) do
       Kyb::Docker.stub(:system, sys_stub) do
@@ -298,7 +356,7 @@ class DockerTest < Minitest::Test
       end
     end
 
-    assert cp_called, 'docker cp should be called in DinD mode'
+    assert wt_paths.any?, 'expected tar pipe for worktree in DinD mode'
   end
 
   # --- create_container (cp_files) ---
@@ -412,6 +470,36 @@ class DockerTest < Minitest::Test
     end
 
     refute cp_called, 'docker cp should NOT be called in normal mode'
+  end
+
+  def test_create_container_dind_tar_pipe_injects_host_files
+    Dir.mktmpdir do |tmpdir|
+      FileUtils.mkdir_p("#{tmpdir}/.ssh")
+      FileUtils.touch("#{tmpdir}/.gitconfig")
+      FileUtils.mkdir_p("#{tmpdir}/.config/kyb")
+
+      tar_cmd = nil
+      sys_stub = ->(*args) {
+        if args[0] == 'bash' && args[1] == '-c' && args[2]&.include?('.ssh')
+          tar_cmd = args[2]
+        end
+        true
+      }
+
+      Dir.stub(:home, -> { tmpdir }) do
+      with_dind(true) do
+        Kyb::Docker.stub(:system, sys_stub) do
+          stub_create_container_deps do
+            Kyb::Docker.create_container('niao', 'water')
+          end
+        end
+      end; end
+
+      refute_nil tar_cmd, 'expected tar pipe command in DinD mode'
+      assert tar_cmd.include?('.ssh'), 'tar pipe should include .ssh'
+      assert tar_cmd.include?('.gitconfig'), 'tar pipe should include .gitconfig'
+      assert tar_cmd.include?('.config/kyb'), 'tar pipe should include .config/kyb'
+    end
   end
 
   def docker_available?

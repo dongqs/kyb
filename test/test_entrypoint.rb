@@ -31,10 +31,26 @@ class EntrypointTest < Minitest::Test
                  '/home/dev should be owned by dev:dev')
   end
 
-  def test_postgresql_not_running
+  def test_postgresql_runs_in_non_did
     start_container
-    refute(exec_bool('pg_isready'),
-           'PostgreSQL should not be auto-started after entrypoint')
+    assert(exec_bool('pg_isready'),
+           'PostgreSQL should be auto-started for non-DID containers')
+  end
+
+  def test_postgresql_not_running_in_did
+    cname = "#{CONTAINER}-did"
+
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+    system('docker', 'run', '-d', '--name', cname,
+           '-e', 'KYB_DID=1',
+           '-e', 'HOST_UID=1000', '-e', 'HOST_GID=1000',
+           IMAGE, 'sleep', '300',
+           out: File::NULL, err: File::NULL)
+    wait_for_ready(cname)
+
+    refute(exec_bool_in(cname, 'pg_isready'),
+           'PostgreSQL should not auto-start in DID containers')
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
   end
 
   def test_pip_packages_installed
