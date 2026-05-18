@@ -78,6 +78,44 @@ RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
 RUN mkdir -p ~/.gradle && \
     printf 'nexusUser=readonlyuser\nnexusPassword=mimashishiliuwei\n' > ~/.gradle/gradle.properties
 
+# Maven Nexus settings (with SNAPSHOT support for internal parent POMs)
+RUN mkdir -p ~/.m2 && \
+    cat > ~/.m2/settings.xml << 'XML'
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                      http://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <servers>
+    <server>
+      <id>nexus</id>
+      <username>readonlyuser</username>
+      <password>mimashishiliuwei</password>
+    </server>
+  </servers>
+  <mirrors>
+    <mirror>
+      <id>nexus</id>
+      <mirrorOf>*</mirrorOf>
+      <url>https://nexus.leyantech.com/repository/maven-public/</url>
+    </mirror>
+  </mirrors>
+  <profiles>
+    <profile>
+      <id>nexus</id>
+      <activation><activeByDefault>true</activeByDefault></activation>
+      <repositories>
+        <repository>
+          <id>nexus</id>
+          <url>https://nexus.leyantech.com/repository/maven-public/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+      </repositories>
+    </profile>
+  </profiles>
+</settings>
+XML
+
 # Mirror configs for package managers
 RUN mkdir -p ~/.pip && \
     echo 'registry=https://registry.npmmirror.com' > ~/.npmrc && \
