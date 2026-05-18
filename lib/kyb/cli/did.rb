@@ -116,31 +116,20 @@ module Kyb::CLI
       sleep 0.5
     end
 
-    # Configure mise to keep downloaded archives (shared cache volume)
-    system('docker', 'exec', '-u', 'dev', cname,
-           'bash', '-l', '-c', 'mise settings set always_keep_downloads true 2>/dev/null || true')
+    # Copy host config files into container via tar pipe (single API round-trip)
+    home = Dir.home
+    tar_sources = []
+    tar_sources << '.ssh' if File.directory?("#{home}/.ssh")
+    tar_sources << '.gitconfig' if File.exist?("#{home}/.gitconfig")
+    tar_sources << '.config/kyb' if File.directory?("#{home}/.config/kyb")
 
-    # Copy SSH keys into container (bind mount doesn't work in DinD)
-    ssh_dir = File.expand_path('~/.ssh')
-    if File.directory?(ssh_dir)
-      system('docker', 'cp', "#{ssh_dir}/.", "#{cname}:/home/dev/.ssh/")
+    if tar_sources.any?
+      system('bash', '-c',
+        "tar -C #{home} --exclude='.ssh/agent/*' -c #{tar_sources.join(' ')} 2>/dev/null | " \
+        "docker exec -i #{cname} bash -c '" \
+        "tar -C /home/dev -x " \
+        "&& chown -R dev:dev #{tar_sources.map { |s| "/home/dev/#{s}" }.join(' ')} 2>/dev/null || true'")
     end
-
-    # Copy gitconfig
-    gitconfig = File.expand_path('~/.gitconfig')
-    if File.exist?(gitconfig) && !File.directory?(gitconfig)
-      system('docker', 'cp', gitconfig, "#{cname}:/home/dev/.gitconfig")
-    end
-
-    # Copy kyb config so container can discover other projects
-    kyb_config = File.expand_path('~/.config/kyb')
-    if File.directory?(kyb_config)
-      system('docker', 'cp', "#{kyb_config}/.", "#{cname}:/home/dev/.config/kyb/")
-    end
-
-    # Fix ownership of copied files (docker cp preserves root ownership)
-    system('docker', 'exec', '-u', 'root', cname,
-           'chown', '-R', 'dev:dev', '/home/dev/.ssh', '/home/dev/.gitconfig', '/home/dev/.config')
 
     # Auto-configure Swift PATH if swift cache volume was mounted
     fix_did_swift_path(cname) if swift_mounted
