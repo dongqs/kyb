@@ -88,7 +88,7 @@ kyb did create <name>
 
 ## 启动性能
 
-`kyb did create` 实测启动时间，从最初的 ~17s 优化至 ~1.8s（`kyb-base` 镜像已缓存的情况）。
+`kyb did create` 实测启动时间，从最初的 ~17s 优化至 ~1.2s（`kyb-base` 镜像已缓存的情况）。
 
 ### 优化历程
 
@@ -98,6 +98,7 @@ kyb did create <name>
 | + `/tmp/kyb-ready` sentinel | 8.3s | entrypoint 末尾打 sentinel，entrypoint 完成即退出 wait |
 | + 去掉 PG 自启动 | 6.8s | DID 容器不需要 PostgreSQL |
 | + 条件 chown + pip 去 `-U` | 1.8s | UID 无变化时跳过 chown，pip 不联网检查升级 |
+| + tar pipe 合并文件注入 | 1.2s | 3 次 `docker cp` + 1 次 `chown` → 单次 tar pipe 传输 |
 
 ### 大头分解
 
@@ -110,14 +111,27 @@ entrypoint 初始化阶段耗时分布（首次 DID 容器启动，镜像已缓�
 | Docker socket GID 匹配 | 0.8s | groupadd + usermod，不改 |
 | settings.json / onboarding | 0.2s | jq 操作，不改 |
 | glab / CLAUDE.md / 项目 setup | ~0s | 已有配置则跳过 |
-| `docker run` + Ruby 收尾 (cp/chown) | 1.4s | 容器启动 + 文件注入 |
-| **总计** | **~1.8s** | |
+| `docker run` + Ruby 收尾 (tar pipe) | 1.0s | 容器启动 + 单次文件注入 |
+| **总计** | **~1.2s** | |
 
 ### 优化内容
 
 - **条件 chown**：`uid_changed`/`gid_changed` 追踪，UID/GID 无变化时跳过 `chown -R dev:dev /home/dev`（遍历共享 volume 最耗时）
 - **PG 不自启动**：DID 容器不需要 PostgreSQL，需要时手动 `pg_ctlcluster 16 main start`
 - **pip 去 `-U`**：包版本在镜像构建时固定，`-U` 每次联网检查升级属多余开销
+- **tar pipe 合并文件注入**：`.ssh`/`.gitconfig`/`.config/kyb` 三组文件由 3 次 `docker cp` + 1 次 `docker exec chown`（4 次 Docker API 调用）合并为单次 `tar \| docker exec -i tar` 管道传输
+
+### 并行启动
+
+DID 容器支持高效并行创建——瓶颈在 Ruby 串行准备阶段，`docker run` + entrypoint 可并发执行：
+
+| 并发数 | 总耗时 | 平均每个 |
+|--------|--------|----------|
+| 1 个 | ~1.2s | ~1.2s |
+| 3 个并行 | ~1.5s | ~0.5s |
+| 4 个并行 | ~1.7s | ~0.4s |
+
+并发数翻倍总时间仅增加 25–40%，适合批量拉起多个 DID 容器的场景。
 
 ## 清理流程
 
