@@ -10,31 +10,8 @@ require 'uri'
 module Kyb
   VERSION = '0.8.1'
 
-  ALIASES = %w[
-    可以不
-    可以吧
-    不可以？
-    可以嘛
-    可以哟
-    可以的
-    可以可以
-    可以啊
-    很可以
-    太可以
-    不太可以
-    不可以太
-    狠不可以
-    可不可以
-    可可以以
-    合意味
-    和味道
-    可以太
-    大可以
-    斯阔以
-  ].freeze
-
   def self.version_string
-    "kyb #{VERSION} (／人◕ ‿‿ ◕人＼ #{ALIASES.sample})"
+    "kyb #{VERSION} (／人◕ ‿‿ ◕人＼ 可以不)"
   end
 
   class TimestampedOutput < SimpleDelegator
