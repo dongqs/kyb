@@ -43,7 +43,7 @@ module Kyb::ExitFlow
                        system('git', '--git-dir', "#{wt_path}/.git", '--work-tree', wt_path,
                               'diff', '--quiet', %i[out err] => File::NULL)
                      else
-                       false
+                       true
                      end
     puts worktree_clean ? "  ✔ worktree: clean" : "  ✘ worktree: uncommitted changes"
 
