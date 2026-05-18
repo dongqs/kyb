@@ -130,7 +130,6 @@ module Kyb::CLI
                                          Send TTS notification (done: 1 ping, blocked: 2, urgent: 3)
         version                          Show version
 
-      #{Kyb.alias_line}
     EOF
   end
 end
