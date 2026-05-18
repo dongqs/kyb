@@ -140,6 +140,7 @@ bash -l -c "java -version"                    # → openjdk 21.0.x  ✅ | ❌ mi
 | 现象 | 可能原因 | 修复 |
 |------|---------|------|
 | `java: not found` | 未安装/未激活 | `mise install <tool>` + `mise use -g` |
+| `mvn` 报 `JAVA_HOME` 错误 | Java 已安装但未设环境变量 | `export JAVA_HOME=$(mise where java)` |
 | 构建工具找不到 | 未安装 | `mise install <tool>` |
 | PG 连不上 | 服务未启 | `pg_ctlcluster 16 main start` |
 | pip3 找不到 | 用户不对 | `su - dev -c "pip3 ..."` 或 `pip3 install --user` |
@@ -220,7 +221,7 @@ export <凭据> && <构建命令> test
 **❌ 排查**：
 | 现象 | 可能原因 | 修复 |
 |------|---------|------|
-| 全部失败/无法启动 | DB 连不上 | 确认 DB 用 `localhost` 而非 CI hostname |
+| 全部失败/无法启动 | DB 连不上 / 测试数据残留 | 确认 DB 用 `localhost` 而非 CI hostname；注意 `ON CONFLICT DO NOTHING` 模式导致非幂等，重跑前 truncate 测试表 |
 | 某集成测试失败 | 缺外部服务 | 启动对应服务或用 mock/in-memory |
 | 单测级别失败 | 项目层 | 检查具体报错 |
 
