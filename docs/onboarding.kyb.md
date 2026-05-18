@@ -144,6 +144,8 @@ bash -l -c "java -version"                    # → openjdk 21.0.x  ✅ | ❌ mi
 | PG 连不上 | 服务未启 | `pg_ctlcluster 16 main start` |
 | pip3 找不到 | 用户不对 | `su - dev -c "pip3 ..."` 或 `pip3 install --user` |
 | 代理问题 | socks5 与 rustls 不兼容 | 用 `https_proxy=http` 而非 `ALL_PROXY=socks5` |
+| Gradle 找不到指定版本 JDK | 未配 toolchain 路径 | `printf 'org.gradle.java.installations.paths=<JDK路径>' >> ~/.gradle/gradle.properties` |
+| DID 容器内 `.gradle`/`.m2` 写拒绝 | share volume 属主(501) ≠ 容器 UID(1000) | docker exec 先 `sudo chown -R dev:dev /home/dev/.gradle` |
 | Lombok `IllegalAccessError`（`cannot access com.sun.tools.javac...`） | JDK 17 强封装 + 旧 Lombok | 改用 JDK 11（`mise install java@corretto-11 && mise use -g java@corretto-11`） |
 
 ### 2. 子模块 [`依赖层`]
@@ -426,3 +428,4 @@ Round 4 ─→ 最终检查 ─→ 丝滑通过 = 收敛
 | data-ant | ✅ 收敛 | 普通容器 | 未记录 | 未记录 | 未记录 | 依赖层（嵌套子模块）、项目层（集成测试） |
 | triggers-refund | ✅ 收敛 | DID 容器 | ~30min | ~2min | ~23min | 工具层（JDK 代理）、项目层（Kafka） |
 | hamilton | ✅ 收敛 | 普通容器 | ~16min | ~17s | 2min | 工具层（mise 激活、Gradle 冷启动） |
+| hamilton-sdk | ✅ 收敛 | 普通容器 | ~4min | ~32s | ~2min | 工具层（GraalVM socks5 代理、DID 权限） |
