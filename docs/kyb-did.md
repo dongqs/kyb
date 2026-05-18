@@ -86,6 +86,39 @@ kyb did create <name>
   7. done — 项目目录空，agent 自行 git clone
 ```
 
+## 启动性能
+
+`kyb did create` 实测启动时间，从最初的 ~17s 优化至 ~1.8s（`kyb-base` 镜像已缓存的情况）。
+
+### 优化历程
+
+| 版本 | 耗时 | 原因 |
+|------|------|------|
+| 原始（settings.json timeout） | ~17s | DID 容器无 host settings mount，`settings.json` 永不生成，wait 循环硬等 15s 超时 |
+| + `/tmp/kyb-ready` sentinel | 8.3s | entrypoint 末尾打 sentinel，entrypoint 完成即退出 wait |
+| + 去掉 PG 自启动 | 6.8s | DID 容器不需要 PostgreSQL |
+| + 条件 chown + pip 去 `-U` | 1.8s | UID 无变化时跳过 chown，pip 不联网检查升级 |
+
+### 大头分解
+
+entrypoint 初始化阶段耗时分布（首次 DID 容器启动，镜像已缓存）：
+
+| 步骤 | 耗时 | 说明 |
+|------|------|------|
+| UID/GID 调整 + chown | ~2s → ~0s | 条件跳过（默认 UID 不变） |
+| pip install (mig25, requests) | ~2.3s → ~0s | 去 `-U` 后包已安装则跳过 |
+| Docker socket GID 匹配 | 0.8s | groupadd + usermod，不改 |
+| settings.json / onboarding | 0.2s | jq 操作，不改 |
+| glab / CLAUDE.md / 项目 setup | ~0s | 已有配置则跳过 |
+| `docker run` + Ruby 收尾 (cp/chown) | 1.4s | 容器启动 + 文件注入 |
+| **总计** | **~1.8s** | |
+
+### 优化内容
+
+- **条件 chown**：`uid_changed`/`gid_changed` 追踪，UID/GID 无变化时跳过 `chown -R dev:dev /home/dev`（遍历共享 volume 最耗时）
+- **PG 不自启动**：DID 容器不需要 PostgreSQL，需要时手动 `pg_ctlcluster 16 main start`
+- **pip 去 `-U`**：包版本在镜像构建时固定，`-U` 每次联网检查升级属多余开销
+
 ## 清理流程
 
 ```
