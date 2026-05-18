@@ -5,6 +5,8 @@
 ## 工作流概览
 
 ```
+最终目标：任何人（人或 agent）拿到 .kyb.md → 按文档顺序逐步骤执行 → 零卡点零歧义一次通过 → 项目在本地拉起来
+
 宿主机                        kyb 容器                   项目 repo
 ─────                        ────────                   ─────────
 git clone 项目                 kyb create                  (空)
@@ -62,6 +64,15 @@ kyb create <project>-<branch>
 - `entrypoint.sh` 自动安装的依赖（npm/bundle 等）
 
 ### 1.2 从零到测试：完整路径
+
+> **先看 CI，不要猜。** 项目根目录的 `.gitlab-ci.yml`（或其他 CI 配置）是依赖的权威来源。执行前先扫一遍：
+> - `services:` 块 → 声明了哪些外部服务（PostgreSQL、Kafka、Redis 等）
+> - `variables:` 块 → 环境变量、DSN、Nexus 凭据名
+> - `cache:` 块 → 缓存路径
+> - `before_script:` 块 → 安装了什么工具（mig25、codegen 等）
+> - `image:` 块 → CI 用的构建镜像（本地需手动安装的工具对照参考）
+>
+> 从 CI 可以直接确定：DB 名、service hostname、工具版本、凭据变量名。不需要从代码里翻。
 
 按以下阶段顺序执行，**每步格式**：
 
@@ -137,6 +148,39 @@ kyb create <project>-<branch>
 
 这意味着 `.kyb.md` 的模板要在第一屏就告诉读者"这篇文档怎么用的"。
 
+### 设计原理
+
+#### 系统论：分层抽象
+
+项目环境从下到上分为多层，每层独立关注、逐步固化：
+
+- **工具层**：运行时（JDK、Maven、Gradle、Node）、Docker 镜像、缓存 volume
+- **依赖层**：项目自身的依赖管理（Nexus、子模块、npm、bundle）
+- **数据层**：数据库、migration、codegen 产物
+- **项目层**：项目特定的构建、测试、启动流程
+
+**Agent 元操作**：每遇到一个卡点，判断它属于哪一层。下层的问题（工具/依赖）抽象成可复用模式，沉入 kyb 或本文档的通用章节。下层稳固后上层自然更快收敛。
+
+#### 控制论：闭环反馈
+
+每轮迭代构成完整控制回路：
+
+```
+执行（Run command） → 观察（Check output） → 判断（Analyze result）
+       ↑                                        ↓
+       └──────── 调整（Fix） ← 决策（Decide）
+```
+
+Round 1-4 各是一轮闭环，每轮的输出反馈到下一轮的输入。当连续两轮零新卡点、零歧义时，系统收敛。
+
+**Onboarding agent 使用方式**（有 docker sock，全栈可修）：按完整流程逐步骤执行。每步失败时：
+1. 判断卡点所属层（工具/依赖/数据/项目/容器/kyb/宿主机）
+2. 查 `踩坑记录` 是否有已知修复（利用已有反馈）
+3. 如果没有，修复对应层并更新文档
+4. 修复后回到上一步继续执行
+
+**Verification agent 使用方式**（无 docker sock，只读验证）：按完整流程逐步骤执行。卡住说明 `.kyb.md` 有误，反馈给 onboarding agent 修。
+
 ### `.kyb.md` 最终模板（v3 — 平衡版）
 
 `````markdown
@@ -144,63 +188,129 @@ kyb create <project>-<branch>
 
 <一句话：项目用途、技术栈、关键依赖>
 
-## 关于本文档
+## 设计原理
 
-**分层**：工具层（JDK/Maven/缓存 volume）→ 依赖层（Nexus/子模块）→ 数据层（DB/migration/codegen）→ 项目层（构建/测试）。下层问题优先抽象复用，上层问题记入项目专属节。
-**闭环**：每步执行 → 观察输出 → 判断 → 调整 → 再执行。失败时查踩坑记录（利用已有反馈），修复后更新文档（你的新观测成为后续反馈输入）。
+本文档按**系统论**（分层抽象）和**控制论**（闭环反馈）两个原理组织。
+
+**分层**（每步标注所属层）：
+`[工具层]` 运行时/JDK/构建工具/缓存 → `[依赖层]` 仓库/子模块/包管理 → `[数据层]` DB/migration/codegen → `[项目层]` 构建/测试
+→ 每步失败时先查对应层的踩坑记录
+
+**闭环**（每步格式 = 执行→观察→判断→调整）：
+```
+执行命令 → 检查预期输出 → ✅ 继续 / ❌ 查本层排查指引 → 修复后重试
+```
+
 **收敛标准**：连续两轮零新卡点、零歧义、他人 agent 一次通过时收敛。新增依赖则启动新一轮。
 
-> **Agent**：按完整流程逐步骤执行，每步验证预期输出。
+> **Onboarding agent**（有 docker sock，全栈可修）：按完整流程逐步骤执行，遇到卡点判断所属层→修复→继续。
+> **Verification agent**（无 docker sock，只读验证）：按完整流程逐步骤执行，卡住说明文档有误。
 > **人类**：直接看 Quick Start。
 > **新依赖**：按流程再跑一轮，新增的卡点和缓存信息记入对应章节。
 
 ## 预装状态
 
 kyb-base 已预装：Maven ✅ | settings.xml(Nexus含SNAPSHOT) ✅ | 自动chown ✅
-需手动装：Java（`mise install java@graalvm-community-21`，~2min冷启动）
+需手动装：Java（`mise install java@graalvm-community-21` + `mise use -g`，~2min冷启动）
+
+⚠️ `mise install` 后需 `mise use -g` 激活，否则命令找不到。
 
 ## Quick Start（热启动）
 
 ```bash
 kyb create <project>-<branch>
-mise install java@graalvm-community-21                 # 如需（含代理）
-cd ~/projects/<project> && export <JDBC_URL等> && mvn test
+https_proxy=http://host.orb.internal:2080 mise install java@graalvm-community-21
+mise use -g java@graalvm-community-21
+# 以下按需
+cd ~/projects/<project> && pip3 install mig25 mig25-codegen
+psql -U postgres -c "CREATE DATABASE <db>"
+MIG25_DSN="..." mig25 upgrade
+MIG25_DSN="..." mig25-codegen generate
+export <NEXUS_USER等> && mvn test
+```
+
+## 外部服务依赖
+
+| 服务 | 项目需要? | CI 有? | 本地/ DID 有? | 说明 |
+|------|---------|--------|-------------|------|
+| PostgreSQL | ✅ | ✅ | ✅（kyb-base） | `pg_isready` 检查，DID 需手动启 |
+| Kafka | 按项目 | 可能 | ❌ | CI 用 `kafka-native` service，DID 缺。Agent 先探测 `kafka:9092`，决定回退策略 |
+| RocketMQ / Redis | 按项目 | 可能 | ❌ | 同 Kafka |
+
+Agent 启动前先探测可用服务，根据结果决定完整流程或降级方案。
+
+## Agent 启动前检查
+
+```bash
+pg_isready                                           # → accepting connections（否则 pg_ctlcluster 16 main start）
+su - dev -c "java -version"                          # → 21.0.x（否则 mise install + mise use -g）
+pip3 --version                                       # → 可用（root 下需 su - dev）
+# 外部服务
+curl -s kafka:9092 >/dev/null 2>&1 && echo "Kafka OK"
 ```
 
 ## 完整流程
 
-### 1. 工具确认
+> 每步格式：**执行** → **观察**（检查预期输出）→ **判断**（✅ 继续 / ❌ 查对应层排查指引）
+
+### 1. 工具确认 [`工具层`]
+
 ```bash
-psql -U postgres -c 'SELECT 1'                   # → 1
-java -version                                     # → openjdk 21.0.2
+psql -U postgres -c 'SELECT 1'                   # → 1 ✅ | ❌ 启 PG
+java -version                                     # → openjdk 21.0.2 ✅ | ❌ mise install + mise use -g
 mvn --version | head -1                           # → Apache Maven 3.9.x
 ```
+**❌ 排查**：
+| 现象 | 可能原因 | 修复 |
+|------|---------|------|
+| `java: not found` | 未安装/未激活 | `mise install` + `mise use -g` |
+| PG 连不上 | 服务未启 | `pg_ctlcluster 16 main start` |
 
-### 2. 子模块（如有）
+### 2. 子模块 [`依赖层`]
+
 ```bash
-# 在 worktree 目录 init，然后 docker cp 到容器
-cd ~/.kyb/worktrees/<project>/kyb-<project>-<branch>
-git submodule update --init --recursive
-docker cp <子模块路径>/. <容器名>:/home/dev/projects/<project>/<子模块>/
+cd ~/projects/<project> && git submodule update --init --recursive
+# → 子模块目录非空 ✅ | ❌ 查嵌套 submodule
 ```
+**❌ 排查**：嵌套 submodule → 加 `--recursive`
 
-### 3. 数据库
+### 3. 数据库 [`数据层`]
+
 ```bash
 psql -U postgres -c "CREATE DATABASE <db>;"
-# 数据库名必须与 jOOQ codegen POM 配置一致
-cd <子模块目录> && MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25 upgrade
+# → CREATE DATABASE ✅ | ❌ 确认 PG 运行
+
+MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25 upgrade
+# → 全部执行完毕 ✅ | ❌ 查 m25.yml 配置
+```
+**❌ 排查**：
+| 现象 | 可能原因 | 修复 |
+|------|---------|------|
+| DB 名不匹配 | POM 硬编码 | 查 CI `POSTGRES_DB` |
+| mig25 找不到迁移 | 目录配置 | 确认 `m25.yml` 中 `dir` |
+
+### 4. 编译 [`工具层` / `项目层`]
+
+```bash
+cd ~/projects/<project> && export <凭据> && mvn compile
+# → BUILD SUCCESS ✅ | ❌ 见排查（冷 ~3min / 热 ~20s）
+```
+**❌ 排查**：
+| 现象 | 可能原因 | 修复 |
+|------|---------|------|
+| `Could not resolve` 依赖 | Nexus 凭据 | 设 `ORG_GRADLE_PROJECT_nexusUser/Password` |
+| 编译错误 | 项目代码 | 检查具体报错 |
+
+### 5. 测试 [`项目层`]
+
+先探测外部服务：
+```bash
+curl -s kafka:9092 >/dev/null 2>&1 && echo "OK" || echo "不可用，降级"
 ```
 
-### 4. 编译
 ```bash
-cd ~/projects/<project> && export <环境变量> && mvn compile
-# → BUILD SUCCESS（首次冷启动 ~3min，热 ~20s）
-```
-
-### 5. 测试
-```bash
-mvn test
-# → BUILD SUCCESS（集成测试缺外部服务可能挂起，模块可跳过）
+cd ~/projects/<project> && mvn test
+# → BUILD SUCCESS ✅ | ❌ 缺外部服务时部分测试挂起
 ```
 
 ### 6. 启动（可选）
@@ -210,19 +320,29 @@ mvn test
 
 ## 冷启动 / 缓存初始化
 
-| 资源 | 缓存方式 | 自动? | 冷启动方式 | 耗时 |
-|------|---------|-------|-----------|------|
-| Maven 依赖 | `kyb-maven-cache` | ✅ | 首次 mvn 自动下载 | ~3min |
-| JDK | `kyb-mise-cache` | ✅ | `mise install java@graalvm-21` | ~2min |
-| Git 子模块 | 项目目录 | ❌ | worktree init + docker cp | ~15s |
-| PostgreSQL 库 | 容器内 pg data | ❌ | createdb + mig25 upgrade | ~10s |
-| jOOQ codegen | `target/generated-sources/` | ❌ | mvn compile 自动触发 | 含在编译中 |
+| 资源 | 缓存方式 | 自动? | 踩坑探索耗时 | 等待耗时（冷→热） | 冷启动方式 |
+|------|---------|-------|------------|-------------------|-----------|
+| JDK | `kyb-mise-cache` | ❌ | ~5min（代理配置错） | 2min→0s | `mise install java@...`（注意代理模式） |
+| Gradle/Maven 依赖 | shared volume | ✅ | ~3min（Nexus 凭据） | 3min→~10s | 首次构建自动下载 |
+| Git 子模块 | 项目目录 | ❌ | ~1min（嵌套 submodule） | ~15s→0s | `git submodule update --init --recursive` |
+| PostgreSQL 库 | 容器内 pg data | ❌ | ~2min（DB 名不确定） | ~30s→~30s | `createdb` + `mig25 upgrade` |
+| Codegen | `build/generated/` | ❌ | ~1min（配置项） | ~60s→~60s | `mig25-codegen generate` |
+| PostgreSQL 启动 | 容器内 | ❌ | ~1min（DID 不自启） | 3s→3s | `pg_ctlcluster 16 main start` |
 
 ## 踩坑记录
 
 | # | 问题 | 现象 | 原因 | 修复 | 所属层 |
 |---|------|------|------|------|--------|
 | 1 | ... | ... | ... | ... | 工具/依赖/数据/项目 |
+
+## 按层快速排查
+
+| 所属层 | 常见失败 | 排查入口 |
+|--------|---------|---------|
+| **工具层** | JDK 未激活、Nexus 凭据、缓存权限、服务未启动 | 踩坑记录（工具层条目） |
+| **依赖层** | 子模块为空、嵌套 submodule、包下载失败 | 踩坑记录（依赖层条目） |
+| **数据层** | migration 找不到、codegen 不匹配 | 踩坑记录（数据层条目） |
+| **项目层** | 测试失败（缺外部服务、代码错误） | 踩坑记录（项目层条目） |
 
 ## 本项目卡点汇总
 
@@ -257,6 +377,10 @@ mvn test
 - **分层记录卡点**：每步失败时，判断是工具层/依赖层/数据层/项目层的哪一层问题。下层问题优先抽象复用，上层问题记入项目专属节
 - **闭环记录**：每个坑必须包含"现象 → 原因 → 修复 → 是否可预见/可预防"的完整链条。修复后验证再继续
 - **文档本身也可迭代**：新问题出现时，按流程再跑一轮，更新对应章节。`kyb 待改进` 的条目是待办，不是缺陷
+- **区分操作耗时、等待耗时、探索耗时**：冷启动表同时记录踩坑探索耗时（排查试错时间）和执行等待耗时。后续收敛目标是探索耗时归零
+- **声明外部服务依赖**：在项目描述节列出 Kafka / RocketMQ / Redis 等外部服务，注明 CI 有/无、本地有/无。agent 执行前先探测可用服务决定策略
+- **mise install 后需激活**：`mise install <tool>` 只下载安装，不激活。必须加 `mise use -g <tool>` 或 `mise use <tool>` 将其加入配置
+- **先看 CI，不要猜**：`.gitlab-ci.yml` 是依赖的权威来源。services→外部服务、variables→环境变量/凭据、before_script→工具、image→构建镜像。先扫一遍再动手，避免瞎猜 DB 名、hostname、凭据
 
 ## Round 3 — 自 replay 验证
 
@@ -288,9 +412,17 @@ kyb enter <project>-<branch>
 发现歧义 → 修 .kyb.md → 删容器重建 → 再跑 → 直到无卡顿
 ```
 
+## 最终目标
+
+> **任何人（人或 agent）拿到 `.kyb.md`，按文档顺序逐步骤执行，零卡点、零歧义、一次通过，即可把项目在本地拉起来。**
+>
+> 卡点 = 执行不下去、需要外部知识、命令报错不明确。歧义 = 文档没说清楚用哪个值、哪条路径、哪个用户。
+>
+> 收敛标准：连续两轮零新卡点（含他人一次通过）。此后新增依赖 → 启动新一轮。
+
 ## Round 4 — 他人（agent）验证
 
-### 方法
+### 准备工作
 
 1. 创建一个用于验证的临时分支并创建容器：
    ```bash
@@ -300,18 +432,45 @@ kyb enter <project>-<branch>
    kyb enter <project>-kyb-onboarding-verify
    ```
 
-2. Agent 进入后只读项目 `.kyb.md`，**不依赖其他对话历史**，自行执行。
+2. **确认容器状态**：PG 是否运行、项目代码是否在 `/home/dev/projects/<project>`、`.kyb.md` 是否存在。
 
-3. 如果 agent 在某步卡住，收集卡点：
-   - 在哪个命令卡住
+### 验证 agent prompt 模版
+
+```markdown
+你是一个验证 agent，任务是检验 <project> 项目的 .kyb.md 文档质量。
+
+## 环境
+你在一个 kyb DID 容器内。PostgreSQL 已启动。项目代码在
+`~/projects/<project>`，`kyb-onboarding-verify` 分支已检出。
+
+## 任务
+1. 只读 `~/projects/<project>/.kyb.md`，不依赖任何其他对话历史
+2. 严格按照文档步骤逐条执行
+3. 每步记录：执行结果（成功/失败），如果卡住记录在哪句话卡住、为什么
+4. 完成时报告：总共几步、几步成功、几步失败、文档问题清单
+
+## 执行方式
+所有命令通过 `docker exec <容器名> bash -c '...'` 执行。
+注意 dev 用户的 mise 环境需 `eval "$(mise activate bash)"` 激活。
+pip3 在 dev 用户下可用，root 需 `su - dev -c`。
+```
+
+### 执行与反馈
+
+3. Agent 进入后只读项目 `.kyb.md`，**不依赖其他对话历史**，自行执行。
+
+4. 如果 agent 在某步卡住，收集卡点：
+   - 在哪个命令/哪句话卡住
    - agent 的解读和实际执行的偏差
    - 文档中缺少什么信息
 
-4. 根据卡点修 `.kyb.md`，然后回到 Round 3 重新 replay。
+5. 根据卡点修 `.kyb.md`，然后回到 Round 3 重新 replay。
 
 ### 通过标准
 
 另一个 agent 在全新容器中，非交互式执行 `.kyb.md`，全流程通过率 100%。
+
+> **经验**：triggers-refund 的 Round 4 实测，agent 按文档全流程一次通过（零卡点），仅发现文档描述与实际数据的偏差（migration 数量过时、codegen 体积不准）。这些问题不影响执行，但建议修复以保持文档准确。
 
 ## 产出物清单
 
@@ -474,11 +633,57 @@ Nova 是第 2 个走完 onboarding 流程的项目，验证了跨项目鲁棒性
 | 数据库名匹配 | ✅ 发现 | N/A | N/A | 项目级 |
 | 集成测试挂起 | N/A | N/A | ✅ 发现 | 项目级 |
 
-#### 收敛结论
+#### 已上船项目
 
-三轮（3 个项目）后：
+已完成标准化 onboarding 的项目列表。
+
+| 项目 | 状态 | .kyb.md | R1 总耗时 | R3/R4 热执行 | 探索耗时 | 备注 |
+|------|------|---------|-----------|-------------|---------|------|
+| buyer-server | ✅ 收敛 | 项目仓库 | ~5min+? | ~1min | 未记录（早期） | 首个 onboarding，发现 Maven/Nexus/子模块卡点 |
+| nova | ✅ 收敛 | 项目仓库 | 未记录 | 未记录 | 未记录（早期） | 第二项目，验证跨项目复用 |
+| data-ant | ✅ 收敛 | 项目仓库 | 未记录 | 未记录 | 未记录（早期） | 最复杂（19模块+5子模块+6DB），工具层卡点收敛 |
+| triggers-refund | ✅ 收敛 | [MR #25](https://git.leyantech.com/base-service/triggers-refund/-/merge_requests/25) | ~30min | ~2min | ~23min | 首个 DID 模式，验证分层模型+双 agent |
+
+### 接入指引
+
+1. 项目加入 `~/.config/kyb/config.yml`
+2. 宿主机 `git clone` 项目
+3. 从本设计文档的模版创建 `.kyb.md`
+4. 跑 Round 1-4
+5. 合入 `.kyb.md` MR
+6. 更新此表
 - **工具层卡点已收敛**（3 个，全部于 buyer-server 发现，后续项目只复用无新增）
 - **数据层/项目层卡点**每个项目不同，属于项目特有的集成测试和配置问题，需在 `.kyb.md` 中记录但不需改 kyb
+
+### 跨项目验证：triggers-refund（第四项目，验证 DID 模式）
+
+#### 项目概况
+
+Kotlin 2.3 + Quarkus 3.28 + PostgreSQL 16 + jOOQ codegen + OpenAPI。Gradle 单模块，1 个 git 子模块（`stream`，含嵌套 `party`），依赖内部 Nexus。CI 有 Kafka service。
+
+#### 新增的模板改进
+
+triggers-refund 是首个 `kyb did create`（DID）模式 onboarding 的项目，区别于前三个项目的普通容器模式。新发现：
+
+| # | 问题 | 所属层 | 模板改进 |
+|---|------|--------|---------|
+| 1 | DID 容器 PG 不自启 | 工具层 | 启动前检查加 `pg_isready` |
+| 2 | mise install 后需 `mise use` 激活 | 工具层 | 写作原则加"install 后需激活" |
+| 3 | `ALL_PROXY=socks5` 与 mise rustls 不兼容 | 工具层 | Quick Start 用 `https_proxy=http` |
+| 4 | 外部服务依赖（Kafka） | 项目层 | 加"外部服务依赖"声明节，agent 先探测 |
+| 5 | 探索耗时意义大于操作耗时 | 方法论 | 冷启动表加"踩坑探索耗时"列 |
+
+#### 收敛数据
+
+| 轮次 | 总耗时 | 踩坑探索 | 执行等待 |
+|------|--------|---------|---------|
+| Round 1 手动探索 | ~30min | ~23min | ~7min |
+| Round 3 自 replay | ~7min | 0 | ~7min |
+| Round 4 他人验证 | ~4min | 0 | ~4min |
+
+#### 对模版的影响
+
+到第四项目为止，模板已完成 4 轮迭代（buyer-server → nova → data-ant → triggers-refund）。工具层卡点全部收敛，新增的 DID 模式特定问题也已纳入模板。
 
 ## kyb 改进需求汇总
 
