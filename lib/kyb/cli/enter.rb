@@ -109,7 +109,7 @@ module Kyb::CLI
     kyb = Kyb::Config.kyb_repo ? '/home/dev/kyb/bin/kyb' : 'kyb'
     cmd = "cd ~/projects/#{project} && mise trust && #{kyb} session wrap #{cli}"
     if cli == 'claude'
-      cmd += " '#{prompt}'"
+      cmd += " --dangerously-skip-permissions '#{prompt}'"
     elsif cli == 'kimi'
       cmd += " -p '#{prompt}'"
     end

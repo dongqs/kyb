@@ -34,7 +34,7 @@ class EnterTest < Minitest::Test
 
   def test_send_keys_claude
     cmd = Kyb::CLI.build_send_keys('claude', 'test', 'read doc')
-    assert_match(/^cd ~\/projects\/test && mise trust && (kyb|\/home\/dev\/kyb\/bin\/kyb) session wrap claude 'read doc'$/, cmd)
+    assert_match(/^cd ~\/projects\/test && mise trust && (kyb|\/home\/dev\/kyb\/bin\/kyb) session wrap claude --dangerously-skip-permissions 'read doc'$/, cmd)
   end
 
   def test_send_keys_kimi
