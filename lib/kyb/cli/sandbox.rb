@@ -148,13 +148,16 @@ module Kyb::CLI
       File.symlink(src, dst)
     end
 
-    # Env template
-    if proj[:env_template] && !proj[:env_template].empty?
-      src = File.join(path, proj[:env_template])
-      dst = File.join(wt_path, '.env')
-      unless File.exist?(dst)
-        puts "     cp #{src} -> .env"
-        FileUtils.cp(src, dst)
+    # cp_files: copy files from project root to worktree
+    if proj[:cp_files]
+      proj[:cp_files].each do |dst, src|
+        src_path = File.join(path, src)
+        next unless File.exist?(src_path)
+        dst_path = File.join(wt_path, dst)
+        unless File.exist?(dst_path)
+          puts "     cp #{src} -> #{dst}"
+          FileUtils.cp(src_path, dst_path)
+        end
       end
     end
 

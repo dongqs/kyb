@@ -80,6 +80,8 @@ base:
   proxy: socks5://host.orb.internal:2080   # 全局代理（可选）
   no_proxy: .leyantech.com,...      # 全局直连列表（可选）
   claude_default_model: flash       # 默认模型（可选，flash/pro）
+  cp_files:                         # 全局 cp_files，所有项目自动生效（可选）
+    .env.kyb: .env.kyb              # 大部分项目通用的配置只需定义一次
 
 projects:
   my-project:
@@ -96,12 +98,25 @@ projects:
     - /host/path:/container/path
     timezone: Asia/Shanghai         # 容器时区（可选，默认 Asia/Shanghai）
     dockerfile: Dockerfile          # 项目级 Dockerfile（可选）
-    env_template: .env.example      # 环境变量模板（可选）
+    env_template: .env.example      # 环境变量模板（可选，已废弃，改用 cp_files）
+    cp_files:                       # 创建时复制文件到 worktree（可选）
+      .env: .env.example            # dest: src（相对项目根路径）
+      .env.kyb: .env.kyb            # 源文件不存在自动跳过
     proxy: http://local:3128        # 项目级代理覆盖（可选）
     sandbox_allowed_domains:        # sandbox 额外域名白名单（可选）
     - '*.internal.corp.com'
     extra_prompt: "项目级提示词"    # 附加到 CLAUDE.md 的提示词（可选）
 ```
+
+`cp_files` 在 `kyb create` 时从项目目录复制文件到 worktree（容器内项目目录），是 **copy** 不是 bind mount——适合 `.env`、`.env.kyb` 等需要快照进容器、不需要实时同步的文件。旧 `env_template` 仍可用，自动转为 `cp_files` 的 `.env` 项。
+
+三种文件操作方式的选择：
+
+| 机制 | 时机 | 方式 | 适用场景 |
+|------|------|------|---------|
+| `mounts_ro` / `mounts_rw` | 容器启动 | 实时 mount | 共享代码、数据目录，需要双向同步或实时可见 |
+| `symlinks` | 容器启动 | 只读 mount（项目内相对路径） | 共享 vendor 之类只读目录，不用写绝对路径 |
+| `cp_files` | `kyb create` | 复制快照到 worktree | `.env`、`.env.kyb` 等一次性配置，不需要随宿主机变化 |
 
 然后 `kyb create <name>` 即可创建沙箱。
 
