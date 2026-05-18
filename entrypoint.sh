@@ -220,4 +220,6 @@ if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
 EOF
 fi
 
+touch /tmp/kyb-ready
+
 exec runuser -u dev -- "$@"
