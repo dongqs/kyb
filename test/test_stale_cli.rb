@@ -21,7 +21,7 @@ class StaleCLITest < Minitest::Test
     Kyb::Config.stub(:project, ->(name) {
       { name: name, path: '/tmp/test-project', base_branch: 'master',
         dockerfile: nil, ports: [], symlinks: '', mounts_rw: '', mounts_ro: '',
-        env_template: nil, extra_prompt: nil, timezone: 'Asia/Shanghai',
+        extra_prompt: nil, timezone: 'Asia/Shanghai',
         proxy: nil, no_proxy: nil }
     }) do
       yield

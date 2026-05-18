@@ -107,6 +107,84 @@ class ConfigTest < Minitest::Test
     end
   end
 
+  # -- cp_files ----------------------------------------------------------------
+
+  def test_cp_files_nil_when_not_set
+    stub_config('base' => {},
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_nil proj[:cp_files]
+    end
+  end
+
+  def test_cp_files_from_project_only
+    stub_config('base' => {},
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main',
+                  'cp_files' => { '.env' => '.env.example' } } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal '.env.example', proj[:cp_files]['.env']
+    end
+  end
+
+  def test_cp_files_from_base_only
+    stub_config('base' => { 'cp_files' => { '.env.kyb' => '.env.kyb' } },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal '.env.kyb', proj[:cp_files]['.env.kyb']
+    end
+  end
+
+  def test_cp_files_merged_base_and_project
+    stub_config('base' => { 'cp_files' => { '.env.kyb' => '.env.kyb' } },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main',
+                  'cp_files' => { '.env' => '.env.example' } } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal '.env.kyb', proj[:cp_files]['.env.kyb']
+      assert_equal '.env.example', proj[:cp_files]['.env']
+    end
+  end
+
+  def test_cp_files_project_overrides_base
+    stub_config('base' => { 'cp_files' => { '.env.kyb' => '.env.kyb', '.env' => 'base.env' } },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main',
+                  'cp_files' => { '.env' => '.env.prod' } } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal '.env.kyb', proj[:cp_files]['.env.kyb']  # from base
+      assert_equal '.env.prod', proj[:cp_files]['.env']     # overridden by project
+    end
+  end
+
+  def test_cp_files_env_template_fills_when_missing
+    stub_config('base' => {},
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main',
+                  'env_template' => '.env.example' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal '.env.example', proj[:cp_files]['.env']
+    end
+  end
+
+  def test_cp_files_env_template_does_not_override_explicit
+    # cp_files 和 env_template 同时定义 .env 时冲突报错
+    stub_config('base' => {},
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main',
+                  'cp_files' => { '.env' => '.env.local' }, 'env_template' => '.env.example' } }) do
+      assert_raises SystemExit do
+        Kyb::Config.project('niao')
+      end
+    end
+  end
+
+  def test_cp_files_env_template_does_not_override_base
+    # base cp_files 定义了 .env + 项目有 env_template 时冲突报错
+    stub_config('base' => { 'cp_files' => { '.env' => '.env.base' } },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main',
+                  'env_template' => '.env.example' } }) do
+      assert_raises SystemExit do
+        Kyb::Config.project('niao')
+      end
+    end
+  end
+
   # -- sandbox_allowed_domains --------------------------------------------
 
   def test_sandbox_allowed_domains_defaults

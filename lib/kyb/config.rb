@@ -58,6 +58,7 @@ module Kyb::Config
   def project(name)
     p = load_config.dig('projects', name)
     Kyb.die("'#{name}' not found in #{Kyb::CONFIG_FILE}") unless p
+    base_cp = load_config.dig('base', 'cp_files')
     base_extra = load_config.dig('base', 'extra_prompt')
     proj_extra = p['extra_prompt']
     extra = [base_extra, proj_extra].compact.join(' ')
@@ -71,13 +72,29 @@ module Kyb::Config
       symlinks: Array(p['symlinks']).map(&:to_s).reject(&:empty?).join(','),
       mounts_rw: Array(p['mounts_rw']).map(&:to_s).reject(&:empty?).join(','),
       mounts_ro: Array(p['mounts_ro']).map(&:to_s).reject(&:empty?).join(','),
-      env_template: p['env_template'],
+      cp_files: build_cp_files(p, base_cp),
+      cp_files_base_keys: base_cp.is_a?(Hash) ? base_cp.keys.freeze : [].freeze,
       timezone: p['timezone'] || 'Asia/Shanghai',
       proxy: p['proxy'] || proxy,
       no_proxy: p['no_proxy'] || no_proxy,
       sandbox_allowed_domains: DEFAULT_SANDBOX_DOMAINS + Array(p['sandbox_allowed_domains']).map(&:to_s).reject(&:empty?),
       extra_prompt: extra.empty? ? nil : extra
     }
+  end
+
+  def build_cp_files(config, base_cp_files = nil)
+    cp_files = {}
+    # Global cp_files from base config (lower priority)
+    cp_files.merge!(base_cp_files) if base_cp_files.is_a?(Hash)
+    # Project-level cp_files override base (higher priority)
+    cp_files.merge!(config['cp_files']) if config['cp_files'].is_a?(Hash)
+    # env_template 和 cp_files 重复定义 .env 时报错
+    if config['env_template'] && !config['env_template'].to_s.empty?
+      Kyb.die("cp_files conflict: '.env' is already defined in cp_files, but env_template is also set.\n" \
+              "  Remove env_template and use cp_files instead.") if cp_files.key?('.env')
+      cp_files['.env'] = config['env_template']
+    end
+    cp_files.empty? ? nil : cp_files
   end
 
   def project_names

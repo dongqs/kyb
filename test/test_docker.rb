@@ -262,12 +262,13 @@ class DockerTest < Minitest::Test
 
   # --- create_container (DinD cp) ---
 
-  def stub_create_container_deps
+  def stub_create_container_deps(cp_files_val = nil)
     Kyb::Config.stub(:load, nil) do
     Kyb::Config.stub(:project, ->(name) {
       { name: name, path: '/tmp/test-cp-project', base_branch: 'master',
         dockerfile: nil, ports: [], symlinks: '', mounts_rw: '', mounts_ro: '',
-        env_template: nil, extra_prompt: nil, timezone: 'Asia/Shanghai',
+        cp_files: cp_files_val, cp_files_base_keys: [].freeze,
+        extra_prompt: nil, timezone: 'Asia/Shanghai',
         proxy: nil, no_proxy: nil }
     }) do
     Kyb::Config.stub(:base_image_path, '/tmp') do
@@ -281,9 +282,8 @@ class DockerTest < Minitest::Test
     Kyb::Git.stub(:remove_worktree, nil) do
     Kyb::Git.stub(:delete_local_branch, nil) do
     FileUtils.stub(:mkdir_p, nil) do
-    FileUtils.stub(:cp, nil) do
       yield
-    end; end; end; end; end; end; end; end; end; end; end; end; end; end
+    end; end; end; end; end; end; end; end; end; end; end; end; end
   end
 
   def test_create_container_dind_copies_worktree
@@ -299,6 +299,104 @@ class DockerTest < Minitest::Test
     end
 
     assert cp_called, 'docker cp should be called in DinD mode'
+  end
+
+  # --- create_container (cp_files) ---
+
+  def test_create_container_cp_files_copies_all_when_exist
+    Dir.mktmpdir do |tmpdir|
+      File.write(File.join(tmpdir, '.env.example'), "ENV=example\n")
+      File.write(File.join(tmpdir, '.env.kyb'), "KYB=value\n")
+
+      cp_pairs = []
+      cp_stub = ->(src, dst) { cp_pairs << [src, dst]; nil }
+
+      FileUtils.stub(:cp, cp_stub) do
+      Kyb::Config.stub(:load, nil) do
+      Kyb::Config.stub(:project, ->(name) {
+        { name: name, path: tmpdir, base_branch: 'master',
+          dockerfile: nil, ports: [], symlinks: '', mounts_rw: '', mounts_ro: '',
+          cp_files: { '.env' => '.env.example', '.env.kyb' => '.env.kyb' },
+          cp_files_base_keys: [].freeze,
+          extra_prompt: nil, timezone: 'Asia/Shanghai',
+          proxy: nil, no_proxy: nil }
+      }) do
+      Kyb::Config.stub(:base_image_path, '/tmp') do
+      Kyb::Docker.stub(:build, true) do
+      Kyb::Docker.stub(:image_exists?, true) do
+      Kyb::Docker.stub(:assign_ports, '') do
+      Kyb::Docker.stub(:run, nil) do
+      Kyb::Docker.stub(:exists?, false) do
+      Kyb::Docker.stub(:running?, false) do
+      Kyb::Git.stub(:setup_worktree, nil) do
+      Kyb::Git.stub(:remove_worktree, nil) do
+      Kyb::Git.stub(:delete_local_branch, nil) do
+      FileUtils.stub(:mkdir_p, nil) do
+        container = Kyb::Container.new('niao', 'test')
+        wt = container.worktree_path
+
+        Kyb::Docker.create_container('niao', 'test')
+
+        dot_env = cp_pairs.find { |_, d| d.end_with?('/.env') }
+        dot_kyb = cp_pairs.find { |_, d| d.end_with?('/.env.kyb') }
+
+        refute_nil dot_env, 'expected .env copy'
+        assert_equal File.join(tmpdir, '.env.example'), dot_env[0]
+        assert_equal File.join(wt, '.env'), dot_env[1]
+
+        refute_nil dot_kyb, 'expected .env.kyb copy'
+        assert_equal File.join(tmpdir, '.env.kyb'), dot_kyb[0]
+        assert_equal File.join(wt, '.env.kyb'), dot_kyb[1]
+      end; end; end; end; end; end; end; end; end; end; end; end; end
+      end
+    end
+  end
+
+  def test_create_container_cp_files_skips_missing
+    Dir.mktmpdir do |tmpdir|
+      cp_called = false
+      cp_stub = ->(*args) { cp_called = true; nil }
+
+      FileUtils.stub(:cp, cp_stub) do
+      Kyb::Config.stub(:load, nil) do
+      Kyb::Config.stub(:project, ->(name) {
+        { name: name, path: tmpdir, base_branch: 'master',
+          dockerfile: nil, ports: [], symlinks: '', mounts_rw: '', mounts_ro: '',
+          cp_files: { '.env.kyb' => '.env.kyb', '.env.local' => '.env.local' },
+          cp_files_base_keys: [].freeze,
+          extra_prompt: nil, timezone: 'Asia/Shanghai',
+          proxy: nil, no_proxy: nil }
+      }) do
+      Kyb::Config.stub(:base_image_path, '/tmp') do
+      Kyb::Docker.stub(:build, true) do
+      Kyb::Docker.stub(:image_exists?, true) do
+      Kyb::Docker.stub(:assign_ports, '') do
+      Kyb::Docker.stub(:run, nil) do
+      Kyb::Docker.stub(:exists?, false) do
+      Kyb::Docker.stub(:running?, false) do
+      Kyb::Git.stub(:setup_worktree, nil) do
+      Kyb::Git.stub(:remove_worktree, nil) do
+      Kyb::Git.stub(:delete_local_branch, nil) do
+      FileUtils.stub(:mkdir_p, nil) do
+        Kyb::Docker.create_container('niao', 'test')
+      end; end; end; end; end; end; end; end; end; end; end; end; end
+      end
+      refute cp_called, 'FileUtils.cp should not be called when all source files are missing'
+    end
+  end
+
+  def test_create_container_cp_files_nil_skips_copy
+    # When cp_files is nil (not configured), no FileUtils.cp should be triggered
+    cp_called = false
+    sys_stub = ->(*args) { true }
+
+    Kyb::Docker.stub(:system, sys_stub) do
+    FileUtils.stub(:cp, ->(*args) { cp_called = true; nil }) do
+    stub_create_container_deps(nil) do
+      Kyb::Docker.create_container('niao', 'water')
+    end; end; end
+
+    refute cp_called, 'FileUtils.cp should not be called when cp_files is nil'
   end
 
   def test_create_container_normal_skips_cp

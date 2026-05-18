@@ -243,11 +243,17 @@ module Kyb::Docker
     wt_path = container.worktree_path
     Kyb::Git.setup_worktree(path, proj[:base_branch], wt_path, container)
 
-    if proj[:env_template] && !proj[:env_template].empty?
-      src = File.join(path, proj[:env_template])
-      dst = File.join(wt_path, '.env')
-      puts "     cp #{src} -> .env"
-      FileUtils.cp(src, dst)
+    if proj[:cp_files]
+      base_keys = proj[:cp_files_base_keys] || [].freeze
+      proj[:cp_files].each do |dst, src|
+        src_path = File.join(path, src)
+        if File.exist?(src_path)
+          puts "     cp #{src} -> #{dst}"
+          FileUtils.cp(src_path, File.join(wt_path, dst))
+        elsif !base_keys.include?(dst)
+          puts "     warn: #{src} not found, skipped"
+        end
+      end
     end
 
     if proj[:dockerfile]
