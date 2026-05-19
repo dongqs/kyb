@@ -157,9 +157,9 @@ if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
         echo "2. **Code** — edit, build, test in \`~/projects/${KYB_PROJECT:-<project>}\`"
         echo "3. **Commit & push** — changes persist on host via volume mount"
         echo "4. **Notify** — \`kyb notify done|blocked|urgent <msg>\` to alert the human"
-        echo "   - \`done\`: task complete (long tasks must notify)"
-        echo "   - \`blocked\`: need human intervention"
-        echo "   - \`urgent\`: confirm before external actions"
+        echo "   - \`done\`: task complete. ALWAYS notify when done (long tasks must notify)"
+        echo "   - \`blocked\`: need human intervention. Describe what's blocking"
+        echo "   - \`urgent\`: confirm before external actions. Describe what you're about to do"
         echo "5. **End** each conversation with: ${mascot}"
 
         echo ""

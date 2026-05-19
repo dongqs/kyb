@@ -1,7 +1,13 @@
 FROM ubuntu:24.04
 
-# Aliyun mirror for Ubuntu ARM (deb822 format)
-RUN sed -i 's|http://ports.ubuntu.com/ubuntu-ports|http://mirrors.aliyun.com/ubuntu-ports|g' /etc/apt/sources.list.d/ubuntu.sources
+# Aliyun mirror — supports both ARM64 (ports) and AMD64 (archive)
+# TARGETARCH is auto-set by Docker BuildKit
+RUN arch="${TARGETARCH:-$(uname -m)}" && \
+    if [ "$arch" = "arm64" ] || [ "$arch" = "aarch64" ]; then \
+        sed -i 's|http://ports.ubuntu.com/ubuntu-ports|http://mirrors.aliyun.com/ubuntu-ports|g' /etc/apt/sources.list.d/ubuntu.sources; \
+    else \
+        sed -i 's|http://archive.ubuntu.com/ubuntu|http://mirrors.aliyun.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources; \
+    fi
 
 RUN apt-get update && apt-get upgrade -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \

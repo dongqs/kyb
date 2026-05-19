@@ -1,12 +1,48 @@
 # kyb — kubernate your branches 可以不 ／人◕ ‿‿ ◕人＼
 
+> **野望：让你 10 倍效率的 AI 开发沙箱。**（我们正在往 100 倍走，一起玩？）
+>
+> ```
+> 🐢 古法程序员 ─── 手写代码、手动 CI、手动部署
+> 🚀 kyb 当前 ─── Claude Code + 容器开箱即用
+> 🌙 下一步 ─── agent 自己看 issue、修 bug、提 MR
+> ☀️ 再往后 ─── 数字生命（代码它写，班你上）
+> ```
+
 一键创建隔离的 AI 开发沙箱。Docker 容器即用即抛，权限全开无中断，宿主机零污染。
 
-## 快速开始
+## 安装
+
+三步开箱：
 
 ```bash
-kyb create niao       # 创建并启动沙箱
-kyb enter niao        # 进入沙箱
+# 1. 克隆
+git clone git@git.leyantech.com:quick-n-dirty/kyb.git ~/.kyb
+echo 'export PATH="$HOME/.kyb/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# 2. 初始化（把 kyb 自身注册为第一个项目）
+cd ~/.kyb && kyb init
+
+# 3. 构建基础镜像（首次 10-15 分钟，网络问题见 docs/network-issues.md）
+kyb build
+
+# 4. 创建沙箱
+kyb create kyb-hello
+
+# 5. 进入沙箱
+kyb enter kyb-hello
+```
+
+> `kyb build` 首次构建需 10-15 分钟，网络问题见 [docs/network-issues.md](./docs/network-issues.md)。后续更新：`git -C ~/.kyb pull && kyb build`
+
+### 添加你自己的项目
+
+```bash
+cd ~/projects/你的项目
+kyb init                    # 注册到 config.yml
+kyb create 项目名-功能分支    # 创建沙箱
+kyb enter 项目名-功能分支     # 进入沙箱
 ```
 
 ## 架构
@@ -14,7 +50,7 @@ kyb enter niao        # 进入沙箱
 ```
 macOS 宿主机
 ├── sing-box (socks5:2080)          ← 分流代理
-├── ~/kyb/                           ← 本仓库，管理沙箱配置
+├── ~/.kyb/                          ← 本仓库（clone 到 ~/.kyb）
 │   ├── Dockerfile                  ← 沙箱镜像定义
 │   ├── entrypoint.sh               ← 容器启动入口
 │   └── bin/kyb                     ← CLI 工具
@@ -53,14 +89,24 @@ mise 下载 runtime              →    镜像源直接下载
 
 ```bash
 kyb build                     # 构建基础镜像
-kyb create NAME [PORT]        # 创建并启动沙箱
-kyb ps                        # 列出运行中的沙箱
-kyb enter NAME [PORT]         # 进入沙箱
-kyb exec NAME [PORT] -- CMD   # 在沙箱中执行命令
-kyb stop NAME [PORT]          # 停止沙箱
-kyb start NAME [PORT]         # 启动已停止的沙箱
-kyb rm NAME [PORT]            # 删除沙箱
+kyb init [NAME]               # 将当前项目加入配置
+kyb create <project-branch>   # 创建并启动沙箱（支持 --ports 和 --model）
+kyb ps, ls                    # 列出沙箱
+kyb enter <project-branch>    # 进入沙箱（支持 --cli claude|kimi|bash）
+kyb exec <project-branch> -- CMD
+                              # 在沙箱中执行命令
+kyb stop <project-branch>     # 停止沙箱
+kyb start <project-branch>    # 启动已停止的沙箱
+kyb rm <project-branch>       # 删除沙箱
 kyb prune                     # 删除所有沙箱
+kyb sandbox <project-branch> [PROMPT]
+                              # 在宿主机运行 Claude Code sandbox 模式（非 Docker）
+kyb did create <name>         # 创建 DID 容器
+kyb notify <done|blocked|urgent> <message>
+                              # TTS 通知
+kyb tts {start|stop|speak|done}
+                              # macOS TTS 控制
+kyb version                   # 显示版本
 ```
 
 ## 修改沙箱配置
@@ -75,7 +121,7 @@ kyb prune                     # 删除所有沙箱
 
 ```yaml
 base:
-  image: ~/kyb                      # Dockerfile 路径，默认 ~/kyb
+  image: ~/kyb                      # Dockerfile 路径（可选，默认 ~/.kyb）
   kyb_repo: ~/github/kyb            # kyb 项目路径（可选），挂载到容器 /home/dev/kyb 供 agent 读文档
   proxy: socks5://host.orb.internal:2080   # 全局代理（可选）
   no_proxy: .leyantech.com,...      # 全局直连列表（可选）
@@ -103,6 +149,7 @@ projects:
       .env: .env.example            # dest: src（相对项目根路径）
       .env.kyb: .env.kyb            # 源文件不存在自动跳过
     proxy: http://local:3128        # 项目级代理覆盖（可选）
+    no_proxy: '*.internal.com'     # 项目级直连列表（可选，覆盖 base.no_proxy）
     sandbox_allowed_domains:        # sandbox 额外域名白名单（可选）
     - '*.internal.corp.com'
     extra_prompt: "项目级提示词"    # 附加到 CLAUDE.md 的提示词（可选）
@@ -127,7 +174,7 @@ projects:
 - `~/.claude/settings.json` → 容器内 `/home/dev/.claude-host-settings.json` (只读)
 - `~/.config/kyb` → 容器内 `/home/dev/.config/kyb` (只读) — 容器内可发现其他项目
 - `~/.claude/skills` → 容器内 `/home/dev/.claude-skills-host` (只读)
-- `~/projects` → 容器内 `/home/dev/projects`
+- `~/.kyb/worktrees/<project>/<container>/` → 容器内 `/home/dev/projects/<project>` (git worktree 隔离)
 - `/var/run/docker.sock` → 容器内 Docker 访问
 
 ## 共享缓存
@@ -161,6 +208,7 @@ curl -X POST http://host.docker.internal:10666/speak \
 
 ## 文档
 
+- [网络问题排查](./docs/network-issues.md) — 构建和运行时所有网络依赖、失败原因和解决方法
 - [方案对比](./docs/comparison.md) — kyb vs 其他 AI 沙箱方案，Docker vs sandbox 模式选择
 - [OS 级沙箱对比](./docs/os-sandbox.md) — Claude Code / Codex / Zerobox / mise 底层原语深度对比
 - [实现踩坑](./docs/sandbox-pitfalls.md) — kyb sandbox 实现过程中遇到的问题和解决方案

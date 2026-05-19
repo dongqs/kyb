@@ -45,6 +45,26 @@ class ConfigTest < Minitest::Test
 
   # -- extra_prompt -------------------------------------------------------
 
+  # -- base_image_path ----------------------------------------------------
+
+  def test_base_image_path_default
+    stub_config('base' => {}) do
+      assert_equal File.expand_path('~/.kyb'), Kyb::Config.base_image_path
+    end
+  end
+
+  def test_base_image_path_custom
+    stub_config('base' => { 'image' => '~/custom-kyb' }) do
+      assert_equal File.expand_path('~/custom-kyb'), Kyb::Config.base_image_path
+    end
+  end
+
+  def test_base_image_path_empty_string
+    stub_config('base' => { 'image' => '' }) do
+      assert_equal File.expand_path('~/.kyb'), Kyb::Config.base_image_path
+    end
+  end
+
   # -- claude_default_model -----------------------------------------------
 
   def test_claude_default_model_default

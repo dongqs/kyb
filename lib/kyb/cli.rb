@@ -87,7 +87,10 @@ module Kyb::CLI
       Kyb.die("Usage: kyb session wrap <cli> [args...]") unless args.first == 'wrap' && args.size >= 2
       session_wrap(args[1], args[2..])
     when 'notify'
-      Kyb.die("Usage: kyb notify <done|blocked|urgent> <message>") if args.empty? || args.size < 2
+      Kyb.die("Usage: kyb notify <done|blocked|urgent> <message>\n" \
+               "  done:    task complete. ALWAYS notify when done\n" \
+               "  blocked: need human intervention. Describe what's blocking\n" \
+               "  urgent:  confirm before external actions. Describe what you're about to do") if args.empty? || args.size < 2
       level = args[0]
       message = args[1..].join(' ')
       Kyb.die("level must be done/blocked/urgent, got: #{level}") unless %w[done blocked urgent].include?(level)
@@ -109,6 +112,7 @@ module Kyb::CLI
 
       Commands:
         build                            Build base image
+                                         See docs/network-issues.md for build failures
 
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                          Add current project to config
@@ -122,7 +126,7 @@ module Kyb::CLI
         start PROJECT-BRANCH             Start stopped container
         rm    PROJECT-BRANCH             Remove container
         prune                            Remove all containers
-        sandbox PROJECT-BRANCH [PROMPT]  Run in host sandbox (no Docker)
+        sandbox PROJECT-BRANCH [PROMPT]  Claude Code sandbox mode (no Docker)
         sandbox ps, ls                   List host sandboxes
         sandbox rm PROJECT-BRANCH        Remove host sandbox
         did create <name>               DID: create container (Docker-in-Docker)
@@ -131,6 +135,8 @@ module Kyb::CLI
         tts {start|stop|speak...}        macOS TTS controls
         notify <done|blocked|urgent> <message>
                                          Send TTS notification
+                                         done=task complete, blocked=need help,
+                                         urgent=confirm before action
         session wrap <cli> [args...]    Wrap CLI command with session tracking
         version                          Show version
 
