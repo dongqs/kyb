@@ -35,7 +35,9 @@ module Kyb::Config
   end
 
   def base_image_path
-    File.expand_path(load_config.dig('base', 'image'))
+    path = load_config.dig('base', 'image')
+    path = nil if path.is_a?(String) && path.empty?
+    File.expand_path(path || '~/.kyb')
   end
 
   def claude_default_model
