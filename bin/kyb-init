@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# kyb init — 新项目 onboarding 初始化
+#
+# 用法:
+#   kyb init <git-url>             # 克隆 + cp 模版 + 发 MR
+#   kyb init ~/projects/<项目>     # 已有目录直接初始化
+#
+# 什么都不做——只拷模版、commit、发 MR。改东西是人的事。
+
+require 'fileutils'
+
+KYB_DIR = File.expand_path(ENV.fetch('KYB_DIR', '~/projects/kyb'))
+TEMPLATE = File.join(KYB_DIR, 'docs/onboarding.kyb.md')
+PROJECTS_DIR = File.expand_path('~/projects')
+
+def info(msg) = puts "\e[32m==>\e[0m #{msg}"
+def warn(msg) = puts "\e[33m==>\e[0m #{msg}"
+def err(msg)  = $stderr.puts "\e[31m==>\e[0m #{msg}"
+
+target = ARGV[0]
+unless target
+  puts "用法: kyb init <git-url|目录>"
+  exit 1
+end
+
+# 获取项目
+if target.match?(/\Agit@/)
+  project_name = File.basename(target, '.git')
+  info "克隆 #{project_name} ..."
+  FileUtils.cd(PROJECTS_DIR) do
+    system("git clone #{target} 2>/dev/null") unless Dir.exist?(project_name)
+  end
+  Dir.chdir(File.join(PROJECTS_DIR, project_name))
+else
+  Dir.chdir(target)
+  project_name = File.basename(Dir.pwd)
+end
+info "项目: #{project_name} (#{Dir.pwd})"
+
+# 检查
+unless File.exist?(TEMPLATE)
+  err "找不到模版: #{TEMPLATE}"
+  exit 1
+end
+if File.exist?('.kyb.md')
+  err ".kyb.md 已存在"
+  exit 1
+end
+
+# cp 模版
+FileUtils.cp(TEMPLATE, '.kyb.md')
+info "模版已复制到 .kyb.md"
+
+# 分支
+current = `git rev-parse --abbrev-ref HEAD 2>/dev/null`.strip
+if %w[master main].include?(current)
+  system('git checkout -b kyb/onboarding 2>/dev/null')
+  info "分支: kyb/onboarding"
+end
+
+# 提交 + MR
+system('git add .kyb.md 2>/dev/null')
+if system('git diff --cached --quiet 2>/dev/null')
+  warn "没有变更"
+else
+  system(%(git commit -m "chore: add .kyb.md for #{project_name} onboarding"))
+  system("git push -u origin $(git rev-parse --abbrev-ref HEAD) 2>&1")
+  system(%(glab mr create \
+    --title "chore: add .kyb.md for #{project_name} onboarding" \
+    --description "首次 onboarding 文档。复制自 kyb docs/onboarding.kyb.md 模版。\n\nMR 保持 open，后续 Round 1-4 迭代更新。\n\n请手动填写项目信息（替换 `<Project>` 等占位符）。" \
+    --source-branch "$(git rev-parse --abbrev-ref HEAD)" \
+    --target-branch master 2>&1))
+  info "完成！MR 已创建"
+end
