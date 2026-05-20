@@ -209,4 +209,10 @@ rec-config converged: 4 modules, 47/50 tests (3 pre-existing non-idempotent). Ja
 
 timeline converged: Java 8, 11 tests, MR !196. First project to complete full DID verification (Rounds 3-4). Found real DID gaps: JDK 8 must be copied into DID container via tar pipe, Maven needs explicit `-s ~/.m2/settings.xml`. Also discovered Nexus Nginx blocks curl by TLS fingerprint — Java HTTP client works fine, Maven unaffected.
 
+---
+
+## 06:56 — oms-lxk done
+
+oms-lxk converged: Java 8, 11 PG migrations, 1501 files compiled, MR !633. Same Nexus 403 pattern: `readonlyuser` blocked on certain groups, worked around with Maven Central direct + local parent POM stub. Submodules 6+ levels deep but unaffected.
+
 ／人◕ ‿‿ ◕人＼
