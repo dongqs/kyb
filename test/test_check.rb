@@ -3,11 +3,15 @@
 require_relative 'test_helper'
 
 class CheckTest < Minitest::Test
+  # --- Ruby ---
+
   def test_check_ruby
     result = Kyb::Check.check_ruby
     assert result[:ok], "Ruby version check: #{result[:msg]}"
     assert_match(/v3\.\d/, result[:msg])
   end
+
+  # --- Docker ---
 
   def test_check_docker
     result = Kyb::Check.check_docker
@@ -15,11 +19,15 @@ class CheckTest < Minitest::Test
     assert_match(/v\d/, result[:msg])
   end
 
+  # --- Disk ---
+
   def test_check_disk
     result = Kyb::Check.check_disk
     assert result[:ok]
     assert_match(/available/, result[:msg])
   end
+
+  # --- Proxy detect ---
 
   def test_proxy_detect
     proxy = Kyb::Proxy.detect
@@ -35,9 +43,76 @@ class CheckTest < Minitest::Test
     ENV['ALL_PROXY'] = orig
   end
 
-  def test_proxy_env_vars_empty
-    assert_nil Kyb::Proxy.env_proxy
+  def test_proxy_env_vars_custom_var
+    orig = ENV['HTTPS_PROXY']
+    ENV['HTTPS_PROXY'] = 'http://proxy:3128'
+    assert_equal 'http://proxy:3128', Kyb::Proxy.env_proxy
+  ensure
+    ENV['HTTPS_PROXY'] = orig
   end
+
+  def test_proxy_env_vars_priority
+    orig_c = Kyb::Proxy.method(:config_proxy)
+    Kyb::Proxy.define_singleton_method(:config_proxy) { nil }
+    orig_a = ENV['ALL_PROXY']
+    orig_h = ENV['HTTPS_PROXY']
+    ENV['ALL_PROXY'] = 'socks5://all:1080'
+    ENV['HTTPS_PROXY'] = 'http://https:3128'
+    assert_equal 'socks5://all:1080', Kyb::Proxy.detect
+  ensure
+    ENV['ALL_PROXY'] = orig_a
+    ENV['HTTPS_PROXY'] = orig_h
+    Kyb::Proxy.define_singleton_method(:config_proxy, orig_c)
+  end
+
+  def test_proxy_config_override_env
+    # config_proxy has highest priority
+    orig_config = Kyb::Proxy.method(:config_proxy)
+    Kyb::Proxy.define_singleton_method(:config_proxy) { 'socks5://config:2080' }
+    orig_a = ENV['ALL_PROXY']
+    ENV['ALL_PROXY'] = 'socks5://env:1080'
+    assert_equal 'socks5://config:2080', Kyb::Proxy.detect
+  ensure
+    ENV['ALL_PROXY'] = orig_a
+    Kyb::Proxy.define_singleton_method(:config_proxy, orig_config)
+  end
+
+  # --- Proxy server reachability ---
+
+  def test_check_proxy_reachable
+    proxy = Kyb::Proxy.detect
+    skip 'no proxy to test' unless proxy
+    result = Kyb::Check.check_proxy(proxy)
+    assert result[:ok], "proxy should be reachable: #{result[:msg]}"
+  end
+
+  def test_check_proxy_unreachable
+    result = Kyb::Check.check_proxy('socks5://127.0.0.1:1')
+    refute result[:ok], 'port 1 should be unreachable'
+    assert result[:hint], 'should give config hint'
+    assert_match(/config\.yml/, result[:hint])
+  end
+
+  # --- Endpoint checks ---
+
+  def test_check_endpoint_direct_ok
+    result = Kyb::Check.check_endpoint('test', 'https://npmmirror.com', nil)
+    assert result[:ok], "direct should work: #{result[:msg]}"
+  end
+
+  def test_check_endpoint_direct_fail_no_proxy
+    result = Kyb::Check.check_endpoint('test', 'https://127.0.0.1:1', nil)
+    refute result[:ok]
+  end
+
+  def test_check_endpoint_fallback_to_proxy
+    proxy = Kyb::Proxy.detect
+    skip 'no proxy for fallback test' unless proxy
+    result = Kyb::Check.check_endpoint('test', 'https://www.python.org', proxy)
+    assert result[:ok], "should work via proxy fallback: #{result[:msg]}"
+  end
+
+  # --- try_http_direct ---
 
   def test_try_http_direct_aliyun
     result = Kyb::Check.try_http_direct('Aliyun', 'https://mirrors.aliyun.com')
@@ -52,5 +127,59 @@ class CheckTest < Minitest::Test
   def test_try_http_direct_miserun
     result = Kyb::Check.try_http_direct('mise.run', 'https://mise.run')
     assert result[:ok], "mise.run: #{result[:msg]}"
+  end
+
+  def test_try_http_direct_failure
+    result = Kyb::Check.try_http_direct('bogus', 'https://127.0.0.1:1')
+    refute result[:ok]
+    refute result[:via_proxy]
+  end
+
+  # --- try_http_via_proxy ---
+
+  def test_try_http_via_proxy
+    proxy = Kyb::Proxy.detect
+    skip 'no proxy for via-proxy test' unless proxy
+    result = Kyb::Check.try_http_via_proxy('test', 'https://npmmirror.com', proxy)
+    assert result[:ok], "via proxy: #{result[:msg]}"
+    assert result[:via_proxy]
+  end
+
+  def test_try_http_via_proxy_failure
+    result = Kyb::Check.try_http_via_proxy('test', 'https://127.0.0.1:1', 'socks5://127.0.0.1:1')
+    refute result[:ok]
+    assert result[:via_proxy]
+  end
+
+  # --- proxy_source ---
+
+  def test_proxy_source_config
+    orig = Kyb::Proxy.method(:config_proxy)
+    Kyb::Proxy.define_singleton_method(:config_proxy) { 'socks5://test:1080' }
+    assert_equal 'config.yml', Kyb::Check.proxy_source
+  ensure
+    Kyb::Proxy.define_singleton_method(:config_proxy, orig)
+  end
+
+  def test_proxy_source_env
+    orig_c = Kyb::Proxy.method(:config_proxy)
+    orig_e = Kyb::Proxy.method(:env_proxy)
+    Kyb::Proxy.define_singleton_method(:config_proxy) { nil }
+    Kyb::Proxy.define_singleton_method(:env_proxy) { 'socks5://test:1080' }
+    assert_equal 'env var', Kyb::Check.proxy_source
+  ensure
+    Kyb::Proxy.define_singleton_method(:config_proxy, orig_c)
+    Kyb::Proxy.define_singleton_method(:env_proxy, orig_e)
+  end
+
+  def test_proxy_source_probe
+    orig_c = Kyb::Proxy.method(:config_proxy)
+    orig_e = Kyb::Proxy.method(:env_proxy)
+    Kyb::Proxy.define_singleton_method(:config_proxy) { nil }
+    Kyb::Proxy.define_singleton_method(:env_proxy) { nil }
+    assert_equal 'port probe', Kyb::Check.proxy_source
+  ensure
+    Kyb::Proxy.define_singleton_method(:config_proxy, orig_c)
+    Kyb::Proxy.define_singleton_method(:env_proxy, orig_e)
   end
 end
