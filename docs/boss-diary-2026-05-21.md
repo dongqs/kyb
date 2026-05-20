@@ -239,4 +239,10 @@ trade converged: Java 21, 94/94 tests in outer AND DID containers, MR !374. The 
 
 ecplatform converged: 7 modules, 124 jOOQ files generated, MR !820. 0 tests but full pipeline clean.
 
+---
+
+## 07:36 — policy-tools done
+
+policy-tools converged: Lombok + JDK 8 version lock, 93MB leyan-proto jar, 0 tests (JUnit 4/5 bridge missing). Can't push MR — dongqs has read-only access to dialogue-engine/policy-tools. Branch exists locally, needs maintainer.
+
 ／人◕ ‿‿ ◕人＼
