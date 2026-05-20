@@ -219,6 +219,12 @@ oms-lxk converged: Java 8, 11 PG migrations, 1501 files compiled, MR !633. Same 
 
 ## 07:13 — assistant done
 
-assistant converged: Java 21, 6 modules, 6/6 tests, MR created. `build.sh` turned out to be a Jones artifact downloader, not a real build system. New template's non-Maven detection correctly identified Maven via `pom.xml` priority. Also confirmed: non-Maven detection works as designed.
+assistant converged: Java 21, 6 modules, 6/6 tests, MR created. `build.sh` turned out to be a Jones artifact downloader. Non-Maven detection worked correctly.
+
+---
+
+## 07:18 — peroration done
+
+peroration converged: Java 8, jOOQ codegen, Lombok 1.18.20→1.18.34, MR !77. Store-home's service domain.
 
 ／人◕ ‿‿ ◕人＼
