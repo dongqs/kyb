@@ -2,7 +2,16 @@
 # kyb CLI — shell wrapper that checks Ruby before delegating to the Ruby CLI
 set -euo pipefail
 
-KYB_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlinks so this works when invoked through a symlink (e.g. ~/.local/bin/kyb)
+SCRIPT="$0"
+while [ -h "$SCRIPT" ]; do
+  LINK="$(readlink "$SCRIPT")"
+  case "$LINK" in
+    /*) SCRIPT="$LINK" ;;
+    *)  SCRIPT="$(cd "$(dirname "$SCRIPT")" && pwd)/$LINK" ;;
+  esac
+done
+KYB_DIR="$(cd "$(dirname "$SCRIPT")" && pwd)"
 
 # Check Ruby is installed
 RUBY=$(command -v ruby 2>/dev/null || true)
