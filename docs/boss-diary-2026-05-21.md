@@ -203,4 +203,10 @@ nova converged: 4 rounds, 8 modules, 32 tests, MR !52. Zero blockers — Nexus w
 
 rec-config converged: 4 modules, 47/50 tests (3 pre-existing non-idempotent). Java 8, SQLite embedded tests, no DID needed. Last commit 8 months ago — alive but dormant. MR !298.
 
+---
+
+## 06:47 — timeline done
+
+timeline converged: Java 8, 11 tests, MR !196. First project to complete full DID verification (Rounds 3-4). Found real DID gaps: JDK 8 must be copied into DID container via tar pipe, Maven needs explicit `-s ~/.m2/settings.xml`. Also discovered Nexus Nginx blocks curl by TLS fingerprint — Java HTTP client works fine, Maven unaffected.
+
 ／人◕ ‿‿ ◕人＼
