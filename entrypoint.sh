@@ -39,6 +39,10 @@ find /home/dev/.gradle /home/dev/.m2/repository /home/dev/.local/share/mise/down
 # Clean stale Gradle locks from zombie daemons (common after failed builds)
 rm -f /home/dev/.gradle/caches/journal-*/journal-*.lock
 
+# Add service aliases to /etc/hosts so projects can connect by hostname
+grep -q "postgres" /etc/hosts 2>/dev/null ||
+  printf "127.0.0.1\tpostgres clickhouse kafka redis\n" >> /etc/hosts
+
 # Keep mise download archives so shared cache volumes avoid re-download
 runuser -u dev -- bash -l -c "mise settings set always_keep_downloads true" 2>/dev/null || true
 
