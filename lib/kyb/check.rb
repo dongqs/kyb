@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 module Kyb::Check
+  CmdResult = Struct.new(:output, :success?)
+
   ENDPOINTS = {
     'Aliyun mirror'           => URI('https://mirrors.aliyun.com'),
     'npmmirror'               => URI('https://npmmirror.com'),
@@ -117,7 +119,7 @@ module Kyb::Check
 
   def check_ruby
     version = RUBY_VERSION
-    major, minor = version.split('.').map(&:to_i)
+    major = version.split('.').first.to_i
     ok = major >= 3
     msg = ok ? "v#{version} ✓" : "v#{version} ✗ (need >= 3.0, upgrade via brew install ruby)"
     { name: 'Ruby version', ok: ok, msg: msg }
@@ -158,7 +160,9 @@ module Kyb::Check
 
   def try_http_via_proxy(name, url, proxy)
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    out = `curl -sS -o /dev/null -w '%{http_code}' --proxy '#{proxy}' --max-time 12 '#{url}' 2>&1`.strip
+    stdout, stderr, status = Open3.capture3('curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
+                                            '--proxy', proxy, '--max-time', '12', url)
+    out = (status.success? ? stdout : stderr).strip
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
     ok = out == '200' || out == '301' || out == '302' || out == '307'
     { name: name, ok: ok, msg: "#{out}  (#{elapsed.round(2)}s)", via_proxy: true }
@@ -177,5 +181,98 @@ module Kyb::Check
     end
   rescue => e
     { name: 'Disk space (/)', ok: true, msg: e.message }
+  end
+
+  # ---------------------------------------------------------------------------
+  # Onboarding assertion helpers — called by agent to detect/fix env issues
+  # ---------------------------------------------------------------------------
+
+  def assert_java(expected_version: '21')
+    result = capture_cmd("java -version 2>&1")
+
+    unless result.success?
+      puts "❌ Java not installed"
+      install_result = capture_cmd("mise install java@corretto-#{expected_version} && mise use -g java@corretto-#{expected_version} 2>&1")
+      unless install_result.success?
+        return false
+      end
+      result = capture_cmd("mise x java -- java -version 2>&1")
+    end
+
+    if result.output.include?(expected_version)
+      java_home = capture_cmd("mise x java -- sh -c 'echo $JAVA_HOME' 2>&1")
+      if java_home.output.strip.empty?
+        java_home_path = capture_cmd("mise where java 2>&1")
+        ENV['JAVA_HOME'] = java_home_path.output.strip if java_home_path.success?
+      end
+      puts "✅ Java #{expected_version}"
+      true
+    else
+      switch_result = capture_cmd("mise use -g java@corretto-#{expected_version} 2>&1")
+      if switch_result.success?
+        result = capture_cmd("mise x java -- java -version 2>&1")
+        if result.output.include?(expected_version)
+          puts "✅ Java #{expected_version}"
+          return true
+        end
+      end
+      version_str = result.output.lines.first&.strip || 'unknown'
+      puts "❌ Java version mismatch: expected #{expected_version}, got #{version_str}"
+      false
+    end
+  end
+
+  def assert_pg
+    ready = capture_cmd("pg_isready -q 2>&1")
+    if ready.success?
+      puts "✅ PostgreSQL is running"
+      return true
+    end
+
+    start_result = capture_cmd("pg_ctlcluster 16 main start 2>&1")
+    if start_result.success?
+      5.times do
+        sleep 1
+        ready = capture_cmd("pg_isready -q 2>&1")
+        if ready.success?
+          puts "✅ PostgreSQL started"
+          return true
+        end
+      end
+    end
+
+    puts "❌ PostgreSQL failed to start"
+    false
+  end
+
+  def assert_mise_tool(tool_name)
+    which_result = capture_cmd("which #{tool_name} 2>&1")
+    if which_result.success?
+      puts "✅ #{tool_name} available"
+      return true
+    end
+
+    capture_cmd('eval "$(mise activate bash)" 2>&1')
+    which_result = capture_cmd("which #{tool_name} 2>&1")
+    if which_result.success?
+      puts "✅ #{tool_name} available"
+      return true
+    end
+
+    capture_cmd("mise install #{tool_name} 2>&1")
+    capture_cmd('eval "$(mise activate bash)" 2>&1')
+    which_result = capture_cmd("which #{tool_name} 2>&1")
+    if which_result.success?
+      puts "✅ #{tool_name} available"
+      return true
+    end
+
+    puts "❌ #{tool_name} not found"
+    false
+  end
+
+  def capture_cmd(cmd)
+    output = `#{cmd}`
+    CmdResult.new(output, $?.success?)
   end
 end

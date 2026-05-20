@@ -82,6 +82,12 @@ class CheckTest < Minitest::Test
   def test_check_proxy_reachable
     proxy = Kyb::Proxy.detect
     skip 'no proxy to test' unless proxy
+    uri = URI.parse(proxy)
+    begin
+      Socket.tcp(uri.host, uri.port, connect_timeout: 2) { |s| s.close }
+    rescue => e
+      skip "proxy #{proxy} not reachable: #{e.message}"
+    end
     result = Kyb::Check.check_proxy(proxy)
     assert result[:ok], "proxy should be reachable: #{result[:msg]}"
   end
@@ -140,6 +146,12 @@ class CheckTest < Minitest::Test
   def test_try_http_via_proxy
     proxy = Kyb::Proxy.detect
     skip 'no proxy for via-proxy test' unless proxy
+    uri = URI.parse(proxy)
+    begin
+      Socket.tcp(uri.host, uri.port, connect_timeout: 2) { |s| s.close }
+    rescue => e
+      skip "proxy #{proxy} not reachable: #{e.message}"
+    end
     result = Kyb::Check.try_http_via_proxy('test', 'https://npmmirror.com', proxy)
     assert result[:ok], "via proxy: #{result[:msg]}"
     assert result[:via_proxy]
@@ -181,5 +193,257 @@ class CheckTest < Minitest::Test
   ensure
     Kyb::Proxy.define_singleton_method(:config_proxy, orig_c)
     Kyb::Proxy.define_singleton_method(:env_proxy, orig_e)
+  end
+end
+
+class CheckAssertTest < Minitest::Test
+  CmdResult = Kyb::Check::CmdResult
+
+  def setup
+    @orig_capture = Kyb::Check.method(:capture_cmd)
+  end
+
+  def teardown
+    Kyb::Check.define_singleton_method(:capture_cmd, @orig_capture)
+  end
+
+  # --- assert_java ---
+
+  def test_assert_java_version_match
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when 'java -version 2>&1'
+        CmdResult.new(%(openjdk version "21.0.1" 2023-10-17\n), true)
+      when 'echo $JAVA_HOME'
+        CmdResult.new("/usr/lib/jvm/java-21-openjdk\n", true)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      assert Kyb::Check.assert_java
+    end
+    assert_match(/✅ Java 21/, out)
+  end
+
+  def test_assert_java_not_installed_then_installed
+    call_count = 0
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      call_count += 1
+      case cmd
+      when 'java -version 2>&1'
+        if call_count <= 1
+          CmdResult.new("java: command not found\n", false)
+        else
+          CmdResult.new(%(openjdk version "21.0.1" 2023-10-17\n), true)
+        end
+      when /\Amise install java/
+        CmdResult.new("", true)
+      when /\Amise use -g java/
+        CmdResult.new("", true)
+      when 'echo $JAVA_HOME'
+        CmdResult.new("", true)
+      when /\Amise where java/
+        CmdResult.new("/home/dev/.local/share/mise/installs/java/21\n", true)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      assert Kyb::Check.assert_java
+    end
+    assert_match(/✅ Java 21/, out)
+  end
+
+  def test_assert_java_version_mismatch_then_switched
+    java_count = 0
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when 'java -version 2>&1'
+        java_count += 1
+        if java_count == 1
+          CmdResult.new(%(openjdk version "17.0.1" 2023-10-17\n), true)
+        else
+          CmdResult.new(%(openjdk version "21.0.1" 2023-10-17\n), true)
+        end
+      when /\Amise use -g java/
+        CmdResult.new("", true)
+      when 'echo $JAVA_HOME'
+        CmdResult.new("", true)
+      when /\Amise where java/
+        CmdResult.new("/home/dev/.local/share/mise/installs/java/21\n", true)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      assert Kyb::Check.assert_java
+    end
+    assert_match(/✅ Java 21/, out)
+  end
+
+  def test_assert_java_install_fails
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when 'java -version 2>&1'
+        CmdResult.new("java: command not found\n", false)
+      when /\Amise install java/
+        CmdResult.new("install failed\n", false)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      refute Kyb::Check.assert_java
+    end
+    assert_match(/❌/, out)
+  end
+
+  # --- assert_pg ---
+
+  def test_assert_pg_already_running
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when 'pg_isready -q 2>&1'
+        CmdResult.new("", true)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      assert Kyb::Check.assert_pg
+    end
+    assert_match(/✅ PostgreSQL is running/, out)
+  end
+
+  def test_assert_pg_starts_successfully
+    pg_count = 0
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when 'pg_isready -q 2>&1'
+        pg_count += 1
+        if pg_count == 1
+          CmdResult.new("", false)
+        else
+          CmdResult.new("", true)
+        end
+      when /\Apg_ctlcluster/
+        CmdResult.new("", true)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      assert Kyb::Check.assert_pg
+    end
+    assert_match(/✅ PostgreSQL started/, out)
+  end
+
+  def test_assert_pg_fails_to_start
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when 'pg_isready -q 2>&1'
+        CmdResult.new("", false)
+      when /\Apg_ctlcluster/
+        CmdResult.new("", false)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      refute Kyb::Check.assert_pg
+    end
+    assert_match(/❌ PostgreSQL failed to start/, out)
+  end
+
+  # --- assert_mise_tool ---
+
+  def test_assert_mise_tool_on_path
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when /\Awhich mvn/
+        CmdResult.new("/home/dev/.local/share/mise/installs/maven/3.9.9/bin/mvn\n", true)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      assert Kyb::Check.assert_mise_tool('mvn')
+    end
+    assert_match(/✅ mvn available/, out)
+  end
+
+  def test_assert_mise_tool_after_activate
+    which_count = 0
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when /\Awhich mvn/
+        which_count += 1
+        if which_count == 1
+          CmdResult.new("", false)
+        else
+          CmdResult.new("/home/dev/.local/share/mise/installs/maven/3.9.9/bin/mvn\n", true)
+        end
+      when /\Amise activate/
+        CmdResult.new("", true)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      assert Kyb::Check.assert_mise_tool('mvn')
+    end
+    assert_match(/✅ mvn available/, out)
+  end
+
+  def test_assert_mise_tool_after_install
+    which_count = 0
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when /\Awhich mvn/
+        which_count += 1
+        CmdResult.new("", false)
+      when /\Amise activate/
+        CmdResult.new("", true)
+      when /\Amise install mvn/
+        CmdResult.new("", true)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      refute Kyb::Check.assert_mise_tool('mvn')
+    end
+    assert_match(/❌ mvn not found/, out)
+  end
+
+  def test_assert_mise_tool_not_found
+    Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
+      case cmd
+      when /\Awhich mvn/
+        CmdResult.new("", false)
+      when /\Amise activate/
+        CmdResult.new("", true)
+      when /\Amise install mvn/
+        CmdResult.new("install failed\n", false)
+      else
+        CmdResult.new(`#{cmd}`, $?.success?)
+      end
+    end
+
+    out, _err = capture_io do
+      refute Kyb::Check.assert_mise_tool('mvn')
+    end
+    assert_match(/❌ mvn not found/, out)
   end
 end
