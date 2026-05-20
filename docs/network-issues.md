@@ -25,7 +25,7 @@ kyb 在构建和运行时涉及大量网络操作。本文按阶段列出所有�
 
 | 工具 | 下载源 |
 |------|--------|
-| node | `npmmirror.com/mirrors/node`（MISE_NODE_MIRROR_URL 设置） |
+| node | `nodejs.org/dist`（通过代理） |
 | python | `python.org/ftp` |
 | ruby | `cache.ruby-lang.org` |
 | maven | `dlcdn.apache.org/maven` |
@@ -81,7 +81,6 @@ Dockerfile 已内置以下措施提高 mise install 的健壮性：
 | 措施 | 说明 |
 |------|------|
 | **独立分层** | 7 个工具各自独立 RUN 层，一工具失败不连累其他，版本变化只重建对应层 |
-| **`MISE_NODE_MIRROR_URL`** | Node.js 通过 `npmmirror.com` 国内镜像下载，不依赖代理 |
 | **3 次重试 × 5s** | 每工具下载失败后自动重试 3 次 |
 | **cache mount** | 下载缓存持久化，重跑 build 时不重复下载 |
 | **5 次重试** | mise 自身安装（`curl mise.run \| sh`）最多重试 5 次 |

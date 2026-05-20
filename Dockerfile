@@ -80,25 +80,31 @@ RUN mkdir -p /home/dev/.local/share/mise/downloads && \
 # Each gets retry loop for transient network failures.
 SHELL ["/bin/bash", "-c"]
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
-    export MISE_NODE_MIRROR_URL=https://npmmirror.com/mirrors/node && \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install node@25 && break; sleep 5; done
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install python@3.10 && break; sleep 5; done
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install ruby@3.3 && break; sleep 5; done
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install maven@3.9 && break; sleep 5; done
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install glab@1.92 && break; sleep 5; done
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install clickhouse@26 && break; sleep 5; done
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install npm:@anthropic-ai/claude-code@2 && break; sleep 5; done
 
 # --- mirror configs (fast, rarely changes) — before slow project tools ---
