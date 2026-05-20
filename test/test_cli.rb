@@ -274,7 +274,7 @@ class CLITest < Minitest::Test
   # --- version ---
 
   def test_version
-    assert_equal '0.8.1', Kyb::VERSION
+    assert_equal '0.10.0', Kyb::VERSION
   end
 
   # --- notify ---
