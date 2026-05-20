@@ -18,6 +18,8 @@
 | [netflix](#netflix) | 方剑峰 | [repo](https://git.leyantech.com/marketing/netflix) | ✅ 收敛 | [!49](https://git.leyantech.com/marketing/netflix/-/merge_requests/49) | Java 8 + Maven | Nexus | — | — | — | ❌ |
 | [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | [!205](https://git.leyantech.com/recommendation/recommendation-filter/-/merge_requests/205) | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
 | [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | [!172](https://git.leyantech.com/recommendation/recommendation-finder/-/merge_requests/172) | Java + Maven | Nexus | — | — | — | ❌ |
+| [peroration](#peroration) | 杨孙学 | [repo](https://git.leyantech.com/base-service/peroration) | ✅ 收敛 | [!76](https://git.leyantech.com/base-service/peroration/-/merge_requests/76) | Java 8 + Maven | Nexus | PostgreSQL | — | — | ❌ |
+| [sidecar](#sidecar) | 王龙 | [repo](https://git.leyantech.com/support/sidecar) | ✅ 收敛 | [!6](https://git.leyantech.com/support/sidecar/-/merge_requests/6) | Python 3.11 + uv | Nexus（PyPI） | PostgreSQL | pytest 88 tests | — | ❌ |
 
 > **负责人数据来源**: ntsb `resources/dbs.toml` 的 maintainer 字段 + 各项目 Git commit 贡献度交叉验证。添加新项目时同步更新。
 
@@ -136,6 +138,20 @@
 - **MR**: !172（open，待合并）
 - **关键踩坑**: 无卡点 — 全 4 轮收敛，首位完成
 - **推荐参考场景**: 纯 Mock 测试、极简项目
+
+### peroration
+
+- **描述**: store-home 店铺首页服务，Java 8 + Maven，jOOQ codegen，Kafka + Redis
+- **MR**: !76（open，待合并）
+- **关键踩坑**: JAVA_HOME 需显式 export、mig25 status 不存在（用 psql 替代）
+- **推荐参考场景**: Java 8 + jOOQ codegen + 多外部服务（Kafka/Redis）项目
+
+### sidecar
+
+- **描述**: 京东服务商辅助工具，Python 3.11 + uv + PostgreSQL，88 tests
+- **MR**: !6（open，待合并）
+- **关键踩坑**: `uv python pin` 后需手动验证 .python-version 文件已创建
+- **推荐参考场景**: Python + uv 项目、纯 Python 无明显 tech-debt 项目
 
 ## 常见坑速查
 
