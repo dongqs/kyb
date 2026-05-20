@@ -10,8 +10,6 @@ module Kyb::Check
     'Ruby (cache.ruby-lang)'  => URI('https://cache.ruby-lang.org'),
   }.freeze
 
-  CONFIG_HINT = "  Config: ~/.config/kyb/config.yml\n  Dockerfile: ~/.kyb/Dockerfile (ALL_PROXY line)".freeze
-
   module_function
 
   def run_checks
@@ -34,10 +32,34 @@ module Kyb::Check
       puts "       #{r[:hint]}" if r[:hint]
     end
 
-    puts "  [INFO] Proxy source: #{proxy ? proxy : '(none)'}"
     if proxy
-      src = config_proxy_source
-      puts "  [INFO] Proxy source: #{src}" if src
+      puts "  [INFO] Proxy: #{proxy}  (#{proxy_source})"
+    else
+      puts '  [INFO] Proxy: none detected'
+    end
+
+    # Show proxy setup guide when international endpoints fail without proxy
+    if !proxy && failed.any?
+      puts <<~HINT
+
+        ── Proxy Setup ──────────────────────────────────
+        Some endpoints failed because they need a proxy to
+        reach international download sites from China.
+
+        Option A — Start your proxy software (sing-box, Clash, etc.)
+          then re-run: kyb preflight
+
+        Option B — Configure a proxy address manually:
+          Edit ~/.config/kyb/config.yml:
+            base:
+              proxy: socks5://127.0.0.1:7890
+
+        Option C — If you're on an internal network that
+          doesn't need a proxy, these endpoints will still
+          fail but kyb build may still work with mirrors:
+          kyb build
+        ─────────────────────────────────────────────────
+      HINT
     end
 
     return if failed.empty?
@@ -46,7 +68,7 @@ module Kyb::Check
     Kyb.die("pre-flight check: #{failed.map { |r| r[:name] }.join(', ')}")
   end
 
-  def config_proxy_source
+  def proxy_source
     return 'config.yml' if Kyb::Proxy.config_proxy
     return 'env var' if Kyb::Proxy.env_proxy
     'port probe'
@@ -57,17 +79,11 @@ module Kyb::Check
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     Socket.tcp(uri.host, uri.port, connect_timeout: 5) { |s| s.close }
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-    @proxy_reachable = true
     { name: 'Proxy server', ok: true, msg: "#{proxy}  (#{elapsed.round(2)}s)" }
   rescue => e
     elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-    @proxy_reachable = false
     { name: 'Proxy server', ok: false, msg: "#{e.class.name.split('::').last} (#{elapsed.round(2)}s)",
-      hint: "Proxy not reachable: #{proxy}\n       Set proxy in ~/.config/kyb/config.yml:\n         base:\n           proxy: socks5://your-proxy:port" }
-  end
-
-  def proxy_reachable?
-    @proxy_reachable == true
+      hint: "Cannot reach #{proxy}.\n       Edit proxy address in ~/.config/kyb/config.yml:\n         base:\n           proxy: socks5://your-proxy:port" }
   end
 
   def check_docker
@@ -96,11 +112,8 @@ module Kyb::Check
       return proxy_result if proxy_result[:ok]
     end
 
-    # Failed both direct and proxy — add hint
     if proxy
-      result[:hint] = "Direct and proxy (#{proxy}) both failed.\n       Check your proxy: #{CONFIG_HINT}"
-    else
-      result[:hint] = 'No proxy configured for build. Try setting up a SOCKS5 proxy.' unless result[:ok]
+      result[:hint] = "Direct and proxy (#{proxy}) both failed.\n       Check proxy address in ~/.config/kyb/config.yml"
     end
     result
   end
