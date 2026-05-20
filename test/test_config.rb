@@ -6,13 +6,11 @@ class ConfigTest < Minitest::Test
   end
 
   def stub_config(data)
-    # Use Object#stub so methods are properly restored after the block.
-    # (define_singleton_method + remove_method permanently destroys module_functions.)
-    Kyb::Config.stub(:load, data) do
-    Kyb::Config.stub(:load_config, data) do
-      yield
-    end
-    end
+    old = Kyb::Config.instance_variable_get(:@config)
+    Kyb::Config.instance_variable_set(:@config, data)
+    yield
+  ensure
+    Kyb::Config.instance_variable_set(:@config, old)
   end
 
   def test_project_ports_as_integers
@@ -124,6 +122,55 @@ class ConfigTest < Minitest::Test
       proj = Kyb::Config.project('niao')
       assert_equal 'http://local:3128', proj[:proxy]
       assert_equal '', proj[:no_proxy]
+    end
+  end
+
+  # -- proxy_in_container ---------------------------------------------------
+
+  def test_proxy_in_container_default_nil
+    stub_config('base' => {}) do
+      assert_nil Kyb::Config.proxy_in_container
+    end
+  end
+
+  def test_proxy_in_container_base_level
+    stub_config('base' => { 'proxy' => 'socks5://host:2080', 'proxy_in_container' => 'socks5://172.17.0.1:7890' }) do
+      assert_equal 'socks5://172.17.0.1:7890', Kyb::Config.proxy_in_container
+    end
+  end
+
+  def test_project_proxy_in_container_falls_back_to_proxy
+    stub_config('base' => { 'proxy' => 'socks5://host:2080' },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal 'socks5://host:2080', proj[:proxy_in_container]
+    end
+  end
+
+  def test_project_proxy_in_container_inherits_from_base
+    stub_config('base' => { 'proxy' => 'socks5://host:2080', 'proxy_in_container' => 'socks5://172.17.0.1:7890' },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal 'socks5://172.17.0.1:7890', proj[:proxy_in_container]
+    end
+  end
+
+  def test_project_proxy_in_container_overrides_base
+    stub_config('base' => { 'proxy' => 'socks5://host:2080', 'proxy_in_container' => 'socks5://172.17.0.1:7890' },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main',
+                  'proxy_in_container' => 'socks5://host.docker.internal:7890' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal 'socks5://host.docker.internal:7890', proj[:proxy_in_container]
+    end
+  end
+
+  def test_project_proxy_in_container_preserves_host_proxy
+    # 确认 proxy_in_container 不影响 proxy 的值
+    stub_config('base' => { 'proxy' => 'socks5://host:2080', 'proxy_in_container' => 'socks5://172.17.0.1:7890' },
+                'projects' => { 'niao' => { 'path' => '~/niao', 'base_branch' => 'main' } }) do
+      proj = Kyb::Config.project('niao')
+      assert_equal 'socks5://host:2080', proj[:proxy]
+      assert_equal 'socks5://172.17.0.1:7890', proj[:proxy_in_container]
     end
   end
 
