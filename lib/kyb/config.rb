@@ -53,6 +53,10 @@ module Kyb::Config
     load_config.dig('base', 'proxy')
   end
 
+  def proxy_in_container
+    load_config.dig('base', 'proxy_in_container')
+  end
+
   def no_proxy
     load_config.dig('base', 'no_proxy')
   end
@@ -78,6 +82,7 @@ module Kyb::Config
       cp_files_base_keys: base_cp.is_a?(Hash) ? base_cp.keys.freeze : [].freeze,
       timezone: p['timezone'] || 'Asia/Shanghai',
       proxy: p['proxy'] || proxy,
+      proxy_in_container: p['proxy_in_container'] || proxy_in_container || proxy,
       no_proxy: p['no_proxy'] || no_proxy,
       sandbox_allowed_domains: DEFAULT_SANDBOX_DOMAINS + Array(p['sandbox_allowed_domains']).map(&:to_s).reject(&:empty?),
       extra_prompt: extra.empty? ? nil : extra

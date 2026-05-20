@@ -295,7 +295,7 @@ module Kyb::Docker
       mounts_ro: proj[:mounts_ro],
       model: model,
       timezone: proj[:timezone],
-      kyb_proxy: proj[:proxy],
+      kyb_proxy: proj[:proxy_in_container],
       kyb_no_proxy: proj[:no_proxy],
       branch: branch
     )
