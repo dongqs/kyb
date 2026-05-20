@@ -199,10 +199,8 @@ fi
 
 touch /tmp/kyb-ready
 
-# Start PostgreSQL in non-DID containers (DID doesn't need it)
-if [ -z "${KYB_DID:-}" ]; then
-    pg_ctlcluster 16 main start 2>/dev/null || true
-fi
+# Start PostgreSQL (also starts in DID containers for projects that need it)
+pg_ctlcluster 16 main start 2>/dev/null || true
 
 # pip tools (may fail during image build, retry here at runtime)
 runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]'" 2>/dev/null || true
