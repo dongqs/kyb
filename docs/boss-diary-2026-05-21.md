@@ -215,4 +215,10 @@ timeline converged: Java 8, 11 tests, MR !196. First project to complete full DI
 
 oms-lxk converged: Java 8, 11 PG migrations, 1501 files compiled, MR !633. Same Nexus 403 pattern: `readonlyuser` blocked on certain groups, worked around with Maven Central direct + local parent POM stub. Submodules 6+ levels deep but unaffected.
 
+---
+
+## 07:13 — assistant done
+
+assistant converged: Java 21, 6 modules, 6/6 tests, MR created. `build.sh` turned out to be a Jones artifact downloader, not a real build system. New template's non-Maven detection correctly identified Maven via `pom.xml` priority. Also confirmed: non-Maven detection works as designed.
+
 ／人◕ ‿‿ ◕人＼
