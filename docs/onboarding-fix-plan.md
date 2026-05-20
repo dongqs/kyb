@@ -116,3 +116,89 @@ P1-5  DID PG 自启             → entrypoint.sh    ~30min
 P2-6  /etc/hosts 别名         → entrypoint.sh    ~15min
 P2-7  proxy 兼容性            → entrypoint.sh    ~15min
 ```
+
+---
+
+## 模版提升计划 — 事前事后检查
+
+### 问题
+
+当前 `.kyb.md` 模版遵循 Unix 哲学："静默假设一切正常，报错了再说"。这对**已配好的环境**没问题，但 onboarding 是在**配环境**——每一步的前提条件都可能不满足。
+
+典型失败模式：
+
+```bash
+# 当前做法：假设成功
+mvn test
+# → 如果 JDK 版本不对，报 confusing 的 class version error
+# → 如果 PG 没启，报 connection refused
+# → 如果 ~/.m2 权限不对，报 permission denied
+```
+
+agent 花大量时间反向排查——从"编译失败"追溯"JDK 版本不对"再追溯"mise 配置被重置"。每层查完才能修。
+
+### 原则
+
+**主动检查好于被动报错。** 每步分三段：
+
+```
+事前检查 → 执行 → 事后验证
+         ↓
+   条件不满足则修复或中止
+```
+
+### 模版改动
+
+#### 事前检查（每步开头加 `assert` 块）
+
+```bash
+# 示例：工具确认步骤
+# assert: java 版本正确
+java -version 2>&1 | grep -q "openjdk version \"21" \
+  || { echo "❌ JDK 不是 21，当前: $(java -version 2>&1)"; mise use -g java@corretto-21; }
+# assert: JAVA_HOME 已设
+test -n "$JAVA_HOME" || export JAVA_HOME=$(mise where java)
+# assert: PG 可连
+pg_isready -q || pg_ctlcluster 16 main start
+
+# → 然后才执行正式命令
+mvn test
+```
+
+#### 事后验证（每步末尾加 `verify` 块）
+
+```bash
+# 示例：数据库步骤
+MIG25_DSN="..." mig25 upgrade
+
+# verify:  migration 全部到位
+mig25 list | tail -5
+# verify:  关键表存在
+psql -U postgres -d mydb -c "\dt core.*" | grep -q "buyer_sessions" \
+  && echo "✅ core.buyer_sessions 存在" \
+  || echo "❌ 缺少 core.buyer_sessions"
+```
+
+#### 完整流程模板对照
+
+| 当前步骤 | 事前检查 | 执行 | 事后验证 |
+|---------|---------|------|---------|
+| 1. 工具确认 | java/mvn/pg 版本断言 | —（纯检查步骤本身） | 全部 ✅ |
+| 2. 子模块 | git 可用性 | `git submodule update` | 子模块目录非空 |
+| 3. 数据库 | PG 运行、DB 不存在 | `createdb` + `mig25 upgrade` | `mig25 list` 总量、关键表 |
+| 4. 代码生成 | DSN 可达 | `mig25-codegen generate` | 生成目录非空 |
+| 5. 编译 | JAVA_HOME、凭据 | `mvn compile` | BUILD SUCCESS |
+| 6. 测试 | 外部服务探测 | `mvn test` | 测试数 ≥ 预期、0 failures |
+
+### 预期效果
+
+- **排查时间减半**: 事前检查把失败提前到具体断言行，而不是等深层命令报 confusing 错误
+- **自修复**: 常见条件不满足（PG 没启、JDK 版本不对）可直接自动修复而非中止
+- **agent 友好**: agent 看到清晰断言失败比解析 Maven stack trace 快得多
+- **人类也可读**: 写死 `java -version | grep 21` 比隐含假设更明确
+
+### 实施顺序
+
+1. 改 `docs/onboarding.kyb.md` 模版 — 加入 assert/verify 模式（~1h）
+2. 已有 `.kyb.md` 逐步迁移 — 先改高频使用的（buyer-center, moneta, netflix）
+3. 新建 `lib/kyb/assert.rb` — 封装通用断言函数（`Kyb.assert_java`, `Kyb.assert_pg` 等）
