@@ -19,6 +19,7 @@
 | [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | ✅ [!205](https://git.leyantech.com/recommendation/recommendation-filter/-/merge_requests/205) | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
 | [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | ✅ [!172](https://git.leyantech.com/recommendation/recommendation-finder/-/merge_requests/172) | Java + Maven | Nexus | — | — | — | ❌ |
 | [peroration](#peroration) | 杨孙学 | [repo](https://git.leyantech.com/base-service/peroration) | ✅ 收敛 | ✅ [!76](https://git.leyantech.com/base-service/peroration/-/merge_requests/76) | Java 8 + Maven | Nexus | PostgreSQL | — | — | ❌ |
+| [lighthouse](#lighthouse) | — | [repo](https://git.leyantech.com/base-service/lighthouse) | ✅ 收敛 | ✅ [!36](https://git.leyantech.com/base-service/lighthouse/-/merge_requests/36) | Java 8 + Maven | Nexus（leyan-proto 107MB） | PostgreSQL + jOOQ | JUnit 60 tests 灯塔助手 | — | ❌ |
 | [sidecar](#sidecar) | 王龙 | [repo](https://git.leyantech.com/support/sidecar) | ✅ 收敛 | ✅ [!6](https://git.leyantech.com/support/sidecar/-/merge_requests/6) | Python 3.11 + uv | Nexus（PyPI） | PostgreSQL | pytest 88 tests | — | ❌ |
 | [business-rule](#business-rule) | AI | [repo](https://git.leyantech.com/ai/business-rule) | 🟡 Round 1 | — | Python 3.10 + Maven | Nexus (Maven) + PyPI | — | JUnit 集成测试 | .arc-extensions | ❌ |
 
@@ -30,14 +31,15 @@
 
 | JDK | 项目 | 备注 |
 |-----|------|------|
-| **8** | dredge-lxk | 需手动 `mise install java@corretto-8` |
+| **8** | dredge-lxk, lighthouse | 需手动 `mise install java@corretto-8`（parent POM 强制 `1.8`） |
+| **17** | form-manager | Lombok 兼容性 |
 | **21** | buyer-center, buyer-server, nova, data-ant, triggers-refund | kyb-base 预装 |
 
 ### 按数据库
 
 | 数据库 | 项目 |
 |--------|------|
-| **仅 PostgreSQL** | buyer-center, buyer-server, nova, data-ant, triggers-refund |
+| **仅 PostgreSQL** | buyer-center, buyer-server, nova, data-ant, triggers-refund, lighthouse |
 | **PostgreSQL + ClickHouse** | dredge-lxk |
 
 ### 按外部服务
@@ -146,6 +148,18 @@
 - **MR**: !76（✅ merged）
 - **关键踩坑**: JAVA_HOME 需显式 export、mig25 status 不存在（用 psql 替代）
 - **推荐参考场景**: Java 8 + jOOQ codegen + 多外部服务（Kafka/Redis）项目
+
+### lighthouse
+
+- **描述**: 灯塔助手服务，Java 8 + Maven + PostgreSQL + jOOQ codegen + Jooby + gRPC + Apollo，4 模块，60 tests
+- **MR**: [!36](https://git.leyantech.com/base-service/lighthouse/-/merge_requests/36)（✅ merged）
+- **关键踩坑**:
+  - JDK 8 必须（parent POM `com.leyantech:base:1.0.23` 强制 `<requireJavaVersion>1.8</requireJavaVersion>`）
+  - Lombok 1.18.12 与 JDK 17+ 不兼容（`IllegalAccessError`）
+  - `JAVA_HOME` 需显式 export（`export JAVA_HOME=$(mise where java@corretto-8)`）
+  - leyan-proto 1.41.66 达 107MB，大文件下载可能因网络不稳定失败
+  - mig25 需要从项目目录执行才能读取 `m25.yml`
+- **推荐参考场景**: Java 8 + Maven multi-module + jOOQ codegen + Jooby + gRPC 项目
 
 ### sidecar
 
