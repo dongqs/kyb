@@ -32,9 +32,9 @@ if $uid_changed || $gid_changed; then
 fi
 
 # Only fix shared volume permissions on first use (fresh volumes are root-owned)
-find /home/dev/.gradle /home/dev/.m2/repository -maxdepth 0 -user root -print -quit |
+find /home/dev/.gradle /home/dev/.m2/repository /home/dev/.local/share/mise/downloads -maxdepth 0 -user root -print -quit |
   grep -q . &&
-  chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository 2>/dev/null || true
+  chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository /home/dev/.local/share/mise/downloads 2>/dev/null || true
 
 # Clean stale Gradle locks from zombie daemons (common after failed builds)
 rm -f /home/dev/.gradle/caches/journal-*/journal-*.lock
