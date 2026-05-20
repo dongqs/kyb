@@ -134,7 +134,10 @@ module Kyb::Docker
     args += ['-e', "KYB_PROJECT=#{project_name}"]
     args += ['-e', "KYB_MODEL=#{model || Kyb::Config.claude_default_model}"]
     args += ['-e', "TZ=#{timezone}"]
-    args += ['-e', "KYB_PROXY=#{kyb_proxy}"] if kyb_proxy
+    if kyb_proxy
+      kyb_proxy_translated = host_to_docker_proxy(kyb_proxy)
+      args += ['-e', "KYB_PROXY=#{kyb_proxy_translated}"]
+    end
     args += ['-e', "KYB_NO_PROXY=#{kyb_no_proxy}"] if kyb_no_proxy
     args += ['-e', "KYB_BRANCH=#{branch}"] if branch
     args += ['-l', Kyb::Container::LABEL]

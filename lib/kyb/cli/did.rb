@@ -79,7 +79,10 @@ module Kyb::CLI
     run_args += ['-e', "KYB_DID=#{name}"]
     run_args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"] if ENV['GITLAB_TOKEN']
     run_args += ['-e', "KIMI_API_KEY=#{ENV['KIMI_API_KEY']}"] if ENV['KIMI_API_KEY']
-    run_args += ['-e', "ALL_PROXY=#{Kyb::Config.proxy}"] if Kyb::Config.proxy
+    if Kyb::Config.proxy
+      proxy_translated = Kyb::Docker.host_to_docker_proxy(Kyb::Config.proxy)
+      run_args += ['-e', "ALL_PROXY=#{proxy_translated}"]
+    end
     run_args += ['-e', "NO_PROXY=#{Kyb::Config.no_proxy}"] if Kyb::Config.no_proxy
     run_args += ['-v', "#{volume}:/home/dev/projects/#{name}"]
 
