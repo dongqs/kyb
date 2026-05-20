@@ -8,7 +8,7 @@ require 'net/http'
 require 'uri'
 
 module Kyb
-  VERSION = '0.8.1'
+  VERSION = '0.9.0'
 
   ALIASES = %w[
     可以不

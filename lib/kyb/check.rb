@@ -16,56 +16,76 @@ module Kyb::Check
     proxy = Kyb::Proxy.detect
 
     results = []
+
     results << check_ruby
+    print_result(results.last)
+
     results << check_docker
-    results << check_proxy(proxy) if proxy
-    results += ENDPOINTS.map { |name, uri| check_endpoint(name, uri.to_s, proxy) }
+    print_result(results.last)
+
+    if proxy
+      results << check_proxy(proxy)
+      print_result(results.last)
+    end
+
+    ENDPOINTS.each do |name, uri|
+      results << check_endpoint(name, uri.to_s, proxy)
+      print_result(results.last)
+    end
+
     results << check_disk
+    print_result(results.last)
 
     failed = results.reject { |r| r[:ok] }
 
     puts "\n==> Pre-flight checks: #{failed.empty? ? 'ALL PASS' : "#{failed.size} FAILED"}"
-    results.each do |r|
-      icon = r[:ok] ? '  OK' : 'FAIL'
-      proxy_tag = r[:via_proxy] ? ' (via proxy)' : ''
-      puts "  [#{icon}] #{r[:name]}#{proxy_tag} — #{r[:msg]}"
-      puts "       #{r[:hint]}" if r[:hint]
-    end
-
-    if proxy
-      puts "  [INFO] Proxy: #{proxy}  (#{proxy_source})"
-    else
-      puts '  [INFO] Proxy: none detected'
-    end
-
-    # Show proxy setup guide when international endpoints fail without proxy
-    if !proxy && failed.any?
-      puts <<~HINT
-
-        ── Proxy Setup ──────────────────────────────────
-        Some endpoints failed because they need a proxy to
-        reach international download sites from China.
-
-        Option A — Start your proxy software (sing-box, Clash, etc.)
-          then re-run: kyb preflight
-
-        Option B — Configure a proxy address manually:
-          Edit ~/.config/kyb/config.yml:
-            base:
-              proxy: socks5://127.0.0.1:7890
-
-        Option C — If you're on an internal network that
-          doesn't need a proxy, these endpoints will still
-          fail but kyb build may still work with mirrors:
-          kyb build
-        ─────────────────────────────────────────────────
-      HINT
-    end
+    print_proxy_info(proxy, failed)
+    print_proxy_hint(proxy, failed)
 
     return if failed.empty?
 
     puts "\n  Fix the above failures, then re-run: kyb preflight"
     Kyb.die("pre-flight check: #{failed.map { |r| r[:name] }.join(', ')}")
+  end
+
+  def print_result(r)
+    icon = r[:ok] ? '  OK' : 'FAIL'
+    proxy_tag = r[:via_proxy] ? ' (via proxy)' : ''
+    puts "  [#{icon}] #{r[:name]}#{proxy_tag} — #{r[:msg]}"
+    puts "       #{r[:hint]}" if r[:hint]
+  end
+
+  def print_proxy_info(proxy, _failed)
+    if proxy
+      puts "  [INFO] Proxy: #{proxy}  (#{proxy_source})"
+    else
+      puts '  [INFO] Proxy: none detected'
+    end
+  end
+
+  def print_proxy_hint(proxy, failed)
+    return if proxy || failed.empty?
+
+    puts <<~HINT
+
+      ── Proxy Setup ──────────────────────────────────
+      Some endpoints failed because they need a proxy to
+      reach international download sites from China.
+
+      Option A — Start your proxy software (sing-box, Clash, etc.)
+        then re-run: kyb preflight
+
+      Option B — Configure a proxy address manually:
+        Edit ~/.config/kyb/config.yml:
+          base:
+            proxy: socks5://127.0.0.1:7890
+
+      Option C — If you're on an internal network that
+        doesn't need a proxy, these endpoints will still
+        fail but kyb build may still work with mirrors:
+        kyb build
+      ─────────────────────────────────────────────────
+    HINT
   end
 
   def proxy_source
