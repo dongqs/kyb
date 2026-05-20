@@ -14,13 +14,22 @@ module Kyb::Docker
     args = ['docker', 'build', '-t', tag, '--label']
     args << "kyb.build-hash=#{build_hash}"
     if proxy
+      build_proxy = host_to_docker_proxy(proxy)
       puts "  [PROXY] #{proxy}"
-      args += ['--build-arg', "BUILD_ALL_PROXY=#{proxy}"]
+      puts "  [BUILD PROXY] #{build_proxy}" if build_proxy != proxy
+      args += ['--build-arg', "BUILD_ALL_PROXY=#{build_proxy}"]
     else
       puts '  [PROXY] none (direct connections)'
     end
     args << path.to_s
     system(env, *args) || Kyb.die('docker build failed')
+  end
+
+  # Replace 127.0.0.1/localhost with host.docker.internal so proxy
+  # works inside Docker build containers (where 127.0.0.1 is the
+  # container itself, not the host).
+  def host_to_docker_proxy(proxy)
+    proxy.sub(/\A(socks5|http|https):\/\/(127\.0\.0\.1|localhost)(:\d+)/) { "#{$1}://host.docker.internal#{$3}" }
   end
 
   def image_exists?(image)
