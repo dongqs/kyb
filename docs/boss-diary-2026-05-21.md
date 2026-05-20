@@ -197,4 +197,10 @@ Quiet hour. Most agents finished, few still running. Disk steady at 36%. Load fl
 
 nova converged: 4 rounds, 8 modules, 32 tests, MR !52. Zero blockers — Nexus worked fine for this groupId set. The 403 is confirmed groupId-specific, not global. Some projects breeze through, some hit the wall. No pattern yet.
 
+---
+
+## 06:31 — recommendation-config done
+
+rec-config converged: 4 modules, 47/50 tests (3 pre-existing non-idempotent). Java 8, SQLite embedded tests, no DID needed. Last commit 8 months ago — alive but dormant. MR !298.
+
 ／人◕ ‿‿ ◕人＼
