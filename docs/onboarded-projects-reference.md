@@ -6,20 +6,20 @@
 
 | 项目 | 负责人 | 外链 | 状态 | MR | 工具层 | 依赖层 | 数据层 | 项目层 | 子模块 | DID |
 |------|--------|------|------|-----|--------|--------|--------|--------|--------|-----|
-| [dredge-lxk](#dredge-lxk) | 建行 | [repo](https://git.leyantech.com/marketing/dredge-lxk) | ✅ 收敛 | [!324](https://git.leyantech.com/marketing/dredge-lxk/-/merge_requests/324) | Java 8 + Maven + Ruby | Nexus | PostgreSQL + ClickHouse | JUnit 圈人服务 | click/party/datasets（深嵌套） | ❌ |
-| [buyer-center](#buyer-center) | 泽坤 | [repo](https://git.leyantech.com/base-service/buyer-center) | ✅ 收敛 | [!76](https://git.leyantech.com/base-service/buyer-center/-/merge_requests/76) | Java 21 + Maven | Nexus | PostgreSQL | JUnit 买家中心 | party | ❌ |
+| [dredge-lxk](#dredge-lxk) | 建行 | [repo](https://git.leyantech.com/marketing/dredge-lxk) | ✅ 收敛 | ✅ [!324](https://git.leyantech.com/marketing/dredge-lxk/-/merge_requests/324) | Java 8 + Maven + Ruby | Nexus | PostgreSQL + ClickHouse | JUnit 圈人服务 | click/party/datasets（深嵌套） | ❌ |
+| [buyer-center](#buyer-center) | 泽坤 | [repo](https://git.leyantech.com/base-service/buyer-center) | ✅ 收敛 | ✅ [!76](https://git.leyantech.com/base-service/buyer-center/-/merge_requests/76) | Java 21 + Maven | Nexus | PostgreSQL | JUnit 买家中心 | party | ❌ |
 | [buyer-server](#buyer-server) | 泽坤 | [repo](https://git.leyantech.com/base-service/buyer-server) | ✅ 收敛 | — | Java + Maven | Nexus | PostgreSQL | — | — | ❌ |
 | [nova](#nova) | 马林 | [repo](https://git.leyantech.com/base-service/nova) | ✅ 收敛 | — | Java + Maven | Nexus | — | — | — | ❌ |
 | [data-ant](#data-ant) | 马林 | [repo](https://git.leyantech.com/base-service/data-ant) | ✅ 收敛 | — | Java + Maven | Nexus（嵌套子模块） | — | 集成测试 | 嵌套子模块 | ❌ |
 | [triggers-refund](#triggers-refund) | 泽坤 | [repo](https://git.leyantech.com/base-service/triggers-refund) | ✅ 收敛 | — | Java + Maven + JDK 代理坑 | Nexus | — | Kafka | — | ✅ |
-| [form-manager](#form-manager) | 泽坤 | [repo](https://git.leyantech.com/base-service/form-manager) | ✅ 收敛 | [!38](https://git.leyantech.com/base-service/form-manager/-/merge_requests/38) | Java 17 + Maven | Nexus | PostgreSQL | — | — | ❌ |
-| [moneta](#moneta) | 泽坤 | [repo](https://git.leyantech.com/base-service/moneta) | ✅ 收敛 | [!237](https://git.leyantech.com/base-service/moneta/-/merge_requests/237) | Java 21 + Maven | Nexus（jOOQ） | PostgreSQL | — | — | ❌ |
-| [rating-boost](#rating-boost) | 泽坤 | [repo](https://git.leyantech.com/base-service/rating-boost) | ✅ 收敛 | [!44](https://git.leyantech.com/base-service/rating-boost/-/merge_requests/44) | Java 21 + Maven | Nexus（jOOQ + Apollo + RocketMQ） | PostgreSQL | — | — | ❌ |
-| [netflix](#netflix) | 方剑峰 | [repo](https://git.leyantech.com/marketing/netflix) | ✅ 收敛 | [!49](https://git.leyantech.com/marketing/netflix/-/merge_requests/49) | Java 8 + Maven | Nexus | — | — | — | ❌ |
-| [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | [!205](https://git.leyantech.com/recommendation/recommendation-filter/-/merge_requests/205) | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
-| [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | [!172](https://git.leyantech.com/recommendation/recommendation-finder/-/merge_requests/172) | Java + Maven | Nexus | — | — | — | ❌ |
-| [peroration](#peroration) | 杨孙学 | [repo](https://git.leyantech.com/base-service/peroration) | ✅ 收敛 | [!76](https://git.leyantech.com/base-service/peroration/-/merge_requests/76) | Java 8 + Maven | Nexus | PostgreSQL | — | — | ❌ |
-| [sidecar](#sidecar) | 王龙 | [repo](https://git.leyantech.com/support/sidecar) | ✅ 收敛 | [!6](https://git.leyantech.com/support/sidecar/-/merge_requests/6) | Python 3.11 + uv | Nexus（PyPI） | PostgreSQL | pytest 88 tests | — | ❌ |
+| [form-manager](#form-manager) | 泽坤 | [repo](https://git.leyantech.com/base-service/form-manager) | ✅ 收敛 | ✅ [!38](https://git.leyantech.com/base-service/form-manager/-/merge_requests/38) | Java 17 + Maven | Nexus | PostgreSQL | — | — | ❌ |
+| [moneta](#moneta) | 泽坤 | [repo](https://git.leyantech.com/base-service/moneta) | ✅ 收敛 | ✅ [!237](https://git.leyantech.com/base-service/moneta/-/merge_requests/237) | Java 21 + Maven | Nexus（jOOQ） | PostgreSQL | — | — | ❌ |
+| [rating-boost](#rating-boost) | 泽坤 | [repo](https://git.leyantech.com/base-service/rating-boost) | ✅ 收敛 | ✅ [!44](https://git.leyantech.com/base-service/rating-boost/-/merge_requests/44) | Java 21 + Maven | Nexus（jOOQ + Apollo + RocketMQ） | PostgreSQL | — | — | ❌ |
+| [netflix](#netflix) | 方剑峰 | [repo](https://git.leyantech.com/marketing/netflix) | ✅ 收敛 | ✅ [!49](https://git.leyantech.com/marketing/netflix/-/merge_requests/49) | Java 8 + Maven | Nexus | — | — | — | ❌ |
+| [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | ✅ [!205](https://git.leyantech.com/recommendation/recommendation-filter/-/merge_requests/205) | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
+| [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | ✅ [!172](https://git.leyantech.com/recommendation/recommendation-finder/-/merge_requests/172) | Java + Maven | Nexus | — | — | — | ❌ |
+| [peroration](#peroration) | 杨孙学 | [repo](https://git.leyantech.com/base-service/peroration) | ✅ 收敛 | ✅ [!76](https://git.leyantech.com/base-service/peroration/-/merge_requests/76) | Java 8 + Maven | Nexus | PostgreSQL | — | — | ❌ |
+| [sidecar](#sidecar) | 王龙 | [repo](https://git.leyantech.com/support/sidecar) | ✅ 收敛 | ✅ [!6](https://git.leyantech.com/support/sidecar/-/merge_requests/6) | Python 3.11 + uv | Nexus（PyPI） | PostgreSQL | pytest 88 tests | — | ❌ |
 
 > **负责人数据来源**: ntsb `resources/dbs.toml` 的 maintainer 字段 + 各项目 Git commit 贡献度交叉验证。添加新项目时同步更新。
 
@@ -66,7 +66,7 @@
 ### dredge-lxk
 
 - **描述**: 京东人群定向（圈人）服务
-- **MR**: https://git.leyantech.com/marketing/dredge-lxk/-/merge_requests/324（open，待合并）
+- **MR**: https://git.leyantech.com/marketing/dredge-lxk/-/merge_requests/324（✅ merged）
 - **关键踩坑**:
   - JDK 8 需手动 `mise install`
   - ClickHouse 24.2 容器必须（host CK 25.1 不兼容 JSON 类型）
@@ -77,7 +77,7 @@
 ### buyer-center
 
 - **描述**: 买家中心服务
-- **MR**: https://git.leyantech.com/base-service/buyer-center/-/merge_requests/76（open，待合并）
+- **MR**: https://git.leyantech.com/base-service/buyer-center/-/merge_requests/76（✅ merged）
 - **关键踩坑**:
   - kyb-base 默认 JDK 8，需 `mise use -g java@corretto-21` 切换
   - `JAVA_HOME` 需显式 export（mvn 不自动读 mise）
@@ -100,56 +100,56 @@
 ### form-manager
 
 - **描述**: hamilton-sdk 消费方，表单管理服务
-- **MR**: !38（open，待合并）
+- **MR**: !38（✅ merged）
 - **关键踩坑**: Lombok 1.18.22 与 Java 21 不兼容（NoSuchFieldError），需切 Java 17
 - **推荐参考场景**: Lombok + Java 17 项目
 
 ### moneta
 
 - **描述**: hamilton-sdk 消费方，淘系买家标签服务，5 模块
-- **MR**: !237（open，待合并）
+- **MR**: !237（✅ merged）
 - **关键踩坑**: jOOQ codegen class version 61.0 vs 52.0 冲突，DID 需手动装 Maven
 - **推荐参考场景**: jOOQ codegen + multi-module 项目
 
 ### rating-boost
 
 - **描述**: hamilton-sdk 消费方，5 模块，jOOQ codegen，Apollo + RocketMQ
-- **MR**: !44（open，待合并）
+- **MR**: !44（✅ merged）
 - **关键踩坑**: mise 回退（JDK 21→17→8 切换），DID 需手动装 PG/pip/Maven，子模块 doudian-buyer
 - **推荐参考场景**: jOOQ codegen + Apollo/RocketMQ 项目
 
 ### netflix
 
 - **描述**: hamilton-sdk 消费方，4 模块，无 DB
-- **MR**: !49（open，待合并）
+- **MR**: !49（✅ merged）
 - **关键踩坑**: JaCoCo 0.8.8 不兼容 JDK 21 class files，3 tests passed
 - **推荐参考场景**: 无 DB + JaCoCo 项目
 
 ### recommendation-filter
 
 - **描述**: hamilton-sdk 消费方，gRPC + Kafka，无 DB，12 tests
-- **MR**: !205（open，待合并）
+- **MR**: !205（✅ merged）
 - **关键踩坑**: Java 21→8 切换（gRPC 不兼容 JDK 21），DID 验证通过
 - **推荐参考场景**: gRPC + Kafka 项目
 
 ### recommendation-finder 🏆
 
 - **描述**: hamilton-sdk 消费方，无 DB，纯 Mock 测试，23 tests
-- **MR**: !172（open，待合并）
+- **MR**: !172（✅ merged）
 - **关键踩坑**: 无卡点 — 全 4 轮收敛，首位完成
 - **推荐参考场景**: 纯 Mock 测试、极简项目
 
 ### peroration
 
 - **描述**: store-home 店铺首页服务，Java 8 + Maven，jOOQ codegen，Kafka + Redis
-- **MR**: !76（open，待合并）
+- **MR**: !76（✅ merged）
 - **关键踩坑**: JAVA_HOME 需显式 export、mig25 status 不存在（用 psql 替代）
 - **推荐参考场景**: Java 8 + jOOQ codegen + 多外部服务（Kafka/Redis）项目
 
 ### sidecar
 
 - **描述**: 京东服务商辅助工具，Python 3.11 + uv + PostgreSQL，88 tests
-- **MR**: !6（open，待合并）
+- **MR**: !6（✅ merged）
 - **关键踩坑**: `uv python pin` 后需手动验证 .python-version 文件已创建
 - **推荐参考场景**: Python + uv 项目、纯 Python 无明显 tech-debt 项目
 
