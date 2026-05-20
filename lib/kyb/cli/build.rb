@@ -11,7 +11,8 @@ module Kyb::CLI
 
     Kyb::Check.run_checks
 
-    Kyb::Docker.build(Kyb::Container::BASE_IMAGE, path)
+    proxy = Kyb::Proxy.detect
+    Kyb::Docker.build(Kyb::Container::BASE_IMAGE, path, proxy: proxy)
     puts "==> Build complete: #{Kyb::Container::BASE_IMAGE}"
   end
 end

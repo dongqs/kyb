@@ -13,7 +13,7 @@ kyb 在构建和运行时涉及大量网络操作。本文按阶段列出所有�
 | 1 | `apt-get update` | `mirrors.aliyun.com/ubuntu` (x86) 或 `mirrors.aliyun.com/ubuntu-ports` (ARM) | 无 | build 失败 |
 | 2 | `apt-get install` | 同上 | 无 | build 失败 |
 | 3 | `curl https://mise.run \| sh` | `mise.run` | 5 次 × 5s 间隔 | build 失败 |
-| 4 | `mise install` | node（npmmirror 镜像）/python/ruby 等，见下方详表 | **3 次 × 10s 间隔** | build 失败 |
+| 4 | `mise install`（7 独立层） | 见下方详表，每工具独立下载 | 每工具 **3 次 × 5s 间隔** | build 失败 |
 | 5 | `npm install -g yarn` | `registry.npmmirror.com` | 无 | build 失败 |
 | 6 | `pip install mig25...` | `nexus.leyantech.com` (Nexus 私有 PyPI) | 无 | **吞没**（`\|\| true`），运行时重试 |
 | 7 | `curl https://code.kimi.com/install.sh \| bash` | `code.kimi.com` + uv PyPI | 无 | build 失败 |
@@ -41,7 +41,7 @@ kyb 在构建和运行时涉及大量网络操作。本文按阶段列出所有�
 curl: (7) Failed to connect to mise.run port 443
 ```
 
-→ 检查宿主机能否访问外网。如果走代理，确认代理地址和端口正确。Dockerfile 末尾清除了 `ALL_PROXY`，build 期间不走代理（阿里云镜像和 Nexus 都是直连）。
+→ 运行 `kyb preflight` 检查各端点连通性。`kyb build` 会自动检测宿主机代理（通过 `config.yml` → 环境变量 → 端口探测），通过 `--build-arg BUILD_ALL_PROXY` 传入 Docker 构建过程。构建完成后镜像内不保留代理配置（入口点在运行时按需配置）。
 
 **镜像源不可用**
 
@@ -80,12 +80,19 @@ Dockerfile 已内置以下措施提高 mise install 的健壮性：
 
 | 措施 | 说明 |
 |------|------|
+| **独立分层** | 7 个工具各自独立 RUN 层，一工具失败不连累其他，版本变化只重建对应层 |
 | **`MISE_NODE_MIRROR_URL`** | Node.js 通过 `npmmirror.com` 国内镜像下载，不依赖代理 |
-| **3 次重试** | `mise install` 失败后等 10s 重试，最多 3 次 |
-| **cache mount** | 下载缓存持久化，重跑 build 时不重复下载相同版本 |
-| **5 次重试** | mise 自身安装（`curl mise.run | sh`）最多重试 5 次 |
+| **3 次重试 × 5s** | 每工具下载失败后自动重试 3 次 |
+| **cache mount** | 下载缓存持久化，重跑 build 时不重复下载 |
+| **5 次重试** | mise 自身安装（`curl mise.run \| sh`）最多重试 5 次 |
 
-Node.js 使用国内镜像后，即使代理不可用也能正常安装。其他工具（python、ruby、maven）仍走代理。
+工具安装顺序（按稳定性排列，最稳定的先装）：
+
+```
+node@25 → python@3.10 → ruby@3.3 → maven@3.9 → glab@1.92 → clickhouse@26 → claude-code@2
+```
+
+越靠前的工具层越不容易被后续版本变化 invalidate。
 
 ---
 

@@ -7,11 +7,20 @@ module Kyb::Docker
 
   BUILD_HASH_FILES = %w[Dockerfile entrypoint.sh].freeze
 
-  def build(tag, path)
+  def build(tag, path, proxy: nil)
     puts "==> Building base image: #{tag}"
     env = { 'DOCKER_BUILDKIT' => '1' }
     build_hash = compute_build_hash(path)
-    system(env, 'docker', 'build', '-t', tag, '--label', "kyb.build-hash=#{build_hash}", path.to_s) || Kyb.die('docker build failed')
+    args = ['docker', 'build', '-t', tag, '--label']
+    args << "kyb.build-hash=#{build_hash}"
+    if proxy
+      puts "  [PROXY] #{proxy}"
+      args += ['--build-arg', "BUILD_ALL_PROXY=#{proxy}"]
+    else
+      puts '  [PROXY] none (direct connections)'
+    end
+    args << path.to_s
+    system(env, *args) || Kyb.die('docker build failed')
   end
 
   def image_exists?(image)

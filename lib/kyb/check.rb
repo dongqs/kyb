@@ -15,7 +15,7 @@ module Kyb::Check
   module_function
 
   def run_checks
-    proxy = detect_build_proxy
+    proxy = Kyb::Proxy.detect
 
     results = []
     results << check_ruby
@@ -31,14 +31,13 @@ module Kyb::Check
       icon = r[:ok] ? '  OK' : 'FAIL'
       proxy_tag = r[:via_proxy] ? ' (via proxy)' : ''
       puts "  [#{icon}] #{r[:name]}#{proxy_tag} — #{r[:msg]}"
-      if r[:hint]
-        puts "       #{r[:hint]}"
-      end
+      puts "       #{r[:hint]}" if r[:hint]
     end
 
-    puts "  [INFO] Build proxy: #{proxy || '(none)'}"
-    unless proxy_found? && proxy_reachable?
-      puts "  [HINT] Proxy config: #{CONFIG_HINT}"
+    puts "  [INFO] Proxy source: #{proxy ? proxy : '(none)'}"
+    if proxy
+      src = config_proxy_source
+      puts "  [INFO] Proxy source: #{src}" if src
     end
 
     return if failed.empty?
@@ -47,46 +46,28 @@ module Kyb::Check
     Kyb.die("pre-flight check: #{failed.map { |r| r[:name] }.join(', ')}")
   end
 
-  def detect_build_proxy
-    path = Kyb::Config.base_image_path
-    dockerfile = File.join(path, 'Dockerfile')
-    return nil unless File.exist?(dockerfile)
-
-    File.readlines(dockerfile).each do |line|
-      next unless line.include?('ALL_PROXY=') && !line.include?('ALL_PROXY= ')
-      m = line.match(/ALL_PROXY=(\S+)/)
-      return m[1].sub(/\\$/, '').strip if m
-    end
-    nil
+  def config_proxy_source
+    return 'config.yml' if Kyb::Proxy.config_proxy
+    return 'env var' if Kyb::Proxy.env_proxy
+    'port probe'
   end
 
-  def proxy_found?
-    @proxy_reachable != nil
+  def check_proxy(proxy)
+    uri = URI.parse(proxy)
+    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    Socket.tcp(uri.host, uri.port, connect_timeout: 5) { |s| s.close }
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+    @proxy_reachable = true
+    { name: 'Proxy server', ok: true, msg: "#{proxy}  (#{elapsed.round(2)}s)" }
+  rescue => e
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
+    @proxy_reachable = false
+    { name: 'Proxy server', ok: false, msg: "#{e.class.name.split('::').last} (#{elapsed.round(2)}s)",
+      hint: "Proxy not reachable: #{proxy}\n       Set proxy in ~/.config/kyb/config.yml:\n         base:\n           proxy: socks5://your-proxy:port" }
   end
 
   def proxy_reachable?
     @proxy_reachable == true
-  end
-
-  def check_proxy(proxy)
-    uri = URI(proxy)
-    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    # For SOCKS5, we test by making a real proxy request (curl --proxy)
-    # For HTTP proxies, try connecting to the proxy port directly
-    http = Net::HTTP.new(uri.host, uri.port)
-    http.open_timeout = 5
-    http.read_timeout = 5
-    http.use_ssl = uri.scheme == 'socks5h' || uri.scheme == 'socks5' ? false : (uri.scheme == 'https')
-    # Just check TCP connectivity for proxy server
-    s = Socket.tcp(uri.host, uri.port, connect_timeout: 5) { |s| s.close }
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-    @proxy_reachable = true
-    { name: 'Build proxy server', ok: true, msg: "#{proxy}  (#{elapsed.round(2)}s)" }
-  rescue => e
-    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-    @proxy_reachable = false
-    { name: 'Build proxy server', ok: false, msg: "#{e.class.name.split('::').last} (#{elapsed.round(2)}s)",
-      hint: "Is the proxy running? #{proxy}\n       #{CONFIG_HINT}" }
   end
 
   def check_docker

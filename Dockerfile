@@ -1,5 +1,9 @@
 FROM ubuntu:24.04
 
+# Proxy injected via --build-arg from `kyb build` (auto-detected on host).
+# If empty (no proxy found), all downloads go direct.
+ARG BUILD_ALL_PROXY=
+
 # Aliyun mirror — supports both ARM64 (ports) and AMD64 (archive)
 # TARGETARCH is auto-set by Docker BuildKit
 RUN arch="${TARGETARCH:-$(uname -m)}" && \
@@ -28,9 +32,9 @@ RUN echo 'local all all trust' > /etc/postgresql/16/main/pg_hba.conf && \
 # UTF-8 locale (required by Ruby TOML parsing etc.)
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
-# Proxy: socks5 via OrbStack host, bypass intranet
-ENV ALL_PROXY=socks5://host.orb.internal:2080 \
-    all_proxy=socks5://host.orb.internal:2080 \
+# Proxy: injected via --build-arg BUILD_ALL_PROXY from host auto-detection
+ENV ALL_PROXY=${BUILD_ALL_PROXY} \
+    all_proxy=${BUILD_ALL_PROXY} \
     NO_PROXY=.leyantech.com,git.leyantech.com,nexus.leyantech.com,localhost,127.0.0.1,host.orb.internal,.local,.internal \
     no_proxy=.leyantech.com,git.leyantech.com,nexus.leyantech.com,localhost,127.0.0.1,host.orb.internal,.local,.internal
 
@@ -64,26 +68,38 @@ RUN for i in 1 2 3 4 5; do \
       sleep 5; \
     done
 
-# mise global config — copied before mise-install so config changes
-# only invalidate the install layer, not mise itself
+# mise global config
 COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
 
-# Install mise tools (node, python, claude-code, clickhouse, glab)
-# Cache mount only covers downloads — installs/shim go into the image layer
-# Node mirror via npmmirror for faster downloads in China (MISE_NODE_MIRROR_URL)
-# Retry loop for transient network failures (common through SOCKS5 proxy)
+# Pre-create download cache dir (shared across all tool layers via cache mount)
+RUN mkdir -p /home/dev/.local/share/mise/downloads && \
+    sudo chown -R dev:dev /home/dev/.local/share/mise
+
+# Install tools individually for independent layer caching.
+# Order: stable (node/python/ruby) → medium (maven/glab/clickhouse) → volatile (claude-code)
+# Each gets retry loop for transient network failures.
 SHELL ["/bin/bash", "-c"]
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
-    mkdir -p /home/dev/.local/share/mise/downloads && \
-    sudo chown -R dev:dev /home/dev/.local/share/mise && \
     export MISE_NODE_MIRROR_URL=https://npmmirror.com/mirrors/node && \
-    eval "$($HOME/.local/bin/mise activate bash)" && \
-    mise trust && \
-    for i in 1 2 3; do \
-      mise install && break; \
-      echo "==> mise install failed (attempt $i/3), retrying in 10s..."; \
-      sleep 10; \
-    done
+    for i in 1 2 3; do /home/dev/.local/bin/mise install node@25 && break; sleep 5; done
+
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    for i in 1 2 3; do /home/dev/.local/bin/mise install python@3.10 && break; sleep 5; done
+
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    for i in 1 2 3; do /home/dev/.local/bin/mise install ruby@3.3 && break; sleep 5; done
+
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    for i in 1 2 3; do /home/dev/.local/bin/mise install maven@3.9 && break; sleep 5; done
+
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    for i in 1 2 3; do /home/dev/.local/bin/mise install glab@1.92 && break; sleep 5; done
+
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    for i in 1 2 3; do /home/dev/.local/bin/mise install clickhouse@26 && break; sleep 5; done
+
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    for i in 1 2 3; do /home/dev/.local/bin/mise install npm:@anthropic-ai/claude-code@2 && break; sleep 5; done
 
 # --- mirror configs (fast, rarely changes) — before slow project tools ---
 

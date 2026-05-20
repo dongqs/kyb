@@ -61,26 +61,29 @@ kyb enter kyb-hello
 
 ### 代理配置
 
-kyb 在构建和运行容器时都需要网络访问。代理配置分两层：
+kyb 统一了构建和运行时的代理，用户只需提供一个代理地址即可。
 
-**构建代理（`kyb build`）** — 写死在 `Dockerfile` 的 `ALL_PROXY` 中：
-- 默认值：`socks5://host.orb.internal:2080`（macOS OrbStack 上的 sing-box 分流代理）
-- 如果宿主机没有运行代理，编辑 `~/.kyb/Dockerfile`，找到 `ALL_PROXY=` 行改成你的代理地址
-- 或者在内网不需要代理的，直接删除那几行 `ENV ALL_PROXY=...`
+**检测顺序：** `config.yml` → 环境变量 `ALL_PROXY / HTTPS_PROXY / HTTP_PROXY` → 探测常见代理端口
 
-**运行时代理（`kyb create` → 容器内）** — 通过 `config.yml` 配置：
 ```yaml
 base:
-  proxy: socks5://host.orb.internal:2080   # 所有项目的默认代理
+  proxy: socks5://host.orb.internal:2080   # 全局代理（可选，不配则自动探测）
   no_proxy: .leyantech.com,localhost,127.0.0.1
-
-projects:
-  my-project:
-    proxy: http://proxy.corp.com:3128      # 项目级覆盖（可选）
-    no_proxy: '*.internal.corp.com'       # 项目级直连列表（可选）
 ```
 
-> 运行时代理写入容器内的 `~/.claude/CLAUDE.md`，供 AI agent 读取使用。不配代理则容器不能访问外网。
+如果什么都不配，`kyb build` / `kyb preflight` 会自动探测以下端口：
+
+| 代理软件 | 地址 | 协议 |
+|---------|------|------|
+| sing-box（OrbStack） | `host.orb.internal:2080` | SOCKS5 |
+| SOCKS5 默认 | `localhost:1080` | SOCKS5 |
+| Clash | `127.0.0.1:7890` | SOCKS5 / HTTP |
+| Clash Verge | `127.0.0.1:7897` | SOCKS5 |
+| v2ray | `localhost:10808` | SOCKS5 |
+
+找到代理后通过 `docker build --build-arg BUILD_ALL_PROXY=...` 传入构建过程。
+
+> 运行时代理写入容器内的 `~/.claude/CLAUDE.md`，供 AI agent 读取使用。配了代理则容器内外都能访问外网。
 
 ### 添加你自己的项目
 

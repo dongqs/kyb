@@ -79,6 +79,7 @@ end
 
 require_relative 'kyb/config'
 require_relative 'kyb/check'
+require_relative 'kyb/proxy'
 require_relative 'kyb/container'
 require_relative 'kyb/parser'
 require_relative 'kyb/docker'

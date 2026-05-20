@@ -21,10 +21,22 @@ class CheckTest < Minitest::Test
     assert_match(/available/, result[:msg])
   end
 
-  def test_detect_build_proxy
-    proxy = Kyb::Check.detect_build_proxy
-    refute_nil proxy, 'Dockerfile should have ALL_PROXY'
-    assert_match(%r{socks5://}, proxy)
+  def test_proxy_detect
+    proxy = Kyb::Proxy.detect
+    refute_nil proxy, 'should detect a proxy'
+    assert_match(%r{socks5://|http://}, proxy)
+  end
+
+  def test_proxy_env_vars
+    orig = ENV['ALL_PROXY']
+    ENV['ALL_PROXY'] = 'socks5://test:1080'
+    assert_equal 'socks5://test:1080', Kyb::Proxy.env_proxy
+  ensure
+    ENV['ALL_PROXY'] = orig
+  end
+
+  def test_proxy_env_vars_empty
+    assert_nil Kyb::Proxy.env_proxy
   end
 
   def test_try_http_direct_aliyun
