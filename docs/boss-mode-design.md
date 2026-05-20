@@ -112,7 +112,35 @@ Boss 模式（一对多）:
 - 已知环境限制
 - 项目间差异提示
 
-### 坑 6: 测试非幂等
+### 坑 7: subagent 不自验就报 done
+
+**现象**：subagent 改完代码直接报完成，没有跑任何验证（语法检查、编译、测试）。manager 以为搞定了，实际可能代码都没 commit、语法有错、功能不对。
+
+**本次实例**：派两个 agent 修 kyb 基础设施问题。Agent A 改了 `mise.config.toml` + `Dockerfile` 后既没 commit 也没验证语法；Agent B 改了 `entrypoint.sh` 但没做 shellcheck 或运行测试。manager 不得不亲自下场验货——这不该是 boss 干的活。
+
+**根因**：manager 派活时 prompt 只写了"改什么"，没写"改完要验证"。subagent 按字面执行——做到"改完"就停了。
+
+**教训**：**subagent 的完成条件不应该是"改完了"，而是"验证通过了"。**
+
+**设计原则**：
+- 每个 subagent 的 prompt **末尾必须有验证步骤**——具体命令和期望结果
+- subagent 必须**跑完验证、贴出证据**才算 done
+- 验证失败的 subagent 报告失败原因，manager 判断是重试、介入还是换方案
+- manager 只看验证报告，不下场重新验证——那是信不过 subagent 的表现
+
+**prompt 模版**：
+```
+任务: <做什么>
+
+改完后执行以下验证，全部通过才能报 done：
+1. `bash -n <file>` → 输出为空（语法正确）
+2. `grep <pattern> <file>` → 匹配成功（改动在正确位置）
+3. <运行相关测试> → 全部通过
+
+完成后 commit 并 push。汇报时附上每条验证命令的输出。
+```
+
+### 坑 6: 测试非幂等（原坑 6，保持编号不变）
 
 **现象**：moneta 和 buyer-center 的测试改了数据库状态，第二次跑就失败。agent 不知道"truncate 重跑"这个模式。
 
