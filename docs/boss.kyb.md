@@ -76,12 +76,14 @@ Agent tool → subagent_type: general-purpose → run_in_background: true
 
 ```
 subagent 跑起来后 → 等 task notification
-├─ 完成了 → 读结果，汇总
+├─ 完成了 → 派另一个 subagent 交叉复核
 ├─ 卡住了 → 介入指导，或重派
 └─ 超时了（>预期时间×1.5）→ 介入检查
 ```
 
 **不要轮询**。等通知。期间可以做其他事（派其他 subagent、处理已完成的结果）。
+
+**不要亲自复核。** agent 交的活，派另一个 agent 去 review。交叉复核比你自己看更靠谱——人眼有盲区，AI 眼也有。
 
 ## 第五步：汇总
 
