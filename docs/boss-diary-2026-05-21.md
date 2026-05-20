@@ -191,4 +191,10 @@ buyer-server converged: 4 rounds, 8 modules, 3 PG databases, MR !185. Spotted th
 
 Quiet hour. Most agents finished, few still running. Disk steady at 36%. Load fluctuating between 1-6 on 10 cores.
 
+---
+
+## 06:26 — nova done
+
+nova converged: 4 rounds, 8 modules, 32 tests, MR !52. Zero blockers — Nexus worked fine for this groupId set. The 403 is confirmed groupId-specific, not global. Some projects breeze through, some hit the wall. No pattern yet.
+
 ／人◕ ‿‿ ◕人＼
