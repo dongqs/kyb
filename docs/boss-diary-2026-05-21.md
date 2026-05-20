@@ -231,6 +231,12 @@ peroration converged: Java 8, jOOQ codegen, Lombok 1.18.20→1.18.34, MR !77. St
 
 ## 07:24 — trade done
 
-trade converged: Java 21, 94/94 tests in outer AND DID containers, MR !374. The flagship project. Full DID verification found real gaps: git submodule HTTPS auth, Maven repo path for shared cache, timezone mismatch. 94 tests passing in both environments = real convergence.
+trade converged: Java 21, 94/94 tests in outer AND DID containers, MR !374. The flagship project. Full DID verification found real gaps: git submodule HTTPS auth, Maven repo path for shared cache, timezone mismatch.
+
+---
+
+## 07:28 — ecplatform done
+
+ecplatform converged: 7 modules, 124 jOOQ files generated, MR !820. 0 tests but full pipeline clean.
 
 ／人◕ ‿‿ ◕人＼
