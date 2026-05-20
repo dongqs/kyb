@@ -20,6 +20,7 @@
 | [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | ✅ [!172](https://git.leyantech.com/recommendation/recommendation-finder/-/merge_requests/172) | Java + Maven | Nexus | — | — | — | ❌ |
 | [peroration](#peroration) | 杨孙学 | [repo](https://git.leyantech.com/base-service/peroration) | ✅ 收敛 | ✅ [!76](https://git.leyantech.com/base-service/peroration/-/merge_requests/76) | Java 8 + Maven | Nexus | PostgreSQL | — | — | ❌ |
 | [sidecar](#sidecar) | 王龙 | [repo](https://git.leyantech.com/support/sidecar) | ✅ 收敛 | ✅ [!6](https://git.leyantech.com/support/sidecar/-/merge_requests/6) | Python 3.11 + uv | Nexus（PyPI） | PostgreSQL | pytest 88 tests | — | ❌ |
+| [business-rule](#business-rule) | AI | [repo](https://git.leyantech.com/ai/business-rule) | 🟡 Round 1 | — | Python 3.10 + Maven | Nexus (Maven) + PyPI | — | JUnit 集成测试 | .arc-extensions | ❌ |
 
 > **负责人数据来源**: ntsb `resources/dbs.toml` 的 maintainer 字段 + 各项目 Git commit 贡献度交叉验证。添加新项目时同步更新。
 
@@ -153,6 +154,17 @@
 - **关键踩坑**: `uv python pin` 后需手动验证 .python-version 文件已创建
 - **推荐参考场景**: Python + uv 项目、纯 Python 无明显 tech-debt 项目
 
+### business-rule
+
+- **描述**: AI NLP 规则管理。Python + Airflow + Maven(integration-test) 混合项目。
+- **MR**: 待创建
+- **关键踩坑**:
+  - Nexus 403：容器 IP 192.168.215.0/24 不在 Nexus 白名单，阻断 Maven 编译和测试
+  - PyYAML 6.0+ `yaml.load()` 不兼容（项目代码用无参 `yaml.load()`）
+  - oss2 未预装，Airflow 脚本需要
+  - 无数据库依赖
+- **推荐参考场景**: Python + Maven 混合项目、项目有 IP 白名单限制的项目
+
 ## 常见坑速查
 
 | # | 坑 | 首次出现 | 影响项目 | 一句话修复 |
@@ -168,3 +180,4 @@
 | 9 | Lombok + Java 21 不兼容 | form-manager | 用 Lombok 的项目 | 切 Java 17 编译或升级 Lombok |
 | 10 | JaCoCo 0.8.8 + JDK 21 | netflix | 用 JaCoCo + JDK 21 的项目 | 升级 JaCoCo 或加 `-Djacoco.skip=true` |
 | 11 | jOOQ codegen class version 冲突 | moneta/rating-boost | 用 jOOQ + JDK 21 的项目 | 确保 Maven 运行在兼容的 JDK 版本 |
+| 12 | Nexus 403 IP 白名单 | business-rule | 首次遇到 IP 限制的项目 | 宿主机将 `192.168.215.0/24` 加入 Nexus 白名单 |
