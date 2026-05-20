@@ -4,9 +4,9 @@
 
 > **如何使用本文档**：
 > - **进入 boss 模式** → 在容器内执行：`cp docs/boss.kyb.md ~/projects/<项目>/.kyb.md` → 然后读这份文档，照做。
-> - **回顾方法论** → 阅读最下方"方法论文档"章节（四维决策/踩坑记录/参考链接）
+> - **回顾方法论** → 阅读 [boss-mode-design.md](boss-mode-design.md)（四维决策/踩坑记录/完整设计思路）
 >
-> 文件结构：上方为可直接使用的 `.kyb.md` 模版（给 manager agent 的 SOP），下方为方**法论文档**。
+> 文件结构：上方为可直接使用的 `.kyb.md` 模版（给 manager agent 的 SOP），下方无重复方法论。
 
 ---
 
@@ -63,7 +63,8 @@ Agent tool → subagent_type: general-purpose → run_in_background: true
 - 任务描述（做什么 + 做到什么程度算完）
 - 参考文档或踩坑记录
 - 决策边界（哪些已知坑可以跳过、什么情况该放弃）
-- 完成条件（如何通知你：写结果文件或 notify）
+- 验证步骤（改完必须跑什么命令验证，贴出证据才算 done）
+- 完成条件（commit + push，写结果文件或 notify）
 
 ## 第四步：监控
 
@@ -87,120 +88,5 @@ subagent 跑起来后 → 等 task notification
 
 ---
 
-# 方法论文档
+> 完整的方法论、四维决策框架、踩坑记录详见 [boss-mode-design.md](boss-mode-design.md)。本文件只含 SOP，不重复方法论。
 
-以下为 boss 模式的方法论和参考信息。非模版内容，不须填入项目。
-
-## 四维决策框架详解
-
-### 维度 1：路径清晰度
-
-是否知道"具体要做什么、每一步怎么做"？
-
-| 路径 | 典型场景 | 决策 |
-|------|---------|------|
-| 清晰 | 按标准流程 onboarding、修已知 bug、执行常规操作 | ✅ 可拆 |
-| 模糊 | 性能排查、架构分析、根因调查 | ❌ manager 先探索 |
-| 半清晰 | 需求明确但实现路径不确定 | 拆探索任务 + 执行任务 |
-
-### 维度 2：并行度
-
-子任务能否互不依赖同时进行？
-
-| 并行度 | 典型场景 | 决策 |
-|--------|---------|------|
-| 高 | 多个独立项目的 onboarding | ✅ 全并行 |
-| 中 | 一个项目的多个独立模块 | 并行但注意隔离 |
-| 低 | 前后依赖的任务链 | 串行 pipeline |
-
-### 维度 3：任务粒度
-
-多大才算"够大"？
-
-| 粒度 | 耗时 | 决策 |
-|------|------|------|
-| 过大 | >2h | ❌ 需再拆（subagent 上下文撑不住）|
-| 适中 | 10-30min | ✅ 理想粒度 |
-| 偏小 | 2-5min | ⚠️ 边缘（上下文开销 ≈ 自己做）|
-| 过小 | <1min | ❌ 自己做 |
-
-### 维度 4：任务间耦合
-
-子任务之间会不会互相影响？
-
-| 耦合度 | 风险 | 隔离策略 |
-|--------|------|---------|
-| 无 | 无 | 随便并行 |
-| 弱 | merge 冲突 | 独立工作目录 |
-| 中 | 数据污染 | 独立 DB / 独立 schema |
-| 强 | 必然冲突 | **不能并行**，串行做 |
-
-## Subagent 的 prompt 结构
-
-fork 时每个 subagent 的 prompt 应包含以下要素：
-
-```yaml
-prompt: |
-  任务: <一句话描述>
-
-  上下文:
-    - 项目: <项目名>
-    - 参考: <参考文档/踩坑记录链接>
-    - 已知坑:
-        - "<坑1> → 直接跳过/修法"
-        - "<坑2> → 直接跳过/修法"
-  
-  完成条件:
-    - <条件1: 如 "mvn test 全部通过">
-    - <条件2: 如 "commit pushed">
-  
-  边界:
-    - 卡在已知坑 → 直接修，不探索
-    - 卡了 10min 没进展 → 放弃，报告 manager
-    - pip3 缺失 → 跳过（uv 全覆盖）
-  
-  完成后:
-    - 写摘要到 /tmp/.kyb-result.md
-    - 不要等我确认，直接做下一件事
-```
-
-## 踩坑记录
-
-### 坑 1: 路径不清晰就拆
-
-**白拆了**——subagent 频繁卡住，manager 得不断介入。沟通成本 > 自己做。
-
-**修法**：路径模糊的任务，manager 先自己做一轮探索，搞清楚了再拆。
-
-### 坑 2: 没设超时
-
-subagent 卡在一个问题上不放手，manager 在等通知，两边空耗。
-
-**修法**：每个 subagent 设 timeout（预期时间 × 1.5）。超时了 manager 主动检查。
-
-### 坑 3: 共享环境
-
-两个 subagent 在同一工作目录/同一数据库上跑，互相污染。
-
-**修法**：共享 mutable 状态的任务不能并行。不改隔离就别并行。
-
-### 坑 4: 粒度太小
-
-开一个 subagent 的上下文成本 5-10K token，任务本身 30 秒做完。成本倒挂。
-
-**修法**：<5min 的任务自己做，不拆。
-
-### 坑 5: 轮询
-
-manager 在循环检查 subagent 进度，浪费上下文。
-
-**修法**：subagent 完成后写 sentinel 文件或 notify。manager 等通知不轮询。
-
-## 参考链接
-
-- [Boss 模式设计思路（完整版）](boss-mode-design.md) — 更详细的背景、实验数据、未解决问题
-- [WISH_LIST Issue #20](https://git.leyantech.com/quick-n-dirty/kyb/-/issues/20)
-- [Onboarding Manager 方法论](onboarding-manager.md) — 三层模型、双 agent 实验、四轮迭代
-- [SDK Batch 赛事直播](race-live.md) — 6 项目并发 onboarding 时间线
-- [kyb Issue #11: DID 容器工具链](https://git.leyantech.com/quick-n-dirty/kyb/-/issues/11)
-- [kyb Issue #10: 隔离沙箱](https://git.leyantech.com/quick-n-dirty/kyb/-/issues/10)

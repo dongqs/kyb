@@ -32,12 +32,16 @@ if $uid_changed || $gid_changed; then
 fi
 
 # Only fix shared volume permissions on first use (fresh volumes are root-owned)
-find /home/dev/.gradle /home/dev/.m2/repository -maxdepth 0 -user root -print -quit |
+find /home/dev/.gradle /home/dev/.m2/repository /home/dev/.local/share/mise/downloads -maxdepth 0 -user root -print -quit |
   grep -q . &&
-  chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository 2>/dev/null || true
+  chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository /home/dev/.local/share/mise/downloads 2>/dev/null || true
 
 # Clean stale Gradle locks from zombie daemons (common after failed builds)
 rm -f /home/dev/.gradle/caches/journal-*/journal-*.lock
+
+# Add service aliases to /etc/hosts so projects can connect by hostname
+grep -q "postgres" /etc/hosts 2>/dev/null ||
+  printf "127.0.0.1\tpostgres clickhouse kafka redis\n" >> /etc/hosts
 
 # Keep mise download archives so shared cache volumes avoid re-download
 runuser -u dev -- bash -l -c "mise settings set always_keep_downloads true" 2>/dev/null || true
@@ -195,10 +199,8 @@ fi
 
 touch /tmp/kyb-ready
 
-# Start PostgreSQL in non-DID containers (DID doesn't need it)
-if [ -z "${KYB_DID:-}" ]; then
-    pg_ctlcluster 16 main start 2>/dev/null || true
-fi
+# Start PostgreSQL (also starts in DID containers for projects that need it)
+pg_ctlcluster 16 main start 2>/dev/null || true
 
 # pip tools (may fail during image build, retry here at runtime)
 runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]'" 2>/dev/null || true
