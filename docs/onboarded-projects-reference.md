@@ -12,6 +12,12 @@
 | [nova](#nova) | 马林 | [repo](https://git.leyantech.com/base-service/nova) | ✅ 收敛 | — | Java + Maven | Nexus | — | — | — | ❌ |
 | [data-ant](#data-ant) | 马林 | [repo](https://git.leyantech.com/base-service/data-ant) | ✅ 收敛 | — | Java + Maven | Nexus（嵌套子模块） | — | 集成测试 | 嵌套子模块 | ❌ |
 | [triggers-refund](#triggers-refund) | 泽坤 | [repo](https://git.leyantech.com/base-service/triggers-refund) | ✅ 收敛 | — | Java + Maven + JDK 代理坑 | Nexus | — | Kafka | — | ✅ |
+| [form-manager](#form-manager) | 泽坤 | [repo](https://git.leyantech.com/base-service/form-manager) | ✅ 收敛 | open（待合） | Java 17 + Maven | Nexus | PostgreSQL | — | — | ❌ |
+| [moneta](#moneta) | 泽坤 | [repo](https://git.leyantech.com/base-service/moneta) | ✅ 收敛 | open（待合） | Java 21 + Maven | Nexus（jOOQ） | PostgreSQL | — | — | ❌ |
+| [rating-boost](#rating-boost) | 泽坤 | [repo](https://git.leyantech.com/base-service/rating-boost) | ✅ 收敛 | open（待合） | Java 21 + Maven | Nexus（jOOQ + Apollo + RocketMQ） | PostgreSQL | — | — | ❌ |
+| [netflix](#netflix) | 方剑峰 | [repo](https://git.leyantech.com/marketing/netflix) | ✅ 收敛 | open（待合） | Java 8 + Maven | Nexus | — | — | — | ❌ |
+| [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | open（待合） | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
+| [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | open（待合） | Java + Maven | Nexus | — | — | — | ❌ |
 
 > **负责人数据来源**: ntsb `resources/dbs.toml` 的 maintainer 字段 + 各项目 Git commit 贡献度交叉验证。添加新项目时同步更新。
 
@@ -89,6 +95,48 @@
 - **关键踩坑**: JDK 代理配置、Kafka 集成测试
 - **推荐参考场景**: 需要 DID 容器、涉及消息队列的项目
 
+### form-manager
+
+- **描述**: hamilton-sdk 消费方，表单管理服务
+- **MR**: !38（open，待合并）
+- **关键踩坑**: Lombok 1.18.22 与 Java 21 不兼容（NoSuchFieldError），需切 Java 17
+- **推荐参考场景**: Lombok + Java 17 项目
+
+### moneta
+
+- **描述**: hamilton-sdk 消费方，淘系买家标签服务，5 模块
+- **MR**: !237（open，待合并）
+- **关键踩坑**: jOOQ codegen class version 61.0 vs 52.0 冲突，DID 需手动装 Maven
+- **推荐参考场景**: jOOQ codegen + multi-module 项目
+
+### rating-boost
+
+- **描述**: hamilton-sdk 消费方，5 模块，jOOQ codegen，Apollo + RocketMQ
+- **MR**: !44（open，待合并）
+- **关键踩坑**: mise 回退（JDK 21→17→8 切换），DID 需手动装 PG/pip/Maven，子模块 doudian-buyer
+- **推荐参考场景**: jOOQ codegen + Apollo/RocketMQ 项目
+
+### netflix
+
+- **描述**: hamilton-sdk 消费方，4 模块，无 DB
+- **MR**: !49（open，待合并）
+- **关键踩坑**: JaCoCo 0.8.8 不兼容 JDK 21 class files，3 tests passed
+- **推荐参考场景**: 无 DB + JaCoCo 项目
+
+### recommendation-filter
+
+- **描述**: hamilton-sdk 消费方，gRPC + Kafka，无 DB，12 tests
+- **MR**: !205（open，待合并）
+- **关键踩坑**: Java 21→8 切换（gRPC 不兼容 JDK 21），DID 验证通过
+- **推荐参考场景**: gRPC + Kafka 项目
+
+### recommendation-finder 🏆
+
+- **描述**: hamilton-sdk 消费方，无 DB，纯 Mock 测试，23 tests
+- **MR**: !172（open，待合并）
+- **关键踩坑**: 无卡点 — 全 4 轮收敛，首位完成
+- **推荐参考场景**: 纯 Mock 测试、极简项目
+
 ## 常见坑速查
 
 | # | 坑 | 首次出现 | 影响项目 | 一句话修复 |
@@ -101,3 +149,6 @@
 | 6 | 测试非幂等 | dredge-lxk | ON CONFLICT 模式的项目 | truncate 重跑 |
 | 7 | HikariCP 连接池泄漏 | buyer-center | Guice + Hikari 的项目 | 扩 PG max_connections |
 | 8 | DID 容器空白 slate | dredge-lxk | DID 验证 | 需要 onboarding agent 预先装 JDK 和拷贝代码 |
+| 9 | Lombok + Java 21 不兼容 | form-manager | 用 Lombok 的项目 | 切 Java 17 编译或升级 Lombok |
+| 10 | JaCoCo 0.8.8 + JDK 21 | netflix | 用 JaCoCo + JDK 21 的项目 | 升级 JaCoCo 或加 `-Djacoco.skip=true` |
+| 11 | jOOQ codegen class version 冲突 | moneta/rating-boost | 用 jOOQ + JDK 21 的项目 | 确保 Maven 运行在兼容的 JDK 版本 |
