@@ -6,18 +6,18 @@
 
 | 项目 | 负责人 | 外链 | 状态 | MR | 工具层 | 依赖层 | 数据层 | 项目层 | 子模块 | DID |
 |------|--------|------|------|-----|--------|--------|--------|--------|--------|-----|
-| [dredge-lxk](#dredge-lxk) | 建行 | [repo](https://git.leyantech.com/marketing/dredge-lxk) | ✅ 收敛 | open（待合） | Java 8 + Maven + Ruby | Nexus | PostgreSQL + ClickHouse | JUnit 圈人服务 | click/party/datasets（深嵌套） | ❌ |
-| [buyer-center](#buyer-center) | 泽坤 | [repo](https://git.leyantech.com/base-service/buyer-center) | ✅ 收敛 | open（待合） | Java 21 + Maven | Nexus | PostgreSQL | JUnit 买家中心 | party | ❌ |
+| [dredge-lxk](#dredge-lxk) | 建行 | [repo](https://git.leyantech.com/marketing/dredge-lxk) | ✅ 收敛 | [!324](https://git.leyantech.com/marketing/dredge-lxk/-/merge_requests/324) | Java 8 + Maven + Ruby | Nexus | PostgreSQL + ClickHouse | JUnit 圈人服务 | click/party/datasets（深嵌套） | ❌ |
+| [buyer-center](#buyer-center) | 泽坤 | [repo](https://git.leyantech.com/base-service/buyer-center) | ✅ 收敛 | [!76](https://git.leyantech.com/base-service/buyer-center/-/merge_requests/76) | Java 21 + Maven | Nexus | PostgreSQL | JUnit 买家中心 | party | ❌ |
 | [buyer-server](#buyer-server) | 泽坤 | [repo](https://git.leyantech.com/base-service/buyer-server) | ✅ 收敛 | — | Java + Maven | Nexus | PostgreSQL | — | — | ❌ |
 | [nova](#nova) | 马林 | [repo](https://git.leyantech.com/base-service/nova) | ✅ 收敛 | — | Java + Maven | Nexus | — | — | — | ❌ |
 | [data-ant](#data-ant) | 马林 | [repo](https://git.leyantech.com/base-service/data-ant) | ✅ 收敛 | — | Java + Maven | Nexus（嵌套子模块） | — | 集成测试 | 嵌套子模块 | ❌ |
 | [triggers-refund](#triggers-refund) | 泽坤 | [repo](https://git.leyantech.com/base-service/triggers-refund) | ✅ 收敛 | — | Java + Maven + JDK 代理坑 | Nexus | — | Kafka | — | ✅ |
-| [form-manager](#form-manager) | 泽坤 | [repo](https://git.leyantech.com/base-service/form-manager) | ✅ 收敛 | open（待合） | Java 17 + Maven | Nexus | PostgreSQL | — | — | ❌ |
-| [moneta](#moneta) | 泽坤 | [repo](https://git.leyantech.com/base-service/moneta) | ✅ 收敛 | open（待合） | Java 21 + Maven | Nexus（jOOQ） | PostgreSQL | — | — | ❌ |
-| [rating-boost](#rating-boost) | 泽坤 | [repo](https://git.leyantech.com/base-service/rating-boost) | ✅ 收敛 | open（待合） | Java 21 + Maven | Nexus（jOOQ + Apollo + RocketMQ） | PostgreSQL | — | — | ❌ |
-| [netflix](#netflix) | 方剑峰 | [repo](https://git.leyantech.com/marketing/netflix) | ✅ 收敛 | open（待合） | Java 8 + Maven | Nexus | — | — | — | ❌ |
-| [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | open（待合） | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
-| [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | open（待合） | Java + Maven | Nexus | — | — | — | ❌ |
+| [form-manager](#form-manager) | 泽坤 | [repo](https://git.leyantech.com/base-service/form-manager) | ✅ 收敛 | [!38](https://git.leyantech.com/base-service/form-manager/-/merge_requests/38) | Java 17 + Maven | Nexus | PostgreSQL | — | — | ❌ |
+| [moneta](#moneta) | 泽坤 | [repo](https://git.leyantech.com/base-service/moneta) | ✅ 收敛 | [!237](https://git.leyantech.com/base-service/moneta/-/merge_requests/237) | Java 21 + Maven | Nexus（jOOQ） | PostgreSQL | — | — | ❌ |
+| [rating-boost](#rating-boost) | 泽坤 | [repo](https://git.leyantech.com/base-service/rating-boost) | ✅ 收敛 | [!44](https://git.leyantech.com/base-service/rating-boost/-/merge_requests/44) | Java 21 + Maven | Nexus（jOOQ + Apollo + RocketMQ） | PostgreSQL | — | — | ❌ |
+| [netflix](#netflix) | 方剑峰 | [repo](https://git.leyantech.com/marketing/netflix) | ✅ 收敛 | [!49](https://git.leyantech.com/marketing/netflix/-/merge_requests/49) | Java 8 + Maven | Nexus | — | — | — | ❌ |
+| [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | [!205](https://git.leyantech.com/recommendation/recommendation-filter/-/merge_requests/205) | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
+| [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | [!172](https://git.leyantech.com/recommendation/recommendation-finder/-/merge_requests/172) | Java + Maven | Nexus | — | — | — | ❌ |
 
 > **负责人数据来源**: ntsb `resources/dbs.toml` 的 maintainer 字段 + 各项目 Git commit 贡献度交叉验证。添加新项目时同步更新。
 
