@@ -13,6 +13,8 @@
 | [data-ant](#data-ant) | 马林 | [repo](https://git.leyantech.com/base-service/data-ant) | ✅ 收敛 | — | Java + Maven | Nexus（嵌套子模块） | — | 集成测试 | 嵌套子模块 | ❌ |
 | [triggers-refund](#triggers-refund) | 泽坤 | [repo](https://git.leyantech.com/base-service/triggers-refund) | ✅ 收敛 | — | Java + Maven + JDK 代理坑 | Nexus | — | Kafka | — | ✅ |
 
+> **负责人数据来源**: ntsb `resources/dbs.toml` 的 maintainer 字段 + 各项目 Git commit 贡献度交叉验证。添加新项目时同步更新。
+
 ## 快速定位参考项目
 
 ### 按 JDK 版本
