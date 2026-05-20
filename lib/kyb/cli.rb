@@ -74,6 +74,8 @@ module Kyb::CLI
       sandbox(args)
     when 'did'
       did(args)
+    when 'assert'
+      assert_cmd(args)
     when 'tts'
       Kyb.die("tts requires a subcommand\n  Usage: kyb tts {start|stop|status|speak|ping|done}") unless args.first
       case args[0]
@@ -138,6 +140,8 @@ module Kyb::CLI
         sandbox PROJECT-BRANCH [PROMPT]  Claude Code sandbox mode (no Docker)
         sandbox ps, ls                   List host sandboxes
         sandbox rm PROJECT-BRANCH        Remove host sandbox
+        assert <type> [args...]          Verify and auto-heal prerequisites
+                                         Types: java [v], pg, mise <tool>
         did create <name>               DID: create container (Docker-in-Docker)
         did rm <name>                   DID: remove container
         did ps, ls                      DID: list containers
@@ -162,3 +166,4 @@ require_relative 'cli/sandbox'
 require_relative 'cli/tts'
 require_relative 'cli/did'
 require_relative 'cli/session'
+require_relative 'cli/assert'

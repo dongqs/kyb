@@ -381,19 +381,17 @@ class CheckAssertTest < Minitest::Test
     assert_match(/✅ mvn available/, out)
   end
 
-  def test_assert_mise_tool_after_activate
-    which_count = 0
+  def test_assert_mise_tool_after_install
     Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
       case cmd
       when /\Awhich mvn/
-        which_count += 1
-        if which_count == 1
-          CmdResult.new("", false)
-        else
-          CmdResult.new("/home/dev/.local/share/mise/installs/maven/3.9.9/bin/mvn\n", true)
-        end
-      when /\Amise activate/
+        CmdResult.new("", false)
+      when /\Amise install mvn/
         CmdResult.new("", true)
+      when /\Amise use -g mvn/
+        CmdResult.new("", true)
+      when /\Amise x mvn -- mvn --version/
+        CmdResult.new("Apache Maven 3.9.9\n", true)
       else
         CmdResult.new(`#{cmd}`, $?.success?)
       end
@@ -405,17 +403,13 @@ class CheckAssertTest < Minitest::Test
     assert_match(/✅ mvn available/, out)
   end
 
-  def test_assert_mise_tool_after_install
-    which_count = 0
+  def test_assert_mise_tool_install_fails
     Kyb::Check.define_singleton_method(:capture_cmd) do |cmd|
       case cmd
       when /\Awhich mvn/
-        which_count += 1
         CmdResult.new("", false)
-      when /\Amise activate/
-        CmdResult.new("", true)
       when /\Amise install mvn/
-        CmdResult.new("", true)
+        CmdResult.new("install failed\n", false)
       else
         CmdResult.new(`#{cmd}`, $?.success?)
       end
@@ -432,8 +426,6 @@ class CheckAssertTest < Minitest::Test
       case cmd
       when /\Awhich mvn/
         CmdResult.new("", false)
-      when /\Amise activate/
-        CmdResult.new("", true)
       when /\Amise install mvn/
         CmdResult.new("install failed\n", false)
       else

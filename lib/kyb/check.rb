@@ -246,23 +246,26 @@ module Kyb::Check
   end
 
   def assert_mise_tool(tool_name)
+    # Check if tool is already available on PATH
     which_result = capture_cmd("which #{tool_name} 2>&1")
     if which_result.success?
       puts "✅ #{tool_name} available"
       return true
     end
 
-    capture_cmd('eval "$(mise activate bash)" 2>&1')
-    which_result = capture_cmd("which #{tool_name} 2>&1")
-    if which_result.success?
-      puts "✅ #{tool_name} available"
-      return true
+    # Install via mise
+    install_result = capture_cmd("mise install #{tool_name} 2>&1")
+    unless install_result.success?
+      puts "❌ #{tool_name} not found"
+      return false
     end
 
-    capture_cmd("mise install #{tool_name} 2>&1")
-    capture_cmd('eval "$(mise activate bash)" 2>&1')
-    which_result = capture_cmd("which #{tool_name} 2>&1")
-    if which_result.success?
+    # Activate globally (required so shims work in subsequent sessions)
+    capture_cmd("mise use -g #{tool_name} 2>&1")
+
+    # Verify with mise x (works in non-interactive shells unlike bare `which`)
+    verify = capture_cmd("mise x #{tool_name} -- #{tool_name} --version 2>&1")
+    if verify.success?
       puts "✅ #{tool_name} available"
       return true
     end
