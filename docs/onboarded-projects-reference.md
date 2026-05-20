@@ -17,6 +17,7 @@
 | [rating-boost](#rating-boost) | 泽坤 | [repo](https://git.leyantech.com/base-service/rating-boost) | ✅ 收敛 | ✅ [!44](https://git.leyantech.com/base-service/rating-boost/-/merge_requests/44) | Java 21 + Maven | Nexus（jOOQ + Apollo + RocketMQ） | PostgreSQL | — | — | ❌ |
 | [netflix](#netflix) | 方剑峰 | [repo](https://git.leyantech.com/marketing/netflix) | ✅ 收敛 | ✅ [!49](https://git.leyantech.com/marketing/netflix/-/merge_requests/49) | Java 8 + Maven | Nexus | — | — | — | ❌ |
 | [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | ✅ [!205](https://git.leyantech.com/recommendation/recommendation-filter/-/merge_requests/205) | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
+| [recommendation-config](#recommendation-config) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-config) | 🟡 Round 2 | ✅ [!298](https://git.leyantech.com/recommendation/recommendation-config/-/merge_requests/298) | Java 8 + Maven | Nexus（leyan-proto 95MB） | MySQL/SQLite（测试用嵌入式） | JUnit 50 测试（3 个已知失败） | — | ❌ |
 | [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | ✅ [!172](https://git.leyantech.com/recommendation/recommendation-finder/-/merge_requests/172) | Java + Maven | Nexus | — | — | — | ❌ |
 | [peroration](#peroration) | 杨孙学 | [repo](https://git.leyantech.com/base-service/peroration) | ✅ 收敛 | ✅ [!76](https://git.leyantech.com/base-service/peroration/-/merge_requests/76) | Java 8 + Maven | Nexus | PostgreSQL | — | — | ❌ |
 | [lighthouse](#lighthouse) | — | [repo](https://git.leyantech.com/base-service/lighthouse) | ✅ 收敛 | ✅ [!36](https://git.leyantech.com/base-service/lighthouse/-/merge_requests/36) | Java 8 + Maven | Nexus（leyan-proto 107MB） | PostgreSQL + jOOQ | JUnit 60 tests 灯塔助手 | — | ❌ |
@@ -160,6 +161,16 @@
   - leyan-proto 1.41.66 达 107MB，大文件下载可能因网络不稳定失败
   - mig25 需要从项目目录执行才能读取 `m25.yml`
 - **推荐参考场景**: Java 8 + Maven multi-module + jOOQ codegen + Jooby + gRPC 项目
+
+### recommendation-config
+
+- **描述**: 推荐服务的配置管理，Java 8 + Maven 4 模块（config-core/rpc/web/consumer），生产 MySQL，测试 SQLite（嵌入式），gRPC + Kafka consumer + Jooby + Lombok 1.18.8
+- **MR**: [!298](https://git.leyantech.com/recommendation/recommendation-config/-/merge_requests/298)（🟡 Round 2 进行中）
+- **关键踩坑**:
+  - JDK 8 必须（Lombok 1.18.8 + JaCoCo 0.8.4 + gRPC `Field.modifiers` 反射均不兼容 JDK 9+）
+  - leyan-proto-1.38.45.jar 95MB，首次下载可能因 socks5 代理超时中断
+  - 测试非幂等：CategoryServiceImplTest.testGet 和 ConfigHandlerTest.testScene 有数据残留问题
+- **推荐参考场景**: Java 8 + gRPC + 测试用嵌入式 DB（SQLite）项目
 
 ### sidecar
 
