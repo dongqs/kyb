@@ -4,14 +4,14 @@
 
 ## 已上船项目总览
 
-| 项目 | 负责人 | 状态 | MR | 工具层 | 依赖层 | 数据层 | 项目层 | 子模块 | DID |
-|------|--------|------|-----|--------|--------|--------|--------|--------|-----|
-| [dredge-lxk](#dredge-lxk) | 建行 | ✅ 收敛 | open（待合） | Java 8 + Maven + Ruby | Nexus | PostgreSQL + ClickHouse | JUnit 圈人服务 | click/party/datasets（深嵌套） | ❌ |
-| [buyer-center](#buyer-center) | 泽坤 | ✅ 收敛 | open（待合） | Java 21 + Maven | Nexus | PostgreSQL | JUnit 买家中心 | party | ❌ |
-| [buyer-server](#buyer-server) | 泽坤 | ✅ 收敛 | — | Java + Maven | Nexus | PostgreSQL | — | — | ❌ |
-| [nova](#nova) | 马林 | ✅ 收敛 | — | Java + Maven | Nexus | — | — | — | ❌ |
-| [data-ant](#data-ant) | 马林 | ✅ 收敛 | — | Java + Maven | Nexus（嵌套子模块） | — | 集成测试 | 嵌套子模块 | ❌ |
-| [triggers-refund](#triggers-refund) | 泽坤 | ✅ 收敛 | — | Java + Maven + JDK 代理坑 | Nexus | — | Kafka | — | ✅ |
+| 项目 | 负责人 | 外链 | 状态 | MR | 工具层 | 依赖层 | 数据层 | 项目层 | 子模块 | DID |
+|------|--------|------|------|-----|--------|--------|--------|--------|--------|-----|
+| [dredge-lxk](#dredge-lxk) | 建行 | [repo](https://git.leyantech.com/marketing/dredge-lxk) | ✅ 收敛 | open（待合） | Java 8 + Maven + Ruby | Nexus | PostgreSQL + ClickHouse | JUnit 圈人服务 | click/party/datasets（深嵌套） | ❌ |
+| [buyer-center](#buyer-center) | 泽坤 | [repo](https://git.leyantech.com/base-service/buyer-center) | ✅ 收敛 | open（待合） | Java 21 + Maven | Nexus | PostgreSQL | JUnit 买家中心 | party | ❌ |
+| [buyer-server](#buyer-server) | 泽坤 | [repo](https://git.leyantech.com/base-service/buyer-server) | ✅ 收敛 | — | Java + Maven | Nexus | PostgreSQL | — | — | ❌ |
+| [nova](#nova) | 马林 | [repo](https://git.leyantech.com/base-service/nova) | ✅ 收敛 | — | Java + Maven | Nexus | — | — | — | ❌ |
+| [data-ant](#data-ant) | 马林 | [repo](https://git.leyantech.com/base-service/data-ant) | ✅ 收敛 | — | Java + Maven | Nexus（嵌套子模块） | — | 集成测试 | 嵌套子模块 | ❌ |
+| [triggers-refund](#triggers-refund) | 泽坤 | [repo](https://git.leyantech.com/base-service/triggers-refund) | ✅ 收敛 | — | Java + Maven + JDK 代理坑 | Nexus | — | Kafka | — | ✅ |
 
 ## 快速定位参考项目
 
