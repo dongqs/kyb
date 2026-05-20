@@ -119,6 +119,60 @@ P2-7  proxy 兼容性            → entrypoint.sh    ~15min
 
 ---
 
+## 批量上船后的补充项
+
+扫描 70 个候选项目后发现的新问题，基于原列表补充或提级：
+
+### ⬆️ 升级: /etc/hosts 服务别名（P2 → P1）
+
+**原因**: oversea 组有 ~25 个服务，其中 15+ 用 PG，每个都要手动解析 `postgres` hostname。原估影响"全部 PG 项目"约 10 个，实际扩展后是 ~40+ 个项目。
+
+**修复不变**: entrypoint 自动加 `127.0.0.1 postgres clickhouse kafka redis` 等常见别名。
+
+### ➕ 新增 P1: 非 Maven 构建检测
+
+**问题**: 当前 `.kyb.md` 模版和 onboarding 流程假设项目使用 Maven（`pom.xml`）。扫描发现：
+
+| 项目 | 构建方式 | 技术栈 |
+|------|---------|--------|
+| store-home | build.sh | Java + PG（非 Maven） |
+| assistant | build.sh | Java |
+| business-rule | Python + Airflow | Python |
+| citi | Python | Python ML |
+| digismart/RPA 系列 | — | 脚本类 |
+
+批量上船时无法假设 `pom.xml` 存在。模板和 `complete流程` 需检测构建文件类型并选择对应命令。
+
+**修复方案**:
+- `complete流程` 步骤 5（编译）改为自适应：`pom.xml` → `mvn` / `build.gradle` → `gradle` / `build.sh` → `./build.sh` / `pyproject.toml` → `uv sync`
+- `.kyb.md` 模版增加构建类型声明字段
+
+### ➕ 新增 P2: CI 变量自动提取
+
+**问题**: 每个项目的 `.gitlab-ci.yml` 中 `POSTGRES_DB`、服务别名、JDK 版本等信息目前需人工读取填入 `CI 配置参考` 表。70 个项目重复劳动。
+
+**修复方案**: 写一个 `kyb onboard scan` 子命令，自动从 `.gitlab-ci.yml` 提取：
+- `services[].name` → 外部服务依赖表
+- `variables.POSTGRES_DB` → DB 名
+- `image` → 构建镜像
+- 输出 markdown 表格直接粘贴到 `.kyb.md`
+
+### 更新后的总优先级
+
+```
+P0-1  DID 工具链               → Dockerfile/did    ~2h      ← 影响 70 个项目的 DID 验证
+P0-2  mise config 持久化       → entrypoint.sh    ~1h      ← 不修则排查成本翻倍
+P1-1  /etc/hosts 服务别名       → entrypoint.sh    ~15min   ← ⬆️ 从 P2 升级，影响 40+ 项目
+P1-2  共享 volume 权限          → kyb create       ~30min
+P1-3  非 Maven 构建检测         → 模版 + flow      ~1h      ← ➕ 新增
+P1-4  DID PG 自启              → entrypoint.sh    ~30min
+P2-1  mise Java 默认版本       → entrypoint.sh    ~30min   ← 修完 P0-2 后此问题自然消失
+P2-2  CI 变量自动提取           → kyb onboard scan ~2h      ← ➕ 新增
+P2-3  proxy 兼容性             → entrypoint.sh    ~15min
+```
+
+---
+
 ## 模版提升计划 — 事前事后检查
 
 ### 问题
