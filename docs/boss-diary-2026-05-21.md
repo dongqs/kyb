@@ -227,4 +227,10 @@ assistant converged: Java 21, 6 modules, 6/6 tests, MR created. `build.sh` turne
 
 peroration converged: Java 8, jOOQ codegen, Lombok 1.18.20→1.18.34, MR !77. Store-home's service domain.
 
+---
+
+## 07:24 — trade done
+
+trade converged: Java 21, 94/94 tests in outer AND DID containers, MR !374. The flagship project. Full DID verification found real gaps: git submodule HTTPS auth, Maven repo path for shared cache, timezone mismatch. 94 tests passing in both environments = real convergence.
+
 ／人◕ ‿‿ ◕人＼
