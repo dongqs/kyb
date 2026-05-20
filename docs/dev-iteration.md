@@ -26,7 +26,7 @@ kyb 开发中修改代码后验证流程容易踩坑，主要是因为源码和 
 ```
 修改 lib/kyb/*.rb
   ├── 测试         → ruby -Itest test/                    ✅ 源码树直接跑
-  ├── CLI 验证     → ruby -Ilib bin/kyb                   ✅ 源码树直接跑
+  ├── CLI 验证     → ruby -Ilib bin/kyb.rb                   ✅ 源码树直接跑
   ├── kyb 命令验证 → cp lib/* ~/.kyb/lib/ && kyb         ⚠️ 需同步到 ~/.kyb/
   └── 完整镜像验证 → 需要 commit 后 build                  ❌ 路径 A vs B
 
@@ -59,10 +59,10 @@ cp ~/projects/kyb/entrypoint.sh /Users/dongqs/github/kyb/entrypoint.sh
 kyb build
 
 # 3) 创建测试容器
-KYB_BRANCH=test ruby -Ilib bin/kyb did create test-name
+KYB_BRANCH=test ruby -Ilib bin/kyb.rb did create test-name
 
 # 4) 清理
-ruby -Ilib bin/kyb did rm test-name
+ruby -Ilib bin/kyb.rb did rm test-name
 ```
 
 ## 根因

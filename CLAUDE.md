@@ -32,7 +32,8 @@ You are an AI working on the **kyb** project — a CLI tool that manages Docker-
 ## Commands
 
 ```bash
-kyb build              # Build base image
+kyb build              # Build base image (auto-runs pre-flight check)
+kyb preflight          # Run pre-flight environment checks (network, disk, Docker)
 kyb create <name>      # Create and start sandbox
 kyb enter <name>       # Enter sandbox (interactive — requires TTY)
 kyb exec <name> -- CMD # Run command in sandbox (non-interactive)

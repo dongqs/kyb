@@ -13,28 +13,74 @@
 
 ## 安装
 
-三步开箱：
+### 前置条件
+
+- **macOS**（Intel 或 Apple Silicon 均可）
+- **Ruby ≥ 3.0**（kyb CLI 是 Ruby 写的，依赖 stdlib 库）
+  - macOS 新版已不自带 Ruby。需自行安装：`brew install ruby`
+  - 装完后确认：`ruby --version` → 3.x
+  - 也可用 [mise](https://mise.jdx.dev) / rbenv 管理 Ruby 版本
+- **Docker**：推荐 [OrbStack](https://orbstack.dev)（轻量、快速），Docker Desktop 也行
+- **Git**：`git` 命令行可用
+
+### 开箱步骤
 
 ```bash
-# 1. 克隆
+# 1. 克隆 kyb 仓库到本地
 git clone git@git.leyantech.com:quick-n-dirty/kyb.git ~/.kyb
+
+# 2. 把 kyb CLI 加入 PATH
 echo 'export PATH="$HOME/.kyb/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 
-# 2. 初始化（把 kyb 自身注册为第一个项目）
+# 验证：看到版本号就对了
+kyb version
+
+# 3. 把 kyb 自身注册为第一个项目
+# 这会在 ~/.config/kyb/config.yml 添加 kyb 项目配置
 cd ~/.kyb && kyb init
 
-# 3. 构建基础镜像（首次 10-15 分钟，网络问题见 docs/network-issues.md）
+# 4. 前置环境检查 —— 验证网络、Docker、磁盘是否就绪
+# 国内网络环境特殊，这一步能提前发现代理/镜像问题
+kyb preflight
+
+# 5. 构建基础镜像（首次 10-15 分钟，后续秒级）
+# 构建期间会自动安装 Node.js、Python、Ruby、Claude Code 等工具
 kyb build
 
-# 4. 创建沙箱
+# 6. 创建第一个沙箱并进入
 kyb create kyb-hello
-
-# 5. 进入沙箱
 kyb enter kyb-hello
 ```
 
-> `kyb build` 首次构建需 10-15 分钟，网络问题见 [docs/network-issues.md](./docs/network-issues.md)。后续更新：`git -C ~/.kyb pull && kyb build`
+> ⚠️ **构建失败？** 常见原因和解决方案见 [docs/network-issues.md](./docs/network-issues.md)
+>
+> **后续更新：** `git -C ~/.kyb pull && kyb preflight && kyb build`
+>
+> **不用 zsh？** 把 `~/.zshrc` 换成你 shell 的配置文件（`~/.bashrc`、`~/.bash_profile` 等）
+
+### 代理配置
+
+kyb 在构建和运行容器时都需要网络访问。代理配置分两层：
+
+**构建代理（`kyb build`）** — 写死在 `Dockerfile` 的 `ALL_PROXY` 中：
+- 默认值：`socks5://host.orb.internal:2080`（macOS OrbStack 上的 sing-box 分流代理）
+- 如果宿主机没有运行代理，编辑 `~/.kyb/Dockerfile`，找到 `ALL_PROXY=` 行改成你的代理地址
+- 或者在内网不需要代理的，直接删除那几行 `ENV ALL_PROXY=...`
+
+**运行时代理（`kyb create` → 容器内）** — 通过 `config.yml` 配置：
+```yaml
+base:
+  proxy: socks5://host.orb.internal:2080   # 所有项目的默认代理
+  no_proxy: .leyantech.com,localhost,127.0.0.1
+
+projects:
+  my-project:
+    proxy: http://proxy.corp.com:3128      # 项目级覆盖（可选）
+    no_proxy: '*.internal.corp.com'       # 项目级直连列表（可选）
+```
+
+> 运行时代理写入容器内的 `~/.claude/CLAUDE.md`，供 AI agent 读取使用。不配代理则容器不能访问外网。
 
 ### 添加你自己的项目
 
@@ -88,7 +134,8 @@ mise 下载 runtime              →    镜像源直接下载
 ## kyb CLI
 
 ```bash
-kyb build                     # 构建基础镜像
+kyb build                     # 构建基础镜像（构建前自动执行前置检查，也可先手动 kyb preflight）
+kyb preflight                 # 前置环境检查：验证网络、磁盘、Docker 是否就绪（推荐 build 前先跑）
 kyb init [NAME]               # 将当前项目加入配置
 kyb create <project-branch>   # 创建并启动沙箱（支持 --ports 和 --model）
 kyb ps, ls                    # 列出沙箱

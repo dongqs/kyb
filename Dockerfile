@@ -70,13 +70,20 @@ COPY --chown=dev:dev mise.config.toml /home/dev/.config/mise/config.toml
 
 # Install mise tools (node, python, claude-code, clickhouse, glab)
 # Cache mount only covers downloads — installs/shim go into the image layer
+# Node mirror via npmmirror for faster downloads in China (MISE_NODE_MIRROR_URL)
+# Retry loop for transient network failures (common through SOCKS5 proxy)
 SHELL ["/bin/bash", "-c"]
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     mkdir -p /home/dev/.local/share/mise/downloads && \
     sudo chown -R dev:dev /home/dev/.local/share/mise && \
+    export MISE_NODE_MIRROR_URL=https://npmmirror.com/mirrors/node && \
     eval "$($HOME/.local/bin/mise activate bash)" && \
     mise trust && \
-    mise install
+    for i in 1 2 3; do \
+      mise install && break; \
+      echo "==> mise install failed (attempt $i/3), retrying in 10s..."; \
+      sleep 10; \
+    done
 
 # --- mirror configs (fast, rarely changes) — before slow project tools ---
 

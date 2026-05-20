@@ -8,6 +8,9 @@ module Kyb::CLI
     path = Kyb::Config.base_image_path
     dockerfile = File.join(path, 'Dockerfile')
     Kyb.die("Dockerfile not found at #{dockerfile}") unless File.exist?(dockerfile)
+
+    Kyb::Check.run_checks
+
     Kyb::Docker.build(Kyb::Container::BASE_IMAGE, path)
     puts "==> Build complete: #{Kyb::Container::BASE_IMAGE}"
   end

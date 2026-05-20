@@ -2,4 +2,4 @@ require 'minitest/autorun'
 require 'tempfile'
 require 'fileutils'
 
-load File.expand_path('../bin/kyb', __dir__)
+load File.expand_path('../bin/kyb.rb', __dir__)

@@ -6,12 +6,14 @@ kyb 在构建和运行时涉及大量网络操作。本文按阶段列出所有�
 
 构建镜像时 Dockerfile 按顺序执行以下网络操作。**任何一步失败则整个 build 失败**，但已成功的层会被缓存，重跑时跳过。
 
+`kyb build` 在构建前会自动执行**前置环境检查**（pre-flight check），验证 Docker daemon、关键镜像源和下载站点的连通性。检查失败会给出明确提示，避免无谓等待。
+
 | # | 操作 | 目标 | 重试 | 失败处理 |
 |---|------|------|------|---------|
 | 1 | `apt-get update` | `mirrors.aliyun.com/ubuntu` (x86) 或 `mirrors.aliyun.com/ubuntu-ports` (ARM) | 无 | build 失败 |
 | 2 | `apt-get install` | 同上 | 无 | build 失败 |
 | 3 | `curl https://mise.run \| sh` | `mise.run` | 5 次 × 5s 间隔 | build 失败 |
-| 4 | `mise install` | node/python/ruby 等官方源，见下方详表 | 无 | build 失败 |
+| 4 | `mise install` | node（npmmirror 镜像）/python/ruby 等，见下方详表 | **3 次 × 10s 间隔** | build 失败 |
 | 5 | `npm install -g yarn` | `registry.npmmirror.com` | 无 | build 失败 |
 | 6 | `pip install mig25...` | `nexus.leyantech.com` (Nexus 私有 PyPI) | 无 | **吞没**（`\|\| true`），运行时重试 |
 | 7 | `curl https://code.kimi.com/install.sh \| bash` | `code.kimi.com` + uv PyPI | 无 | build 失败 |
@@ -23,7 +25,7 @@ kyb 在构建和运行时涉及大量网络操作。本文按阶段列出所有�
 
 | 工具 | 下载源 |
 |------|--------|
-| node | `nodejs.org/dist` 或 npmmirror 镜像 |
+| node | `npmmirror.com/mirrors/node`（MISE_NODE_MIRROR_URL 设置） |
 | python | `python.org/ftp` |
 | ruby | `cache.ruby-lang.org` |
 | maven | `dlcdn.apache.org/maven` |
@@ -71,6 +73,19 @@ curl -sS https://mirrors.aliyun.com > /dev/null && echo "mirror OK" || echo "mir
 # 不使用镜像，直接连官方源（较慢）
 # 编辑 Dockerfile，注释掉 Aliyun mirror 那行然后重跑
 ```
+
+### mise 网络优化说明
+
+Dockerfile 已内置以下措施提高 mise install 的健壮性：
+
+| 措施 | 说明 |
+|------|------|
+| **`MISE_NODE_MIRROR_URL`** | Node.js 通过 `npmmirror.com` 国内镜像下载，不依赖代理 |
+| **3 次重试** | `mise install` 失败后等 10s 重试，最多 3 次 |
+| **cache mount** | 下载缓存持久化，重跑 build 时不重复下载相同版本 |
+| **5 次重试** | mise 自身安装（`curl mise.run | sh`）最多重试 5 次 |
+
+Node.js 使用国内镜像后，即使代理不可用也能正常安装。其他工具（python、ruby、maven）仍走代理。
 
 ---
 

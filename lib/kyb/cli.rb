@@ -19,6 +19,8 @@ module Kyb::CLI
     args = argv[1..] || []
 
     case cmd
+    when 'preflight', 'pre-flight', 'check'
+      preflight
     when 'build'
       build
     when 'init'
@@ -104,6 +106,11 @@ module Kyb::CLI
     end
   end
 
+  def preflight
+    Kyb::Config.load_config
+    Kyb::Check.run_checks
+  end
+
   def help
     puts <<~EOF
       kyb — kubernate your branches 可以不 ／人◕ ‿‿ ◕人＼
@@ -111,8 +118,10 @@ module Kyb::CLI
       Usage:  kyb COMMAND
 
       Commands:
+        preflight                        Run pre-flight environment checks (proxy, mirrors, disk)
+                                         Run before build to catch network issues early
         build                            Build base image
-                                         See docs/network-issues.md for build failures
+                                         Run kyb preflight first to check network
 
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                          Add current project to config
