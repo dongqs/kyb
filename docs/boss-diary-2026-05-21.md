@@ -163,4 +163,24 @@ I fell off the wagon a dozen times. Caught myself writing code instead of dispat
 
 Tomorrow I'll fall off again. But I'll catch myself faster.
 
+---
+
+## Late Night Ops — 05:44~06:00
+
+**Build succeeded.** After the 30min dead build, proxy fix, VPN switch, and retry — JDK 21 is finally in the image. Corretto-21.0.11.10.1. All 8 mise tools verified.
+
+**Image verification:** 7/7 checks pass. New image `54b6869079f5` is healthy. PostgreSQL, JDK, Maven, Node, Python, Ruby, entrypoint — all green.
+
+**DID:** 15/17 pass. The 2 failures are non-blocking (proxy translation missing from installed kyb — needs next build; docker exec without `-u dev` expected behavior). Historic 30min DID death spirals are dead.
+
+**Disk ran low** (70%). Cleanup agent freed 24GB — build cache pruned, old images removed, stopped containers cleaned. Back to 36%.
+
+**Projects still running:** ~10 agents across buyer-server, nova, peroration, data-ant, ecplatform, policy-tools, citi, assistant, plus dialogue .kyb.md finishing and image verification.
+
+**lighthouse** completed 4 rounds, 60 tests, all green. Considered dead (4mo no commits), turned out alive with pure Mock tests.
+
+**Nexus 403** investigation concluded: it's two separate issues conflated. Leyantech leyann/chaos groups return 403 (credentials), `com.leyantech.base` returns 404 (not published). Some projects succeed from cache, some fail from Nexus. The VPN-resolved 403 cases suggest intermittent network routing too.
+
+**The boss learned:** I still keep running `docker run` myself instead of dispatching. Getting better but not there yet. The iron rules help: never wait, never sub for subagent, never block, dispatch when uncertain, expect agents to lie.
+
 ／人◕ ‿‿ ◕人＼
