@@ -103,9 +103,42 @@ kyb rm my-project-feat
 
 ---
 
-## P2 — 补齐
+## P1.5 — 远程机器
 
-### `kyb exec` 参数
+### `kyb ssh <host>` — 远程机器的 `kyb enter`
+
+把远程 Linux 主机当成 kyb 容器一样无缝接入。解决「agent 在容器里，目标在远程」的 local/remote 路径歧义。
+
+```bash
+kyb ssh nuc8
+# → SSH 到 nuc8
+# → scp ~/.kyb/docs/new-machine/templates 到 remote:~/.claude/
+# → 打印 "环境就绪，~/README.md 里有指引"
+# → 保持 SSH 会话（或进入 tmux）
+```
+
+核心设计：
+
+| 方面 | 方案 |
+|------|------|
+| 身份 | 从 `~/.ssh/config` 读取 Host 配置（HostName, User, IdentityFile） |
+| 模板同步 | 每次 `kyb ssh` 自动 `rsync` 模板目录到 remote:~/.claude/ |
+| 入口 | 登录后提示 agent 读 `~/README.md` |
+| 文件路径 | 所有操作在 remote 上，无 local/remote 歧义 |
+| 安全 | 不保存 token/secret，复用宿主机的 SSH key |
+| 前提 | 远程机器已配好 `~/.ssh/config` 和 `~/.claude/` |
+
+与 `kyb enter` 的关系：
+
+```
+kyb enter nuc8      # 错误：nuc8 不是 Docker 容器
+kyb ssh nuc8        # 正确：SSH 到远程机器
+kyb ssh 100.98.29.39 # 也支持 IP
+```
+
+**成本: ~1.5M** · 实验验证：docs/new-machine/new-machine-race.md（22 agents, ~50% success rate）
+
+---
 
 ```bash
 kyb exec project-branch --cwd src/api --user root --env DEBUG=1 -- rake test
