@@ -61,7 +61,7 @@ module Kyb
   end
   CONFIG_FILE = File.expand_path('~/.config/kyb/config.yml')
 
-  WORKTREE_BASE = File.expand_path('~/.local/share/kyb/worktrees')
+  CLONE_BASE = File.expand_path('~/.local/share/kyb/clones')
 
   GRADLE_CACHE_VOLUME = 'kyb-gradle-cache'
   MAVEN_CACHE_VOLUME = 'kyb-maven-cache'
@@ -84,5 +84,4 @@ require_relative 'kyb/proxy'
 require_relative 'kyb/container'
 require_relative 'kyb/parser'
 require_relative 'kyb/docker'
-require_relative 'kyb/git'
 require_relative 'kyb/cli'

@@ -9,7 +9,7 @@ module Kyb::ExitFlow
     puts "==> Container #{cname}: session ended."
 
     checks = run_idle_checks(container, project)
-    all_pass = checks.values_at(:tmux, :worktree, :remote).all?
+    all_pass = checks.values_at(:tmux, :dirty, :remote).all?
 
     if all_pass
       warnings = collect_extra_warnings(container)
@@ -25,7 +25,6 @@ module Kyb::ExitFlow
 
   def run_idle_checks(container, project)
     cname = container.name
-    wt_path = container.worktree_path
     dind = File.exist?('/.dockerenv')
 
     puts
@@ -35,28 +34,37 @@ module Kyb::ExitFlow
                         %i[out err] => File::NULL)
     puts tmux_dead ? "  ✔ tmux:     no active sessions" : "  ✘ tmux:     session still alive"
 
-    worktree_clean = if dind
-                       system('docker', 'exec', '-u', 'dev', cname,
-                              'git', '-C', "/home/dev/projects/#{project}", 'diff', '--quiet',
-                              %i[out err] => File::NULL)
-                     elsif wt_path && File.exist?("#{wt_path}/.git")
-                       system('git', '--git-dir', "#{wt_path}/.git", '--work-tree', wt_path,
-                              'diff', '--quiet', %i[out err] => File::NULL)
-                     else
-                       true
-                     end
-    puts worktree_clean ? "  ✔ worktree: clean" : "  ✘ worktree: uncommitted changes"
+    # Check host repo diff
+    repo_path = nil
+    unless dind
+      begin
+        proj = Kyb::Config.project(project)
+        repo_path = proj[:path]
+      rescue Exception
+      end
+    end
+
+    clean = if dind
+               system('docker', 'exec', '-u', 'dev', cname,
+                      'git', '-C', "/home/dev/projects/#{project}", 'diff', '--quiet',
+                      %i[out err] => File::NULL)
+             elsif repo_path && File.directory?("#{repo_path}/.git")
+               Dir.chdir(repo_path) { system('git', 'diff', '--quiet', %i[out err] => File::NULL) }
+             else
+               true
+             end
+    puts clean ? "  ✔ repo:     clean" : "  ✘ repo:     uncommitted changes"
 
     remote_ok = if dind
                   `docker exec -u dev #{cname} bash -c 'cd /home/dev/projects/#{project} && git cherry' 2>/dev/null`.lines.count == 0
-                elsif wt_path && File.exist?("#{wt_path}/.git")
-                  Dir.chdir(wt_path) { `git cherry 2>/dev/null`.lines.count == 0 }
+                elsif repo_path && File.directory?("#{repo_path}/.git")
+                  Dir.chdir(repo_path) { `git cherry 2>/dev/null`.lines.count == 0 }
                 else
                   false
                 end
     puts remote_ok ? "  ✔ remote:   all pushed" : "  ✘ remote:   unpushed commits"
 
-    { tmux: tmux_dead, worktree: worktree_clean, remote: remote_ok }
+    { tmux: tmux_dead, dirty: clean, remote: remote_ok }
   end
 
   def collect_extra_warnings(container)
@@ -84,7 +92,6 @@ module Kyb::ExitFlow
     puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     puts "Cleanup will:"
     puts "  • stop & remove container"
-    puts "  • delete worktree & git branch #{container.git_branch}"
     puts "  • remove claude volume"
     puts
     print "Delete container? [y/N] (5s auto: skip) "
@@ -115,23 +122,13 @@ module Kyb::ExitFlow
     `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{cname}`.lines.map(&:strip).each do |did_child|
       puts "==> #{did_child}: removing DID child container"
       system('docker', 'rm', '-f', did_child)
-      system('docker', 'volume', 'rm', "#{did_child}-worktree", out: File::NULL)
+      system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)
     end
 
     puts "==> #{cname}: stopping"
     system('docker', 'stop', cname)
     puts "==> #{cname}: removing"
     system('docker', 'rm', cname)
-
-    proj_config = Kyb::Config.project(project) rescue nil
-    if proj_config && proj_config[:path]
-      path = proj_config[:path]
-      wt_path = container.worktree_path
-      if wt_path && File.directory?(wt_path)
-        Kyb::Git.remove_worktree(path, wt_path)
-      end
-      Kyb::Git.delete_local_branch(path, container)
-    end
 
     Kyb::Docker.volume_rm(container.claude_volume)
 

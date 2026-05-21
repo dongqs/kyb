@@ -75,14 +75,10 @@ module Kyb::CLI
     `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name}`.lines.map(&:strip).each do |did_child|
       puts "==> #{did_child}: removing DID child container"
       system('docker', 'rm', '-f', did_child)
-      system('docker', 'volume', 'rm', "#{did_child}-worktree", out: File::NULL)
+      system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)
     end
 
     Kyb::Docker.remove_container(c.name)
-
-    wt_path = Kyb::Git.worktree_path(project, c)
-    Kyb::Git.remove_worktree(path, wt_path)
-    Kyb::Git.delete_local_branch(path, c)
 
     Kyb::Docker.volume_rm(c.claude_volume)
 
@@ -108,14 +104,10 @@ module Kyb::CLI
         `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{cname}`.lines.map(&:strip).each do |did_child|
           puts "       #{did_child}: removing DID child"
           system('docker', 'rm', '-f', did_child)
-          system('docker', 'volume', 'rm', "#{did_child}-worktree", out: File::NULL)
+          system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)
         end
 
         system('docker', 'rm', '-f', cname)
-
-        wt_path = Kyb::Git.worktree_path(proj_name, c)
-        Kyb::Git.remove_worktree(path, wt_path)
-        Kyb::Git.delete_local_branch(path, c)
 
         Kyb::Docker.volume_rm(c.claude_volume)
         puts

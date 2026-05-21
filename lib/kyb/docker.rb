@@ -69,6 +69,16 @@ module Kyb::Docker
     Kyb::Container.new(project, branch).name
   end
 
+  def ensure_master_synced(repo_path, base_branch)
+    return unless File.directory?("#{repo_path}/.git")
+    puts "==> syncing #{repo_path} to origin/#{base_branch}"
+    Dir.chdir(repo_path) do
+      system('git', 'fetch', 'origin', base_branch) || Kyb.die("git fetch origin #{base_branch} failed")
+      system('git', 'checkout', base_branch) || Kyb.die("git checkout #{base_branch} failed")
+      system('git', 'merge', '--ff-only', "origin/#{base_branch}") || Kyb.die("git merge --ff-only origin/#{base_branch} failed")
+    end
+  end
+
   def assign_ports(container_ports)
     container_ports.map do |cport|
       hport = cport
@@ -119,8 +129,8 @@ module Kyb::Docker
     out.lines.map(&:strip).reject(&:empty?)
   end
 
-  def run(container:, image:, wt_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil)
-    puts "==> #{container.name}: starting (#{wt_path} -> /home/dev/projects/#{project_name})"
+  def run(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false)
+    puts "==> #{container.name}: starting (#{repo_path} -> /home/dev/projects/#{project_name})"
 
     args = %w[docker run -d]
     args += ['--name', container.name]
@@ -166,9 +176,9 @@ module Kyb::Docker
     args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
     args += ['-v', "#{container.claude_volume}:/home/dev/.claude"]
     if dind
-      args += ['-v', "#{container.name}-worktree:/home/dev/projects/#{project_name}"]
+      args += ['-v', "#{container.name}-project:/home/dev/projects/#{project_name}"]
     else
-      args += ['-v', "#{wt_path}:/home/dev/projects/#{project_name}"]
+      args += ['-v', "#{repo_path}:/home/dev/projects/#{project_name}"]
     end
     args += ['-v', "#{container.node_modules_volume}:/home/dev/projects/#{project_name}/node_modules"]
     unless dind
@@ -272,16 +282,13 @@ module Kyb::Docker
 
     image = Kyb::Container::BASE_IMAGE
 
-    wt_path = container.worktree_path
-    Kyb::Git.setup_worktree(path, proj[:base_branch], wt_path, container)
-
     if proj[:cp_files]
       base_keys = proj[:cp_files_base_keys] || [].freeze
       proj[:cp_files].each do |dst, src|
         src_path = File.join(path, src)
         if File.exist?(src_path)
           puts "     cp #{src} -> #{dst}"
-          FileUtils.cp(src_path, File.join(wt_path, dst))
+          FileUtils.cp(src_path, File.join(path, dst))
         elsif !base_keys.include?(dst)
           puts "     warn: #{src} not found, skipped"
         end
@@ -298,7 +305,7 @@ module Kyb::Docker
     run(
       container: container,
       image: image,
-      wt_path: wt_path,
+      repo_path: path,
       project_name: project,
       project_path: path,
       ports: ports,
@@ -334,12 +341,6 @@ module Kyb::Docker
           "&& chown -R dev:dev #{tar_sources.map { |s| "/home/dev/#{s}" }.join(' ')} 2>/dev/null || true'")
       end
 
-      puts "==> #{container.name}: copying worktree into container"
-      system('bash', '-c',
-        "tar -C #{File.dirname(wt_path)} -c #{File.basename(wt_path)} 2>/dev/null | " \
-        "docker exec -i #{container.name} bash -c '" \
-        "tar -C /home/dev/projects -x " \
-        "&& chown -R dev:dev /home/dev/projects/#{project} 2>/dev/null || true'")
     end
 
     [container.name, ports]

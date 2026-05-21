@@ -69,7 +69,7 @@ class DockerTest < Minitest::Test
     {
       container: Kyb::Container.new('niao', 'sandbox'),
       image: 'kyb-base',
-      wt_path: '/tmp/test-wt',
+      repo_path: '/tmp/test-wt',
       project_name: 'niao',
       project_path: '/tmp/test-project',
       ports: '', symlinks: '', mounts_rw: '', mounts_ro: ''
@@ -127,30 +127,30 @@ class DockerTest < Minitest::Test
 
   def test_run_mounts_kyb_dir
     kyb_dir = File.expand_path('~/.kyb')
-    wt_path = '/tmp/test-wt-kyb'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    repo_path = '/tmp/test-wt-kyb'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path))
     assert args.each_cons(2).any? { |f, v| f == '-v' && v == "#{kyb_dir}:#{kyb_dir}" },
            "expected -v #{kyb_dir}:#{kyb_dir}"
   ensure
     FileUtils.rm_rf('/tmp/test-wt-kyb')
   end
 
-  def test_run_normal_mode_binds_wt_path
-    wt_path = '/tmp/test-wt-bind'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
-    count = args.each_cons(2).count { |f, v| f == '-v' && v == "#{wt_path}:/home/dev/projects/niao" }
-    assert_equal 1, count, 'expected exactly one bind mount for wt_path'
+  def test_run_normal_mode_binds_repo_path
+    repo_path = '/tmp/test-wt-bind'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path))
+    count = args.each_cons(2).count { |f, v| f == '-v' && v == "#{repo_path}:/home/dev/projects/niao" }
+    assert_equal 1, count, 'expected exactly one bind mount for repo_path'
   ensure
     FileUtils.rm_rf('/tmp/test-wt-bind')
   end
 
   def test_run_binds_project_path_when_different
     pp = '/tmp/test-project-pp'
-    wt_path = '/tmp/test-wt-pp'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path, project_path: pp))
+    repo_path = '/tmp/test-wt-pp'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path, project_path: pp))
     assert args.each_cons(2).any? { |f, v| f == '-v' && v == "#{pp}:#{pp}" },
            'expected project_path bind mount'
   ensure
@@ -158,19 +158,19 @@ class DockerTest < Minitest::Test
   end
 
   def test_run_skips_project_path_when_matches_wt_target
-    # When project_path equals the mount target, only the wt_path bind mount
+    # When project_path equals the mount target, only the repo_path bind mount
     # (line 115) should appear — NOT a second project_path mount (line 119).
     args = with_run_stubs(dind: false, **default_run_kwargs(
-      wt_path: '/home/dev/projects/niao', project_path: '/home/dev/projects/niao'))
+      repo_path: '/home/dev/projects/niao', project_path: '/home/dev/projects/niao'))
     mount_count = args.each_cons(2).count { |f, v| f == '-v' && v == '/home/dev/projects/niao:/home/dev/projects/niao' }
-    assert_equal 1, mount_count, 'expected exactly one bind mount (from wt_path, not project_path)'
+    assert_equal 1, mount_count, 'expected exactly one bind mount (from repo_path, not project_path)'
   end
 
   def test_run_passes_tz_env_var
-    wt_path = '/tmp/test-wt-tz'
-    FileUtils.mkdir_p(wt_path)
+    repo_path = '/tmp/test-wt-tz'
+    FileUtils.mkdir_p(repo_path)
     args = with_run_stubs(dind: false, **default_run_kwargs(
-      wt_path: wt_path, model: 'flash', timezone: 'America/Sao_Paulo'))
+      repo_path: repo_path, model: 'flash', timezone: 'America/Sao_Paulo'))
     assert args.each_cons(2).any? { |f, v| f == '-e' && v == 'TZ=America/Sao_Paulo' },
            'expected -e TZ=America/Sao_Paulo'
   ensure
@@ -178,9 +178,9 @@ class DockerTest < Minitest::Test
   end
 
   def test_run_passes_kyb_branch_env_var
-    wt_path = '/tmp/test-wt-branch'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path, branch: 'sandbox'))
+    repo_path = '/tmp/test-wt-branch'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path, branch: 'sandbox'))
     assert args.each_cons(2).any? { |f, v| f == '-e' && v == 'KYB_BRANCH=sandbox' },
            'expected -e KYB_BRANCH=sandbox'
   ensure
@@ -190,19 +190,19 @@ class DockerTest < Minitest::Test
   # --- run (DinD mode) ---
 
   def test_run_dind_uses_named_volume
-    wt_path = '/tmp/test-wt-dind'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: true, **default_run_kwargs(wt_path: wt_path))
-    assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-niao-sandbox-worktree:/home/dev/projects/niao' },
+    repo_path = '/tmp/test-wt-dind'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: true, **default_run_kwargs(repo_path: repo_path))
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-niao-sandbox-project:/home/dev/projects/niao' },
            'expected named volume in DinD mode'
   ensure
     FileUtils.rm_rf('/tmp/test-wt-dind')
   end
 
   def test_run_dind_skips_host_only_bind_mounts
-    wt_path = '/tmp/test-wt-dind-skip'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: true, **default_run_kwargs(wt_path: wt_path))
+    repo_path = '/tmp/test-wt-dind-skip'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: true, **default_run_kwargs(repo_path: repo_path))
 
     bad_mounts = args.each_cons(2).select { |f, v| f == '-v' && (
       v.include?('/home/dev/.ssh') ||
@@ -219,11 +219,11 @@ class DockerTest < Minitest::Test
   end
 
   def test_run_dind_skips_project_path_and_symlinks
-    wt_path = '/tmp/test-wt-dind-skip2'
-    FileUtils.mkdir_p(wt_path)
+    repo_path = '/tmp/test-wt-dind-skip2'
+    FileUtils.mkdir_p(repo_path)
     pp = '/tmp/test-project-pp2'
     args = with_run_stubs(dind: true, **default_run_kwargs(
-      wt_path: wt_path, project_path: pp,
+      repo_path: repo_path, project_path: pp,
       symlinks: 'shared/vendor', mounts_rw: '/host/rw:/container/rw', mounts_ro: '/host/ro:/container/ro'))
     refute args.each_cons(2).any? { |f, v| f == '-v' && v == "#{pp}:#{pp}" },
            'project_path bind mount should be skipped in DinD'
@@ -243,9 +243,9 @@ class DockerTest < Minitest::Test
     skip 'docker not available' unless docker_available?
     # Ensure the volume exists (idempotent)
     system('docker', 'volume', 'create', 'kyb-swift-cache', out: File::NULL, err: File::NULL)
-    wt_path = '/tmp/test-wt-swift'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    repo_path = '/tmp/test-wt-swift'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path))
     assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-swift-cache:/home/dev/.local/swift' },
            'expected kyb-swift-cache volume mount'
   ensure
@@ -256,9 +256,9 @@ class DockerTest < Minitest::Test
     skip 'docker not available' unless docker_available?
     unknown_vol = 'kyb-volet-xyxy'
     system('docker', 'volume', 'rm', unknown_vol, out: File::NULL, err: File::NULL) # ensure missing
-    wt_path = '/tmp/test-wt-noswift'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    repo_path = '/tmp/test-wt-noswift'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path))
     refute args.each_cons(2).any? { |f, v| f == '-v' && v.include?(unknown_vol) },
            'expected no mount for non-existent volume'
   ensure
@@ -272,9 +272,9 @@ class DockerTest < Minitest::Test
     FileUtils.mkdir_p(kyb_config)
     real_expand = File.method(:expand_path)
     File.stub(:expand_path, ->(p) { p == '~/.config/kyb' ? kyb_config : real_expand.call(p) }) do
-      wt_path = '/tmp/test-wt-cfg'
-      FileUtils.mkdir_p(wt_path)
-      args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+      repo_path = '/tmp/test-wt-cfg'
+      FileUtils.mkdir_p(repo_path)
+      args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path))
       assert args.each_cons(2).any? { |f, v| f == '-v' && v == "#{kyb_config}:/home/dev/.config/kyb:ro" },
              'expected kyb config mount'
     end
@@ -288,9 +288,9 @@ class DockerTest < Minitest::Test
     FileUtils.rm_rf(missing_path)
     real_expand = File.method(:expand_path)
     File.stub(:expand_path, ->(p) { p == '~/.config/kyb' ? missing_path : real_expand.call(p) }) do
-      wt_path = '/tmp/test-wt-nocfg'
-      FileUtils.mkdir_p(wt_path)
-      args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+      repo_path = '/tmp/test-wt-nocfg'
+      FileUtils.mkdir_p(repo_path)
+      args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path))
       refute args.each_cons(2).any? { |f, v| f == '-v' && v.include?('kyb') && v.include?('config') },
              'expected no kyb config mount when dir missing'
     end
@@ -301,9 +301,9 @@ class DockerTest < Minitest::Test
   # --- run (mise/pip cache volumes) ---
 
   def test_run_mounts_mise_and_pip_cache_volumes
-    wt_path = '/tmp/test-wt-cache'
-    FileUtils.mkdir_p(wt_path)
-    args = with_run_stubs(dind: false, **default_run_kwargs(wt_path: wt_path))
+    repo_path = '/tmp/test-wt-cache'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path))
     assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-mise-cache:/home/dev/.local/share/mise/downloads' },
            'expected kyb-mise-cache volume mount'
     assert args.each_cons(2).any? { |f, v| f == '-v' && v == 'kyb-pip-cache:/home/dev/.cache/pip' },
@@ -330,33 +330,13 @@ class DockerTest < Minitest::Test
     Kyb::Docker.stub(:run, nil) do
     Kyb::Docker.stub(:exists?, false) do
     Kyb::Docker.stub(:running?, false) do
-    Kyb::Git.stub(:setup_worktree, nil) do
-    Kyb::Git.stub(:remove_worktree, nil) do
-    Kyb::Git.stub(:delete_local_branch, nil) do
     FileUtils.stub(:mkdir_p, nil) do
       yield
-    end; end; end; end; end; end; end; end; end; end; end; end; end
+    end; end; end; end; end; end; end; end; end; end
   end
 
-  def test_create_container_dind_copies_worktree_via_tar
-    wt_paths = []
-    sys_stub = ->(*args) {
-      cmd_str = args[2] || args.first.to_s
-      if cmd_str.include?('tar -C') && cmd_str.include?('worktrees')
-        wt_paths << cmd_str[/tar -C ([^ ]+)/, 1]
-      end
-      true
-    }
-
-    with_dind(true) do
-      Kyb::Docker.stub(:system, sys_stub) do
-        stub_create_container_deps do
-          Kyb::Docker.create_container('niao', 'water')
-        end
-      end
-    end
-
-    assert wt_paths.any?, 'expected tar pipe for worktree in DinD mode'
+  def test_ensure_master_synced_method_exists
+    assert_respond_to Kyb::Docker, :ensure_master_synced
   end
 
   # --- create_container (cp_files) ---
@@ -386,13 +366,7 @@ class DockerTest < Minitest::Test
       Kyb::Docker.stub(:run, nil) do
       Kyb::Docker.stub(:exists?, false) do
       Kyb::Docker.stub(:running?, false) do
-      Kyb::Git.stub(:setup_worktree, nil) do
-      Kyb::Git.stub(:remove_worktree, nil) do
-      Kyb::Git.stub(:delete_local_branch, nil) do
       FileUtils.stub(:mkdir_p, nil) do
-        container = Kyb::Container.new('niao', 'test')
-        wt = container.worktree_path
-
         Kyb::Docker.create_container('niao', 'test')
 
         dot_env = cp_pairs.find { |_, d| d.end_with?('/.env') }
@@ -400,12 +374,12 @@ class DockerTest < Minitest::Test
 
         refute_nil dot_env, 'expected .env copy'
         assert_equal File.join(tmpdir, '.env.example'), dot_env[0]
-        assert_equal File.join(wt, '.env'), dot_env[1]
+        assert_equal File.join(tmpdir, '.env'), dot_env[1]
 
         refute_nil dot_kyb, 'expected .env.kyb copy'
         assert_equal File.join(tmpdir, '.env.kyb'), dot_kyb[0]
-        assert_equal File.join(wt, '.env.kyb'), dot_kyb[1]
-      end; end; end; end; end; end; end; end; end; end; end; end; end
+        assert_equal File.join(tmpdir, '.env.kyb'), dot_kyb[1]
+      end; end; end; end; end; end; end; end; end; end
       end
     end
   end
@@ -432,12 +406,9 @@ class DockerTest < Minitest::Test
       Kyb::Docker.stub(:run, nil) do
       Kyb::Docker.stub(:exists?, false) do
       Kyb::Docker.stub(:running?, false) do
-      Kyb::Git.stub(:setup_worktree, nil) do
-      Kyb::Git.stub(:remove_worktree, nil) do
-      Kyb::Git.stub(:delete_local_branch, nil) do
       FileUtils.stub(:mkdir_p, nil) do
         Kyb::Docker.create_container('niao', 'test')
-      end; end; end; end; end; end; end; end; end; end; end; end; end
+      end; end; end; end; end; end; end; end; end; end
       end
       refute cp_called, 'FileUtils.cp should not be called when all source files are missing'
     end
