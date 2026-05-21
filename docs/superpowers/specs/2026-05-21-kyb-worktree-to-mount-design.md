@@ -22,9 +22,10 @@ kyb create 前（宿主侧自动）：
     └── rw mount ──→ 容器 ~/projects/<project>/
                         └── 完整 git repo → agent 任意 git 操作
 
-所有已注册项目：
-  宿主所有 config.yml 中注册的项目目录 → rw mount → 容器 ~/projects/ 下对应目录
-  agent 主用当前项目，随时可看其他项目代码
+所有项目：
+  宿主 ~/projects/ 整个目录 ──rw──→ 容器 ~/projects/
+  一个 `-v` 挂载所有项目，agent 可看任何项目代码
+  新增项目自动可见，无需改 config
 ```
 
 ## Git Flow
