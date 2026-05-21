@@ -132,6 +132,12 @@ module Kyb::ExitFlow
 
     Kyb::Docker.volume_rm(container.claude_volume)
 
+    clone_target = Kyb::Docker.clone_path(project, container) rescue nil
+    if clone_target && File.directory?(clone_target)
+      puts "==> removing clone #{clone_target}"
+      FileUtils.rm_rf(clone_target)
+    end
+
     puts "==> Done. Container cleaned."
     puts
     puts "    Start fresh: kyb create #{project}-#{branch}"

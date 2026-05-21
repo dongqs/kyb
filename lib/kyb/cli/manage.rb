@@ -82,6 +82,12 @@ module Kyb::CLI
 
     Kyb::Docker.volume_rm(c.claude_volume)
 
+    clone_target = Kyb::Docker.clone_path(project, c) rescue nil
+    if clone_target && File.directory?(clone_target)
+      puts "==> removing clone #{clone_target}"
+      FileUtils.rm_rf(clone_target)
+    end
+
     puts "==> Done: #{c.name} removed"
     puts "==> 远端分支 #{c.git_branch} 未删除，如需清理请手动 git push origin --delete #{c.git_branch}"
   end
