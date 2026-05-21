@@ -34,10 +34,6 @@ module Kyb
       "#{BRANCH_PREFIX}/#{project}-#{branch}" if project
     end
 
-    def worktree_path
-      File.join(Kyb::WORKTREE_BASE, project, name) if project
-    end
-
     def claude_volume
       "#{name}-claude"
     end

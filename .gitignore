@@ -3,4 +3,3 @@ cloud-init.generated.yaml
 *.swp
 .env
 .env.kyb
-worktrees/

@@ -26,10 +26,15 @@ module Kyb::CLI
     when 'init'
       init(args)
     when 'create'
-      Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--ports HOST:CONTAINER] [--model flash|pro]") unless args.first
+      Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--clone] [--ports HOST:CONTAINER] [--model flash|pro]") unless args.first
       project, branch = Kyb::Parser.parse(args.shift)
       port_overrides = nil
       model = nil
+      clone = false
+      if args.first == '--clone'
+        args.shift
+        clone = true
+      end
       if args.first == '--ports'
         args.shift
         port_overrides = args.shift if args.first
@@ -39,7 +44,7 @@ module Kyb::CLI
         model = args.shift
         Kyb.die("--model must be 'flash' or 'pro'") unless %w[flash pro].include?(model)
       end
-      create(project, branch, port_overrides, model: model)
+      create(project, branch, port_overrides, model: model, clone: clone)
     when 'ps', 'ls'
       ps
     when 'enter'
@@ -70,8 +75,6 @@ module Kyb::CLI
       rm(project, branch)
     when 'prune'
       prune
-    when 'sandbox'
-      sandbox(args)
     when 'did'
       did(args)
     when 'assert'
@@ -137,9 +140,6 @@ module Kyb::CLI
         start PROJECT-BRANCH             Start stopped container
         rm    PROJECT-BRANCH             Remove container
         prune                            Remove all containers
-        sandbox PROJECT-BRANCH [PROMPT]  Claude Code sandbox mode (no Docker)
-        sandbox ps, ls                   List host sandboxes
-        sandbox rm PROJECT-BRANCH        Remove host sandbox
         assert <type> [args...]          Verify and auto-heal prerequisites
                                          Types: java [v], pg, mise <tool>
         did create <name>               DID: create container (Docker-in-Docker)
@@ -162,7 +162,6 @@ require_relative 'cli/init'
 require_relative 'cli/create'
 require_relative 'cli/enter'
 require_relative 'cli/manage'
-require_relative 'cli/sandbox'
 require_relative 'cli/tts'
 require_relative 'cli/did'
 require_relative 'cli/session'

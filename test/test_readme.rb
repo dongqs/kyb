@@ -51,7 +51,7 @@ class ReadmeTest < Minitest::Test
     # These commands exist in dispatch but aren't listed in README CLI section.
     # When README is updated to include them, remove from this list.
     dispatch_src = File.read(File.expand_path('../lib/kyb/cli.rb', __dir__))
-    undocumented = %w[init sandbox tts session version]
+    undocumented = %w[init tts session version]
     undocumented.each do |cmd|
       assert_match(/when\s+'#{cmd}'/, dispatch_src,
                    "#{cmd} should be in dispatch (check if README documents it now)")
@@ -247,13 +247,12 @@ class ReadmeTest < Minitest::Test
     assert_includes src, '/var/run/docker.sock'
   end
 
-  def test_worktree_mount_not_projects_dir
+  def test_repo_mounts_project_specific_path
     src = File.read(File.expand_path('../lib/kyb/docker.rb', __dir__))
-    # README says "~/projects → 容器内 /home/dev/projects" but actual mount is:
-    # worktree_path → /home/dev/projects/<project_name>
-    # The `~/projects` host directory itself is NOT mounted.
-    assert_match(%r{wt_path.*projects/\#\{project_name\}}, src,
-                 'Worktree mounts to project-specific path, not bare /home/dev/projects')
+    # Each project is mounted individually: repo_path → /home/dev/projects/<project_name>
+    # The entire ~/projects host directory is NOT mounted as a single mount.
+    assert_match(%r{repo_path.*projects/\#\{project_name\}}, src,
+                 'Repo mounts to project-specific path, not bare /home/dev/projects')
   end
 
   def test_dind_guards_host_mounts
@@ -321,9 +320,9 @@ class ReadmeTest < Minitest::Test
 
   # -- Worktree isolation ---------------------------------------------------
 
-  def test_worktree_path_under_kyb
+  def test_container_has_git_branch
     c = Kyb::Container.new('proj', 'branch')
-    assert_match(%r{\.kyb/worktrees/proj/kyb-proj-branch\z}, c.worktree_path)
+    assert_equal 'kyb/proj-branch', c.git_branch
   end
 
   # -- git_url config -------------------------------------------------------

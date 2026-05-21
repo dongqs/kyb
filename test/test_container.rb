@@ -55,11 +55,6 @@ class ContainerTest < Minitest::Test
     assert_equal 'kyb/niao-water', c.git_branch
   end
 
-  def test_worktree_path
-    c = Kyb::Container.new('niao', 'sandbox')
-    assert_equal File.expand_path('~/.kyb/worktrees/niao/kyb-niao-sandbox'), c.worktree_path
-  end
-
   # --- volumes ---
 
   def test_claude_volume

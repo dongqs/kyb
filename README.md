@@ -99,16 +99,15 @@ kyb enter 项目名-功能分支     # 进入沙箱
 ```
 macOS 宿主机
 ├── sing-box (socks5:2080)          ← 分流代理
-├── ~/.kyb/                          ← 源码
+├── ~/.kyb/                          ← kyb 源码
 ├── ~/.config/kyb/                   ← 配置
 ├── ~/.cache/kyb/                    ← 缓存日志
-├── ~/.local/share/kyb/worktrees/    ← 项目 worktree
+├── ~/.local/share/kyb/clones/       ← --clone 模式的独立 repo
 └── Docker 容器
     ├── mise (node, ruby, java...)
     ├── Claude Code (权限全开)
     ├── PostgreSQL 16
-    └── ~/projects/                 ← Git 项目 worktree
-```
+    └── ~/projects/<project>/       ← 宿主 repo 直接 mount 或 clone
 
 ## 文件布局
 
@@ -128,8 +127,8 @@ macOS 宿主机
   logs/                              ← build/run 日志
   tts.pid                            ← TTS 服务 PID
 
-~/.local/share/kyb/worktrees/        ← Git worktree（运行时数据）
-  <project>/<container>/             ← 每个沙箱一个独立 worktree
+~/.local/share/kyb/clones/           ← Git clone（--clone 模式）
+  <project>/<container>/             ← 每个容器一个独立 repo
 
 ~/.local/bin/kyb → ~/.kyb/bin/kyb   ← PATH 中的 CLI（符号链接）
 ~/.local/lib/kyb/                    ← lib 副本（bin/install 装入，fallback 路径）
@@ -165,17 +164,17 @@ mise 下载 runtime              →    镜像源直接下载
 kyb build                     # 构建基础镜像（构建前自动执行前置检查，也可先手动 kyb preflight）
 kyb preflight                 # 前置环境检查：验证网络、磁盘、Docker 是否就绪（推荐 build 前先跑）
 kyb init [NAME]               # 将当前项目加入配置
-kyb create <project-branch>   # 创建并启动沙箱（支持 --ports 和 --model）
+kyb create <project-branch>   # 创建并启动沙箱（默认：宿主 repo 直接 mount）
+kyb create --clone <project-branch>
+                              # 创建独立 git clone 的沙箱（隔离模式）
 kyb ps, ls                    # 列出沙箱
 kyb enter <project-branch>    # 进入沙箱（支持 --cli claude|kimi|bash）
 kyb exec <project-branch> -- CMD
                               # 在沙箱中执行命令
 kyb stop <project-branch>     # 停止沙箱
 kyb start <project-branch>    # 启动已停止的沙箱
-kyb rm <project-branch>       # 删除沙箱
+kyb rm <project-branch>       # 删除沙箱（只删容器，不碰宿主 repo）
 kyb prune                     # 删除所有沙箱
-kyb sandbox <project-branch> [PROMPT]
-                              # 在宿主机运行 Claude Code sandbox 模式（非 Docker）
 kyb did create <name>         # 创建 DID 容器
 kyb notify <done|blocked|urgent> <message>
                               # TTS 通知
@@ -208,7 +207,7 @@ projects:
   my-project:
     path: "~/path/to/project"       # 项目本地路径
     git_url: "git@github.com:user/repo.git"  # git clone URL（可选，DID 容器参考用）
-    base_branch: master             # worktree 基准分支
+    base_branch: master             # git sync 基准分支（kyb create 前自动 fetch + ff-merge）
     ports:                          # 端口映射（可选）
     - 3000:3000
     symlinks:                       # 只读符号链接（可选）
@@ -230,7 +229,7 @@ projects:
     extra_prompt: "项目级提示词"    # 附加到 CLAUDE.md 的提示词（可选）
 ```
 
-`cp_files` 在 `kyb create` 时从项目目录复制文件到 worktree（容器内项目目录），是 **copy** 不是 bind mount——适合 `.env`、`.env.kyb` 等需要快照进容器、不需要实时同步的文件。旧 `env_template` 仍可用，自动转为 `cp_files` 的 `.env` 项。
+`cp_files` 在 `kyb create --clone` 时从项目目录复制文件到 clone（容器内项目目录），是 **copy** 不是 bind mount——适合 `.env`、`.env.kyb` 等需要快照进容器、不需要实时同步的文件。默认 mount 模式下宿主直接改文件，cp_files 不生效。旧 `env_template` 仍可用，自动转为 `cp_files` 的 `.env` 项。
 
 三种文件操作方式的选择：
 
@@ -238,7 +237,7 @@ projects:
 |------|------|------|---------|
 | `mounts_ro` / `mounts_rw` | 容器启动 | 实时 mount | 共享代码、数据目录，需要双向同步或实时可见 |
 | `symlinks` | 容器启动 | 只读 mount（项目内相对路径） | 共享 vendor 之类只读目录，不用写绝对路径 |
-| `cp_files` | `kyb create` | 复制快照到 worktree | `.env`、`.env.kyb` 等一次性配置，不需要随宿主机变化 |
+| `cp_files` | `kyb create --clone` | 复制快照到 clone | `.env`、`.env.kyb` 等一次性配置，不需要随宿主机变化 |
 
 然后 `kyb create <name>` 即可创建沙箱。
 
@@ -249,7 +248,8 @@ projects:
 - `~/.claude/settings.json` → 容器内 `/home/dev/.claude-host-settings.json` (只读)
 - `~/.config/kyb` → 容器内 `/home/dev/.config/kyb` (只读) — 容器内可发现其他项目
 - `~/.claude/skills` → 容器内 `/home/dev/.claude-skills-host` (只读)
-- `~/.local/share/kyb/worktrees/<project>/<container>/` → 容器内 `/home/dev/projects/<project>` (git worktree 隔离)
+- `~/<当前项目路径>`（config.yml 中 path） → 容器内 `/home/dev/projects/<project>` (宿主 repo 直接 mount)
+- `~/` → 容器内 `/home/dev/projects-host/` (全目录参考，rw)
 - `/var/run/docker.sock` → 容器内 Docker 访问
 
 ## 共享缓存
@@ -277,16 +277,21 @@ curl -X POST http://host.docker.internal:10666/speak \
 
 详见宿主机 `kyb tts` 命令。
 
-## 工作树隔离
+## 代码目录
 
-每个容器使用独立 git worktree (`~/.local/share/kyb/worktrees/<project>/<container>/`)，多实例互不干扰。
+`kyb create` 默认直接 mount 宿主项目 repo 到容器，不 clone 不 worktree。容器内拿到完整 git repo，所有操作（`git pull`、`rebase`、`checkout`）正常可用。
+
+```bash
+kyb create project-branch         # 宿主 repo 直接 mount（无隔离，合适大多数场景）
+kyb create --clone project-branch # git clone 独立副本（隔离模式，适合并行开发 kyb 自身）
+```
+
+**注意：** 默认 mount 模式下，容器生命周期内宿主不宜在同一 repo 上 git 操作（会冲突）。需要同时开发多个分支请用 `--clone`。
 
 ## 文档
 
 - [网络问题排查](./docs/network-issues.md) — 构建和运行时所有网络依赖、失败原因和解决方法
-- [方案对比](./docs/comparison.md) — kyb vs 其他 AI 沙箱方案，Docker vs sandbox 模式选择
-- [OS 级沙箱对比](./docs/os-sandbox.md) — Claude Code / Codex / Zerobox / mise 底层原语深度对比
-- [实现踩坑](./docs/sandbox-pitfalls.md) — kyb sandbox 实现过程中遇到的问题和解决方案
+- [方案对比](./docs/comparison.md) — kyb vs 其他 AI 沙箱方案
 - [kyb did 设计](./docs/docker-in-docker.md) — Docker-in-Docker 场景下的容器管理子系统设计
 - [容器环境参考](./docs/container.md) — 容器内服务、网络、缓存等详细说明（面向 AI agent）
 - [Swift 沙箱测试](./docs/swift.md) — DID 容器跑 Swift 测试的方案和缓存维护
