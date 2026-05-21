@@ -20,50 +20,136 @@ kyb 不是 CLI 工具。kyb 是一个 agent 运行时。
 |------|---------|---------|
 | **Create** | `kyb create` → Docker run | provider 抽象 → Docker / 火山云 |
 | **Prompt** | entrypoint.sh 写 CLAUDE.md + 注入启动 prompt | 标准化的 agent self-description 协议 |
-| **Work** | tmux + Claude Code，手动 fork sub-agent | 内置 sub-agent 调度（boss mode） |
-| **Observe** | 无 | 生产数据接入（SLS / CK / Grafana） |
+| **Work** | tmux + Claude Code，手动 fork sub-agent | 内置 sub-agent 调度（boss mode），所有操作自动打点 |
+| **Observe** | 无 | 生产数据接入（SLS / CK / Grafana）+ 翻其他 agent 上下文 |
 | **Iterate** | 手动改代码、手动 cp 同步 | agent 直接改 kyb 代码 → 测试 → MR |
-| **Converge** | 人工验收 | agent 自验证，生产数据确认 |
+| **Converge** | 人工验收 | agent 自验证，生产数据确认，交叉引用其他 agent 结论 |
 | **Cleanup** | `kyb rm` | 自动，跑完即销毁 |
 
 ## 架构
 
 ```
-┌──────────────────────────────────────────────────┐
-│                    Agent Runtime                  │
-│  ┌─────────┐ ┌──────────┐ ┌──────────────────┐  │
-│  │  CLI    │ │  HTTP    │ │  (未来)           │  │
-│  │ (cobra) │ │ (daemon) │ │  gRPC/message    │  │
-│  └────┬────┘ └────┬─────┘ └────────┬─────────┘  │
-│       └───────────┴────────────────┘             │
-│                        │                         │
-│  ┌─────────────────────┴──────────────────────┐  │
-│  │              Core Services                  │  │
-│  │  ┌──────────┐ ┌────────┐ ┌──────────────┐  │  │
-│  │  │ Config   │ │ Parser │ │ Container    │  │  │
-│  │  │ (YAML)   │ │ (proj- │ │ (value obj)  │  │  │
-│  │  │          │ │ branch) │ │              │  │  │
-│  │  └──────────┘ └────────┘ └──────────────┘  │  │
-│  └─────────────────────┬──────────────────────┘  │
-│                        │                         │
-│  ┌─────────────────────┴──────────────────────┐  │
-│  │              Provider (interface)           │  │
-│  │  ┌──────────┐ ┌────────────┐ ┌──────────┐  │  │
-│  │  │ Local    │ │ Cloud      │ │ (test    │  │  │
-│  │  │ (Docker) │ │ (火山云)    │ │  mock)  │  │  │
-│  │  └──────────┘ └────────────┘ └──────────┘  │  │
-│  └─────────────────────┬──────────────────────┘  │
-│                        │                         │
-│  ┌─────────────────────┴──────────────────────┐  │
-│  │           External Integrations             │  │
-│  │  ┌──────┐ ┌────┐ ┌──────┐ ┌──────────┐   │  │
-│  │  │ SLS  │ │ CK │ │Grafana│ │ Toolchain│   │  │
-│  │  │      │ │    │ │       │ │ (mvn/    │   │  │
-│  │  │      │ │    │ │       │ │ mise/…)  │   │  │
-│  │  └──────┘ └────┘ └──────┘ └──────────┘   │  │
-│  └───────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    Agent Runtime                               │
+│  ┌─────────┐ ┌──────────┐ ┌───────────────────┐             │
+│  │  CLI    │ │  HTTP    │ │  (未来)            │             │
+│  │ (cobra) │ │ (daemon) │ │  gRPC/message     │             │
+│  └────┬────┘ └────┬─────┘ └────────┬──────────┘             │
+│       └───────────┴────────────────┘                        │
+│                        │                                    │
+│  ┌─────────────────────┴────────────────────────────────┐  │
+│  │                  Core Services                         │  │
+│  │  ┌──────────┐ ┌────────┐ ┌────────────┐ ┌──────────┐ │  │
+│  │  │ Config   │ │ Parser │ │ Container  │ │ Memory   │ │  │
+│  │  │ (YAML)   │ │ (proj- │ │ (value     │ │ (CK)     │ │  │
+│  │  │          │ │ branch) │ │  obj)      │ │          │ │  │
+│  │  └──────────┘ └────────┘ └────────────┘ └──────────┘ │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                    │
+│  ┌─────────────────────┴────────────────────────────────┐  │
+│  │                 Provider (interface)                   │  │
+│  │  ┌──────────┐ ┌────────────┐ ┌────────────────────┐  │  │
+│  │  │ Local    │ │ Cloud      │ │ Channel            │  │  │
+│  │  │ (Docker) │ │ (火山云)    │ │ (WeChat/DingTalk)  │  │  │
+│  │  └──────────┘ └────────────┘ └────────────────────┘  │  │
+│  └─────────────────────┬─────────────────────────────────┘  │
+│                        │                                    │
+│  ┌─────────────────────┴────────────────────────────────┐  │
+│  │              External Integrations                     │  │
+│  │  ┌──────┐ ┌──────┐ ┌──────────┐ ┌────────────────┐  │  │
+│  │  │ SLS  │ │ CK   │ │ Grafana  │ │ Toolchain      │  │  │
+│  │  │(prod)│ │(agent│ │          │ │ (mvn/mise/…)   │  │  │
+│  │  │      │ │ mem) │ │          │ │                │  │  │
+│  │  └──────┘ └──────┘ └──────────┘ └────────────────┘  │  │
+│  └───────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+Agent Memory（CK）与生产 CK 可以是同一集群的不同表，也可以分开。架构上统一抽象为 `Memory` 接口。
+
+## Memory 接口
+
+所有 agent 的操作、决策、中间结论、错误记录都在这里。agent 彼此可查询。
+
+```go
+type Memory interface {
+    // 写
+    LogEvent(ctx context.Context, event *AgentEvent) error
+    LogDecision(ctx context.Context, decision *AgentDecision) error
+    LogResult(ctx context.Context, result *AgentResult) error
+
+    // 读
+    QueryEvents(ctx context.Context, filter EventFilter) ([]AgentEvent, error)
+    Search(ctx context.Context, q string) ([]SearchResult, error)
+    GetSession(ctx context.Context, sessionID string) (*SessionSummary, error)
+    GetAgentContext(ctx context.Context, agentID string) (*AgentContext, error)
+}
+
+type AgentEvent struct {
+    Timestamp   time.Time
+    AgentID     string
+    SessionID   string
+    TaskID      string
+    Project     string
+    WorldView   string          // 注入的世界观
+    EventType   string          // observation / decision / action / result / error
+    Content     string          // 自然语言描述
+    ParentID    string          // boss agent ID
+    SiblingIDs  []string        // 并行 agent ID
+    Tags        map[string]string
+}
+```
+
+CK 表结构：
+
+```sql
+CREATE TABLE kyb.agent_events (
+    timestamp DateTime,
+    agent_id String,
+    session_id String,
+    task_id String,
+    project String,
+    world_view String,
+    event_type String,
+    content String,
+    parent_agent_id String,
+    sibling_agent_ids Array(String),
+    tags Map(String, String)
+) ENGINE = MergeTree()
+ORDER BY (project, timestamp);
+
+CREATE TABLE kyb.agent_decisions (
+    timestamp DateTime,
+    agent_id String,
+    decision String,         -- 关键决策："改用 JDK 11"
+    rationale String,        -- 推理过程
+    alternatives String,     -- 考虑过的其他方案
+    outcome String           -- 成功 / 失败 / 部分
+) ENGINE = MergeTree()
+ORDER BY (project, timestamp);
+```
+
+CLI:
+
+```bash
+kyb memory search "Nexus 403"              # 搜索所有 agent 关于 Nexus 403 的上下文
+kyb memory session <session-id>            # 查看一个 session 的全部事件
+kyb memory agent <agent-id>                # 查看某个 agent 的完整上下文
+kyb memory project <project>               # 查看某项目的所有 agent 活动
+```
+
+运行时注入 agent 的 prompt：
+
+```
+你和其他 agent 共享集群内 CK。所有操作自动打点。
+你可以随时查询其他 agent 的上下文：
+- `kyb memory search <关键词>` — 翻别人的踩坑经验
+- `kyb memory project <项目>` — 看这个项目上所有 agent 做了什么
+- `kyb memory agent <agent-id>` — 看某个 agent 的完整记录
+遇到不熟悉的问题，先搜 CK 再动手。
+```
+
+这彻底消除了"agent 无状态"问题。Session 断了？新 agent 先读 CK 恢复上下文。Boss 不知道 sub-agent 在干嘛？直接查 CK。
 
 ## Provider 接口
 
@@ -296,21 +382,26 @@ kyb 不封装 WeChat/DingTalk SDK——太重了。kyb 只提供**认证隧道 +
 `notify` 保持本地（扬声器），`send` 走向远程（通讯 App）。两套不冲突。
 
 ```
-         ┌─────────────────────────────────────┐
-         │  火山云 VKE                          │
-         │                                     │
-         │  kyb server（boss agent）            │
-         │    ├── subagent A: issue #42 不复现  │
-         │    ├── subagent B: 查 SLS 日志       │
-         │    ├── subagent C: 搭 Grafana 定位   │
-         │    ├── subagent D-N: 修复方案评估    │
-         │    └── 收敛 → 生成 patch → MR        │
-         │                                     │
-         │  kyb 自身也在容器里                   │
-         │  agent 可以改 kyb 代码               │
-         │  go build → test → MR → merge       │
-         │  = kyb 自己迭代了自己                │
-         └─────────────────────────────────────┘
+         ┌──────────────────────────────────────────────┐
+         │  火山云 VKE                                   │
+         │                                              │
+         │  ┌─ Agent Memory (CK) ───────────────────┐  │
+         │  │  所有 agent 的操作打点、决策、上下文     │  │
+         │  │  彼此可查，session 断了也能恢复          │  │
+         │  └────────────────────────────────────────┘  │
+         │                                              │
+         │  kyb server（boss agent）                    │
+         │    ├── subagent A: issue #42 查 SLS + CK 历史│
+         │    ├── subagent B: 搭 Grafana 定位           │
+         │    ├── subagent C: 翻以前 agent 的 Nexus 绕法│
+         │    ├── subagent D-N: 修复方案评估             │
+         │    └── 收敛 → 结论写入 CK → 生成 patch → MR  │
+         │                                              │
+         │  kyb 自身也在容器里                           │
+         │  agent 可以改 kyb 代码                       │
+         │  go build → test → MR → merge               │
+         │  = kyb 自己迭代了自己                        │
+         └──────────────────────────────────────────────┘
 ```
 
 关键突破点不在技术。在**信任**——让 agent 自己提交 MR、自己合并、自己发布。
@@ -333,11 +424,12 @@ Go 版第一版目标：**CLI 命令全集 + LocalDockerProvider + 测试通过*
 | 阶段 | 内容 | 关键依赖 |
 |------|------|---------|
 | 1 | Go 迁移：翻译现有 Ruby 到 Go，provider 先只实现 local Docker | 无 |
-| 2 | Provider 接口：实现 CloudProvider（VKE/ECS）| 火山云账号 |
-| 3 | 生产数据接入：SLS / CK / Grafana 认证和查询 | SLS/CK/Grafana 权限 |
-| 4 | 通讯渠道：WeChat/DingTalk 等推送和异步回复 | 微信/钉钉凭证 |
-| 5 | 工具集成：从 agent 踩坑记录固化 kyb fix/* 命令 | 持续积累 |
-| 6 | 自迭代：agent 改自己代码 → 测试 → MR merge | 信任 + CI 自动化 |
+| 2 | Agent Memory：CK 表结构，打点 CLI，查询接口 | CK 集群（火山云已有） |
+| 3 | Provider 接口：实现 CloudProvider（VKE/ECS）| 火山云账号 |
+| 4 | 生产数据接入：SLS / CK / Grafana 认证和查询 | SLS/CK/Grafana 权限 |
+| 5 | 通讯渠道：WeChat/DingTalk 等推送和异步回复 | 微信/钉钉凭证 |
+| 6 | 工具集成：从 agent 踩坑记录固化 kyb fix/* 命令 | 持续积累 |
+| 7 | 自迭代：agent 改自己代码 → 测试 → MR merge | 信任 + CI 自动化 |
 
 ## 不涉及（明确的非目标）
 
@@ -348,3 +440,4 @@ Go 版第一版目标：**CLI 命令全集 + LocalDockerProvider + 测试通过*
 - 不做 kyb 自身日志系统（SLS）
 - 不做 AMQP/gRPC 接入层（没必要）
 - 不自行实现 WeChat/DingTalk SDK（走 webhook + 轻量桥接）
+- agent memory CK 不是 kyb 日志——前者存 agent 决策上下文，后者是 kyb 自身运维日志（走 SLS）
