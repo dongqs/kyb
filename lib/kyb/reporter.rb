@@ -57,6 +57,40 @@ module Kyb::Reporter
     emit(:kyb_proxy_status, { reachable: reachable, proxy: proxy })
   end
 
+  # Automatic event types — zero agent effort, triggered by CLI lifecycle
+
+  def emit_container_create(project:, branch:, mode:)
+    emit(:container_create, { project: project, branch: branch, mode: mode })
+  end
+
+  def emit_container_rm(project:, had_did_children:)
+    emit(:container_rm, { project: project, had_did_children: had_did_children })
+  end
+
+  def emit_session_start(project:, cli_type:)
+    emit(:session_start, { project: project, cli_type: cli_type })
+  end
+
+  def emit_exec(project:, command:)
+    emit(:exec, { project: project, command: command })
+  end
+
+  def emit_dispatch(task_type:, target:)
+    emit(:dispatch, { task_type: task_type, target: target })
+  end
+
+  def emit_complete(task_type:, duration:, outcome:)
+    emit(:complete, { task_type: task_type, duration: duration, outcome: outcome })
+  end
+
+  def emit_heartbeat(container_count:, disk:, mem:)
+    emit(:heartbeat, { container_count: container_count, disk: disk, mem: mem })
+  end
+
+  def emit_session_complete(cli:, duration_seconds:)
+    emit(:session_complete, { cli: cli, duration_seconds: duration_seconds })
+  end
+
   def emit_session_create(container_id, project, branch, model)
     row = {
       timestamp: Time.now.utc.strftime('%Y-%m-%d %H:%M:%S'),

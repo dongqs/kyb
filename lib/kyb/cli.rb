@@ -119,6 +119,12 @@ module Kyb::CLI
     when 'session'
       Kyb.die("Usage: kyb session wrap <cli> [args...]") unless args.first == 'wrap' && args.size >= 2
       session_wrap(args[1], args[2..])
+    when 'event'
+      if args.any?
+        event_cmd(args)
+      else
+        event_help
+      end
     when 'morning'
       morning(args)
     when 'notify'
@@ -203,3 +209,4 @@ require_relative 'cli/assert'
 require_relative 'cli/onboard'
 
 require_relative 'cli/worldview'
+require_relative 'cli/event'

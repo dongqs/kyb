@@ -45,6 +45,8 @@ module Kyb::CLI
     c = Kyb::Container.new(project, branch)
     Kyb.die("container '#{c.name}' is not running") unless c.running?
 
+    Kyb::Reporter.emit_exec(project: project, command: args.first)
+
     exec('docker', 'exec', '-i', '-u', 'dev', '-w', "/home/dev/projects/#{project}", c.name, *args)
   end
 
@@ -92,6 +94,11 @@ module Kyb::CLI
         Kyb.die("Aborted.") unless ans == 'y'
       end
     end
+
+    # Capture DID children info for metrics before cleanup
+    had_children = `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name} 2>/dev/null`
+                   .lines.map(&:strip).reject(&:empty?).any?
+    Kyb::Reporter.emit_container_rm(project: project, had_did_children: had_children)
 
     # Clean up any DID children first (cascade: children → parent)
     # DID containers are labeled did_parent=<parent-container>, so without
