@@ -12,8 +12,6 @@ module Kyb::Check
     'Ruby (cache.ruby-lang)'  => URI('https://cache.ruby-lang.org'),
   }.freeze
 
-  module_function
-
   def run_checks
     proxy = Kyb::Proxy.detect
 
@@ -278,4 +276,9 @@ module Kyb::Check
     output = `#{cmd}`
     CmdResult.new(output, $?.success?)
   end
+
+  module_function :run_checks, :print_result, :print_proxy_info, :print_proxy_hint,
+                   :proxy_source, :check_proxy, :check_docker, :check_ruby,
+                   :check_endpoint, :try_http_direct, :try_http_via_proxy, :check_disk,
+                   :assert_java, :assert_pg, :assert_mise_tool, :capture_cmd
 end
