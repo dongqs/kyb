@@ -19,6 +19,8 @@ module Kyb::CLI
     args = argv[1..] || []
 
     case cmd
+    when 'doctor'
+      doctor(args)
     when 'preflight', 'pre-flight', 'check'
       preflight
     when 'build'
@@ -89,6 +91,13 @@ module Kyb::CLI
     when 'session'
       Kyb.die("Usage: kyb session wrap <cli> [args...]") unless args.first == 'wrap' && args.size >= 2
       session_wrap(args[1], args[2..])
+    when 'event'
+      Kyb.die("Usage: kyb event <type> <content>\n" \
+               "  Record an agent event to ClickHouse collective memory.\n" \
+               "  Example: kyb event result \"Fixed Nexus 403 by switching to go module proxy\"") if args.empty?
+      event_type = args.shift
+      content = args.join(' ')
+      event(event_type, content)
     when 'notify'
       Kyb.die("Usage: kyb notify <done|blocked|urgent> <message>\n" \
                "  done:    task complete. ALWAYS notify when done\n" \
@@ -123,6 +132,7 @@ module Kyb::CLI
       Usage:  kyb COMMAND
 
       Commands:
+        doctor [--prune]                 Scan containers/volumes, clean stale resources
         preflight                        Run pre-flight environment checks (proxy, mirrors, disk)
                                          Run before build to catch network issues early
         build                            Build base image
@@ -166,3 +176,5 @@ require_relative 'cli/tts'
 require_relative 'cli/did'
 require_relative 'cli/session'
 require_relative 'cli/assert'
+require_relative 'cli/doctor'
+require_relative 'cli/event'
