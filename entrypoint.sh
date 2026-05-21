@@ -36,6 +36,13 @@ find /home/dev/.gradle /home/dev/.m2/repository /home/dev/.local/share/mise/down
   grep -q . &&
   chown -R dev:dev /home/dev/.gradle /home/dev/.m2/repository /home/dev/.local/share/mise/downloads 2>/dev/null || true
 
+# Copy .ssh from read-only host mount to writable directory (Issue #22)
+if [ -d /home/dev/.ssh-host ] && [ ! -d /home/dev/.ssh ]; then
+    cp -r /home/dev/.ssh-host /home/dev/.ssh
+    chown -R dev:dev /home/dev/.ssh
+    chmod 600 /home/dev/.ssh/id_rsa /home/dev/.ssh/id_ed25519 2>/dev/null || true
+fi
+
 # Clean stale Gradle locks from zombie daemons (common after failed builds)
 rm -f /home/dev/.gradle/caches/journal-*/journal-*.lock
 
@@ -132,6 +139,13 @@ hosts:
 YAML
     chown -R dev:dev /home/dev/.config/glab-cli
     chmod 600 /home/dev/.config/glab-cli/config.yml
+fi
+
+# Configure gh on first run (Issue #14)
+if [ -n "${GITHUB_TOKEN:-}" ] && [ ! -f /home/dev/.config/gh/hosts.yml ]; then
+    mkdir -p /home/dev/.config/gh
+    echo "$GITHUB_TOKEN" | runuser -u dev -- bash -l -c 'gh auth login --with-token' 2>/dev/null || true
+    chown -R dev:dev /home/dev/.config/gh 2>/dev/null || true
 fi
 
 # Generate container CLAUDE.md
@@ -244,6 +258,27 @@ if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
             bundle install || true
         fi
 EOF
+fi
+
+# DID container: make dev toolchain available to root (Issue #11)
+if [ -n "${KYB_DID:-}" ]; then
+    # Symlink Maven config to root
+    mkdir -p /root/.m2
+    ln -sf /home/dev/.m2/settings.xml /root/.m2/settings.xml
+    ln -sf /home/dev/.m2/repository /root/.m2/repository
+    # Symlink Gradle cache to root
+    ln -sf /home/dev/.gradle /root/.gradle
+    # root's bashrc inherits dev's mise + PATH
+    cat >> /root/.bashrc << 'ROOT_EOF'
+export PATH="/home/dev/.local/bin:${PATH}"
+eval "$(/home/dev/.local/bin/mise activate bash)"
+ROOT_EOF
+    # Trust mise config for root
+    /home/dev/.local/bin/mise trust /home/dev/.config/mise/config.toml 2>/dev/null || true
+    # ARM64 fallback
+    if [ "$(uname -m)" = "aarch64" ]; then
+        su - dev -c "mise install java@temurin-21 2>/dev/null || true" 2>/dev/null || true
+    fi
 fi
 
 exec runuser -u dev -- "$@"

@@ -172,7 +172,7 @@ module Kyb::Docker
     # the container. Skip all host-only bind mounts to avoid creating empty
     # files that break the entrypoint.
     unless dind
-      args += ['-v', "#{ssh_dir}:/home/dev/.ssh:ro"] if File.directory?(ssh_dir)
+      args += ['-v', "#{ssh_dir}:/home/dev/.ssh-host:ro"] if File.directory?(ssh_dir)
       kyb_dir = File.expand_path('~/.kyb')
       FileUtils.mkdir_p(kyb_dir) unless File.directory?(kyb_dir)
       args += ['-v', "#{kyb_dir}:#{kyb_dir}"]
