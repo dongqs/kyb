@@ -109,3 +109,11 @@ module Kyb::Config
     (load_config['projects'] || {}).keys.sort
   end
 end
+
+  def reporting_enabled?
+    cfg = load_config
+    return true unless cfg.is_a?(Hash)
+    reporting = cfg["reporting"]
+    return true unless reporting.is_a?(Hash)
+    reporting["enabled"] != false
+  end

@@ -92,7 +92,7 @@ module Kyb::CLI
   end
 
   def containerized?
-    File.exist?('/.dockerenv')
+    Kyb.in_container?
   end
 
   def notify(level, message)

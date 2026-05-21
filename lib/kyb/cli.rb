@@ -19,6 +19,10 @@ module Kyb::CLI
     args = argv[1..] || []
 
     case cmd
+    when 'doctor'
+      doctor(args)
+    when 'onboard'
+      onboard(args)
     when 'preflight', 'pre-flight', 'check'
       preflight
     when 'build'
@@ -44,8 +48,13 @@ module Kyb::CLI
     when 'ps', 'ls'
       ps
     when 'enter'
-      Kyb.die("enter requires a project-branch\n  Usage: kyb enter PROJECT-BRANCH [--cli claude|kimi|bash]") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("enter requires a project-branch")
+                        end
       cli = 'claude'
       if args.first == '--cli'
         args.shift
@@ -54,21 +63,42 @@ module Kyb::CLI
       end
       enter(project, branch, cli: cli)
     when 'exec'
-      Kyb.die("exec requires a project-branch\n  Usage: kyb exec PROJECT-BRANCH [CMD...]") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("exec requires a project-branch")
+                        end
       exec_cmd(project, branch, args)
     when 'stop'
-      Kyb.die("stop requires a project-branch\n  Usage: kyb stop PROJECT-BRANCH") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("stop requires a project-branch")
+                        end
       stop(project, branch)
     when 'start'
-      Kyb.die("start requires a project-branch\n  Usage: kyb start PROJECT-BRANCH") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("start requires a project-branch")
+                        end
       start(project, branch)
     when 'rm'
-      Kyb.die("rm requires a project-branch\n  Usage: kyb rm PROJECT-BRANCH") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
-      rm(project, branch)
+      force = args.delete('--force') ? true : false
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("rm requires a project-branch")
+                        end
+      rm(project, branch, force: force)
     when 'prune'
       prune
     when 'did'
@@ -108,6 +138,10 @@ module Kyb::CLI
   end
 
   def preflight
+    if Kyb.in_container?
+      puts "preflight 命令不应在容器内运行"
+      exit 1
+    end
     Kyb::Config.load_config
     Kyb::Check.run_checks
   end
@@ -119,6 +153,8 @@ module Kyb::CLI
       Usage:  kyb COMMAND
 
       Commands:
+        doctor [--prune]                 Scan containers/volumes, clean stale resources
+        onboard [--auto]                 Interactive new-user setup wizard
         preflight                        Run pre-flight environment checks (proxy, mirrors, disk)
                                          Run before build to catch network issues early
         build                            Build base image
@@ -134,7 +170,7 @@ module Kyb::CLI
         exec  PROJECT-BRANCH [CMD...]    Run command in container
         stop  PROJECT-BRANCH             Stop container
         start PROJECT-BRANCH             Start stopped container
-        rm    PROJECT-BRANCH             Remove container
+        rm    PROJECT-BRANCH [--force]   Remove container (--force skips confirmation)
         prune                            Remove all containers
         assert <type> [args...]          Verify and auto-heal prerequisites
                                          Types: java [v], pg, mise <tool>
@@ -162,3 +198,5 @@ require_relative 'cli/tts'
 require_relative 'cli/did'
 require_relative 'cli/session'
 require_relative 'cli/assert'
+require_relative 'cli/doctor'
+require_relative 'cli/onboard'

@@ -60,7 +60,7 @@ module Kyb::CLI
     Kyb::Docker.start_existing(c.name)
   end
 
-  def rm(project, branch)
+  def rm(project, branch, force: false)
     Kyb::Config.load
     proj = Kyb::Config.project(project)
     path = proj[:path]
@@ -78,7 +78,7 @@ module Kyb::CLI
       system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)
     end
 
-    Kyb::Docker.remove_container(c.name)
+    Kyb::Docker.remove_container(cname)
 
     Kyb::Docker.volume_rm(c.claude_volume)
 
@@ -88,7 +88,7 @@ module Kyb::CLI
       FileUtils.rm_rf(clone_target)
     end
 
-    puts "==> Done: #{c.name} removed"
+    puts "==> Done: #{cname} removed"
     puts "==> 远端分支 #{c.git_branch} 未删除，如需清理请手动 git push origin --delete #{c.git_branch}"
   end
 

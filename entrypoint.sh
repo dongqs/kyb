@@ -203,8 +203,10 @@ if [ -d /home/dev/.claude-skills-host ] && [ ! -L /home/dev/.claude/skills ]; th
     ln -s /home/dev/.claude-skills-host /home/dev/.claude/skills
 fi
 
-# Start PostgreSQL
-pg_ctlcluster 16 main start 2>/dev/null || true
+# Start PostgreSQL (skip in DID containers — host PG handles DB needs)
+if [ -z "${KYB_DID:-}" ]; then
+    pg_ctlcluster 16 main start 2>/dev/null || true
+fi
 
 # pip tools (may fail during image build, retry here at runtime)
 runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]'" 2>/dev/null || true

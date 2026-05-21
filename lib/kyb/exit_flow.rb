@@ -25,7 +25,7 @@ module Kyb::ExitFlow
 
   def run_idle_checks(container, project)
     cname = container.name
-    dind = File.exist?('/.dockerenv')
+    dind = Kyb.in_container?
 
     puts
     puts "━━━  Idle Check  ━━━"

@@ -36,3 +36,16 @@ module Kyb::Parser
     Kyb::Container.new(project, branch).name
   end
 end
+  def auto_detect
+    Kyb::Config.load
+    cwd = Dir.getwd
+    Kyb::Config.project_names.each do |proj_name|
+      proj = Kyb::Config.project(proj_name)
+      proj_path = proj[:path]
+      if cwd == proj_path || cwd.start_with?(proj_path + '/')
+        return [proj_name, 'kyb']
+      end
+    end
+    nil
+  end
+end

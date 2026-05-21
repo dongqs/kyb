@@ -166,7 +166,7 @@ module Kyb::Docker
     args += ['-e', "KYB_BRANCH=#{branch}"] if branch
     args += ['-l', Kyb::Container::LABEL]
 
-    dind = File.exist?('/.dockerenv')
+    dind = Kyb.in_container?
     ssh_dir = File.expand_path('~/.ssh')
     # In DinD mode, host paths are invisible to the Docker daemon running inside
     # the container. Skip all host-only bind mounts to avoid creating empty
@@ -366,7 +366,7 @@ module Kyb::Docker
       end
     end
 
-    if File.exist?('/.dockerenv')
+    if Kyb.in_container?
       home = Dir.home
       tar_sources = []
       tar_sources << '.ssh' if File.directory?("#{home}/.ssh")

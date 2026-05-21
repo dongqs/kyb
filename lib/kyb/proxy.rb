@@ -24,8 +24,20 @@ module Kyb::Proxy
     probe
   end
 
+  def docker_container?
+    Kyb.in_container?
+  end
+
   def config_proxy
-    Kyb::Config.proxy
+    proxy = Kyb::Config.proxy
+    return nil unless proxy
+
+    uri = URI.parse(proxy)
+    if %w[127.0.0.1 localhost].include?(uri.host) && docker_container?
+      proxy.sub(uri.host, 'host.orb.internal')
+    else
+      proxy
+    end
   rescue
     nil
   end
