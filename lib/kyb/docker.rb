@@ -271,7 +271,7 @@ module Kyb::Docker
     puts "==> Done: #{container} started"
   end
 
-  def create_container(project, branch, port_overrides = nil, model: nil, clone: false)
+  def create_container(project, branch, port_overrides = nil, model: nil, repo_root: nil)
     Kyb::Config.load
 
     if %w[master main].include?(branch)
@@ -296,9 +296,13 @@ module Kyb::Docker
 
     image = Kyb::Container::BASE_IMAGE
 
-    # Clone mode: create independent git clone
+    # Determine clone vs mount based on repo_root (CLI overrides config)
+    root_mode = repo_root || proj[:repo_root]
+    is_clone = root_mode == 'isolated_local_repo_clone'
+
+    # Set up repo: clone independent copy or sync host repo
     clone_target = nil
-    if clone
+    if is_clone
       clone_target = clone_path(project, container)
       setup_clone(path, clone_target, project, container)
     else
@@ -306,14 +310,13 @@ module Kyb::Docker
     end
 
     # cp_files only in clone mode (default mount means host already has these files)
-    if clone && proj[:cp_files]
+    if is_clone && proj[:cp_files]
       base_keys = proj[:cp_files_base_keys] || [].freeze
       proj[:cp_files].each do |dst, src|
         src_path = File.join(path, src)
         if File.exist?(src_path)
           puts "     cp #{src} -> #{dst}"
-          target = clone ? clone_target : path
-          FileUtils.cp(src_path, File.join(target, dst))
+          FileUtils.cp(src_path, File.join(clone_target, dst))
         elsif !base_keys.include?(dst)
           puts "     warn: #{src} not found, skipped"
         end
@@ -327,7 +330,7 @@ module Kyb::Docker
 
     FileUtils.mkdir_p(File.expand_path('~/.kimi'))
 
-    repo_path = clone ? clone_target : path
+    repo_path = is_clone ? clone_target : path
     run(
       container: container,
       image: image,
@@ -353,7 +356,7 @@ module Kyb::Docker
     end
 
     # Conflict detection: warn about shared-repo containers
-    unless clone
+    unless is_clone
       same_project = check_shared_project_conflict(project) - [container.name]
       if same_project.any?
         puts

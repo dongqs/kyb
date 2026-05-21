@@ -74,6 +74,7 @@ module Kyb::Config
       git_url: p['git_url'],
       base_branch: p['base_branch'],
       dockerfile: p['dockerfile'],
+      repo_root: p['repo_root'] || 'shared_host_disk_mount',
       ports: Array(p['ports']).map(&:to_i).reject(&:zero?),
       symlinks: Array(p['symlinks']).map(&:to_s).reject(&:empty?).join(','),
       mounts_rw: Array(p['mounts_rw']).map(&:to_s).reject(&:empty?).join(','),

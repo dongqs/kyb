@@ -3,8 +3,8 @@
 module Kyb::CLI
   module_function
 
-  def create(project, branch, port_overrides = nil, model: nil, clone: false)
-    container, ports = Kyb::Docker.create_container(project, branch, port_overrides, model: model, clone: clone)
+  def create(project, branch, port_overrides = nil, model: nil, repo_root: nil)
+    container, ports = Kyb::Docker.create_container(project, branch, port_overrides, model: model, repo_root: repo_root)
     proj = Kyb::Config.project(project)
     image = Kyb::Container::BASE_IMAGE
     image = Kyb::Docker.project_image(project, File.join(proj[:path], proj[:dockerfile]), proj[:path]) if proj[:dockerfile]

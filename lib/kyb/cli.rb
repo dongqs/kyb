@@ -27,7 +27,7 @@ module Kyb::CLI
       init(args)
     when 'create'
       Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--clone] [--ports HOST:CONTAINER] [--model flash|pro]") unless args.first
-      clone = args.delete('--clone') || false
+      repo_root = args.delete('--clone') ? 'isolated_local_repo_clone' : nil
       port_overrides = nil
       model = nil
       project, branch = Kyb::Parser.parse(args.shift)
@@ -40,7 +40,7 @@ module Kyb::CLI
         model = args.shift
         Kyb.die("--model must be 'flash' or 'pro'") unless %w[flash pro].include?(model)
       end
-      create(project, branch, port_overrides, model: model, clone: clone)
+      create(project, branch, port_overrides, model: model, repo_root: repo_root)
     when 'ps', 'ls'
       ps
     when 'enter'

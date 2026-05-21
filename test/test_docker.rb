@@ -317,7 +317,7 @@ class DockerTest < Minitest::Test
   def stub_create_container_deps(cp_files_val = nil)
     Kyb::Config.stub(:load, nil) do
     Kyb::Config.stub(:project, ->(name) {
-      { name: name, path: '/tmp/test-cp-project', base_branch: 'master',
+      { name: name, path: '/tmp/test-cp-project', base_branch: 'master', repo_root: 'shared_host_disk_mount',
         dockerfile: nil, ports: [], symlinks: '', mounts_rw: '', mounts_ro: '',
         cp_files: cp_files_val, cp_files_base_keys: [].freeze,
         extra_prompt: nil, timezone: 'Asia/Shanghai',
@@ -368,7 +368,7 @@ class DockerTest < Minitest::Test
       Kyb::Docker.stub(:setup_clone, nil) do
       FileUtils.stub(:mkdir_p, nil) do
         # clone mode: cp_files should be called
-        Kyb::Docker.create_container('niao', 'test', nil, model: nil, clone: true)
+        Kyb::Docker.create_container('niao', 'test', nil, model: nil, repo_root: 'isolated_local_repo_clone')
       end; end; end; end; end; end; end; end; end; end; end
       end
       refute cp_pairs.empty?, 'expected cp_files in clone mode'
