@@ -249,6 +249,28 @@ policy-tools converged: Lombok + JDK 8 version lock, 93MB leyan-proto jar, 0 tes
 
 ## 08:00 — citi done
 
-citi converged: 228 Python tests, MR !358. First Python ML project. Found gaps: Python 3.10 outdated (needs 3.11+), grpcio 1.43 broken on arm64, librdkafka-dev missing, protobuf version conflict. All worked around. kyb-base needs Python upgrade for the Python batch.
+citi converged: 228 Python tests, MR !358. First Python ML project. Found gaps: Python 3.10 outdated (needs 3.11+), grpcio 1.43 broken on arm64, librdkafka-dev missing, protobuf version conflict. All worked around.
+
+---
+
+## 08:16 — data-ant done — all projects accounted for
+
+data-ant converged: 19 submodules, 75+ tests, 5-level nested git, MR !757. The last of the dispatched batch.
+
+**Overnight summary — 17 projects onboarded:**
+- 12 full 4-round convergence with MR
+- 2 blocked by Nexus (chat-stream, store-home — .kyb.md done, R2+ when Nexus is fixed)
+- 1 blocked by read-only repo (policy-tools — branch exists locally)
+- 1 partial (business-rule — Round 1 done)
+- 1 image-verified
+
+**Key systemic findings for the user:**
+1. Nexus: some groupIds 403, some 404 (not published), some work. `readonlyuser` scope needs expansion or projects need Maven Central fallback baked into kyb-base.
+2. JDK: Java 8 projects still common (Lombok incompatibility). Base image has JDK 21 but projects needing 8 must manually switch.
+3. DID: timezone mismatch (UTC vs Asia/Shanghai) is a recurring test killer. Documented in template now.
+4. Python: kyb-base Python 3.10 is too old. Need 3.11+ for the Python batch.
+5. ARM64: grpcio, netty epoll break on ARM. kyb containers are ARM64 (OrbStack). This is a real compatibility tax.
+
+All OODA loops complete. Awaiting user. kyb-base needs Python upgrade for the Python batch.
 
 ／人◕ ‿‿ ◕人＼
