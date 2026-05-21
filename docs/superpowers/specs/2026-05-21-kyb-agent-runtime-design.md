@@ -148,6 +148,59 @@ kyb 从"编排工具"变成"agent 工具集"。每个命令固化一种 agent �
 
 这些命令的本质是 **agent 少走一次弯路**。每次 agent 发现一个"又卡在这了"的问题，就固化一个命令。
 
+## Agent 世界观
+
+Prompt 注入时附带一份世界观文件，影响 agent 的思考框架而非具体知识。
+
+```
+kyb create project-branch --worldview system-cybernetics    # 系统论+控制论
+kyb create project-branch --worldview scientific-empiricism  # 科学实证主义
+kyb create project-branch --worldview marxist-dialectics     # 实践论+矛盾论
+kyb create --diversity 3 project-branch                      # 随机3种世界观并行
+```
+
+每个世界观文件在 `~/.kyb/worldviews/` 下，3-5 段话。通过 entrypoint 注入 CLAUDE.md 或启动 prompt。
+
+```go
+type Worldview struct {
+    Name        string
+    Path        string  // ~/.kyb/worldviews/<name>.md
+    Description string
+}
+
+// 生成 prompt 片段
+func (w *Worldview) Prompt() string {
+    content, _ := os.ReadFile(w.Path)
+    return fmt.Sprintf("\n## 世界观\n%s\n", content)
+}
+```
+
+世界观只改变思维框架，不改变工具能力和项目知识（在 `.kyb.md` 中）。两者正交：
+- `.kyb.md` = agent 知道什么（绕 Nexus 403、冷/热启动缓存）
+- 世界观 = agent 怎么想问题（大胆假设小心求证、整体涌现 vs 还原论）
+
+### 世界观库（初始）
+
+| 文件名 | 来源 | 效果 |
+|--------|------|------|
+| `system-cybernetics.md` | 系统论+控制论 | 整体视角、反馈环、涌现、分层 |
+| `scientific-empiricism.md` | 科学实证主义 | 假设→实验→数据→结论，大胆假设小心求证 |
+| `practical-stoicism.md` | 实践论+矛盾论 | 抓住主要矛盾、实践检验真理、动态发展 |
+| `first-principles.md` | 第一性原理 | 拆到不可分再重建、质疑所有默认假设 |
+| `stoic-pragmatism.md` | 斯多葛实用主义 | 可控/不可控二分、最小可行、渐进 |
+
+### Boss 模式的多样性策略
+
+```bash
+kyb issue fix #42 --diversity 5
+# → boss 创建 5 个容器，每人不同世界观
+# → 各自独立去查 SLS、复现、定位、修复
+# → 最先收敛的提交 MR
+# → 其他人看到有人完成了，自动销毁
+```
+
+不同世界观 = 不同盲点。同一个 prompt 派 N 个 agent 只是碰运气，不同世界观才是真并行探索。
+
 ### 工具集成契约
 
 ```
