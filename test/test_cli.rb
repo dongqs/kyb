@@ -10,6 +10,7 @@ class CLITest < Minitest::Test
     @_orig[:config] = {
       load: (Kyb::Config.method(:load) rescue nil),
       project_names: (Kyb::Config.method(:project_names) rescue nil),
+      project: (Kyb::Config.method(:project) rescue nil),
     }
     @_orig[:cli] = {}
     %i[create enter stop start rm did_create did_rm did_ps].each do |m|
@@ -18,6 +19,7 @@ class CLITest < Minitest::Test
 
     Kyb::Config.define_singleton_method(:load) { nil }
     Kyb::Config.define_singleton_method(:project_names) { PROJECTS }
+    Kyb::Config.define_singleton_method(:project) { |_| { path: "/nonexistent/path" } }
 
     # Methods without keyword args
     %i[stop start].each do |m|
