@@ -23,5 +23,6 @@ test:
   before_script:
     - mkdir -p ~/.config/kyb
     - 'echo "base: {}" > ~/.config/kyb/config.yml'
+    - bundle install
   script:
-    - ruby -Itest -e 'Dir["test/test_cli.rb","test/test_config.rb","test/test_container.rb","test/test_parser.rb","test/test_sandbox.rb","test/test_stale_cli.rb","test/test_tts_server.rb","test/test_session.rb","test/test_enter_exit.rb","test/test_exit_flow.rb"].sort.each { |f| require_relative f }'
+    - ruby -Itest -e 'Dir["test/test_cli.rb","test/test_config.rb","test/test_container.rb","test/test_parser.rb","test/test_stale_cli.rb","test/test_tts_server.rb","test/test_session.rb","test/test_enter_exit.rb","test/test_exit_flow.rb","test/test_readme.rb","test/test_check.rb","test/test_env_kyb.rb","test/test_entrypoint.rb","test/test_docker.rb","test/test_did.rb","test/test_did_cpus.rb"].sort.each { |f| require_relative f }'
