@@ -27,14 +27,11 @@ module Kyb::CLI
       init(args)
     when 'create'
       Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--clone] [--ports HOST:CONTAINER] [--model flash|pro]") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      clone = false
+      clone = true if args.first == '--clone' && args.shift
       port_overrides = nil
       model = nil
-      clone = false
-      if args.first == '--clone'
-        args.shift
-        clone = true
-      end
+      project, branch = Kyb::Parser.parse(args.shift)
       if args.first == '--ports'
         args.shift
         port_overrides = args.shift if args.first
@@ -130,8 +127,8 @@ module Kyb::CLI
 
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                          Add current project to config
-        create PROJECT-BRANCH [--ports HOST:CONTAINER] [--model flash|pro]
-                                         Create and start a container
+        create PROJECT-BRANCH [--clone] [--ports HOST:CONTAINER] [--model flash|pro]
+                                         Create and start a container (--clone: isolated git clone)
         ps, ls                           List containers
         enter PROJECT-BRANCH [--cli claude|kimi|bash]
                                          Enter container (default: claude)
