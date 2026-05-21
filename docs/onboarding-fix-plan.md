@@ -19,8 +19,6 @@
 
 **踩坑引用**: 12 个项目的踩坑 #1 都是 Java 版本问题
 
-**状态**: ⚠️ 已实现待验证 — 实际修正比描述更彻底（审计发现镜像里根本没有 JDK，已直接添加 corretto-21 到 mise 工具链 + Dockerfile 安装层）。详见 MR !52，需 `kyb build` 重建镜像后验证。
-
 ### 2. DID 容器工具链空白
 
 **问题**: DID 容器只包含 Alpine 基础系统，没有 JDK/Maven/pip3/mig25/gh/Claude Code。每个 DID onboarding 都要手动装一遍，且 shared volume 权限要额外修。
@@ -37,8 +35,6 @@
 **踩坑引用**:
 - `sudo chown -R dev:dev ~/.m2 ~/.local/share/mise/downloads`（common pitfall #1/#4）
 - DID 容器 JDK/Maven 缺失（common pitfall #8）
-
-**状态**: 🔄 审计发现描述已过时 — DID 容器实际使用同一 `kyb-base` 镜像（Ubuntu 24.04，非 Alpine），toolchain 共享，只是 PG 不自启+无 pip/mig25。PG 问题已随 MR !52 修复（去掉了 `KYB_DID` guard），pip/mig25 在 DID 容器中仍有可能未就绪（entrypoint 第 206 行的 pip install 受 `set -e` 影响可能跳过），需进一步确认。
 
 ---
 
@@ -71,8 +67,6 @@
 - `kyb create` 入口自动执行 `sudo chown -R dev:dev ~/.m2 ~/.local/share/mise/downloads`
 - 或 entrypoint 启动时检测 owner 并修复
 
-**状态**: ✅ 已实现待验证 — entrypoint.sh 已补上 `~/.local/share/mise/downloads`（原只修了 `.gradle` + `.m2/repository`）。详见 MR !52。
-
 ### 5. DID 容器不自启 PostgreSQL
 
 **问题**: DID 容器不自启 PG，每个 DID onboarding 都要先手动 `pg_ctlcluster 16 main start`。
@@ -84,8 +78,6 @@
 **修复方案**:
 - DID entrypoint 加入 PG 自启逻辑
 - 或 DID 镜像预装 PG 并配置自启
-
-**状态**: ✅ 已实现待验证 — entrypoint.sh 已移除 `KYB_DID` 限制，PG 在所有容器（含 DID）中自动启动。详见 MR !52。
 
 ---
 
@@ -100,8 +92,6 @@
 **已在**: issue #9
 
 **修复方案**: entrypoint 自动添加常见服务别名到 `/etc/hosts`
-
-**状态**: ✅ 已实现待验证 — entrypoint.sh 已将 `postgres clickhouse kafka redis` 写入 `/etc/hosts`。详见 MR !52。
 
 ### 7. proxy 配置兼容性
 
@@ -118,12 +108,12 @@
 ## 实施顺序
 
 ```
-P0-1  mise Java 默认版本     → mise.config.toml + Dockerfile   ✅ 已实现（MR !52）
+P0-1  mise Java 默认版本     → entrypoint.sh    ~30min
 P0-2  DID 工具链              → Dockerfile/did    ~2h
 P1-3  mise config 持久化      → entrypoint.sh    ~1h
-P1-4  共享 volume 权限         → entrypoint.sh    ✅ 已实现（MR !52）
-P1-5  DID PG 自启             → entrypoint.sh    ✅ 已实现（MR !52）
-P2-6  /etc/hosts 别名         → entrypoint.sh    ✅ 已实现（MR !52）
+P1-4  共享 volume 权限         → kyb create       ~30min
+P1-5  DID PG 自启             → entrypoint.sh    ~30min
+P2-6  /etc/hosts 别名         → entrypoint.sh    ~15min
 P2-7  proxy 兼容性            → entrypoint.sh    ~15min
 ```
 
@@ -172,11 +162,11 @@ P2-7  proxy 兼容性            → entrypoint.sh    ~15min
 ```
 P0-1  DID 工具链               → Dockerfile/did    ~2h      ← 影响 70 个项目的 DID 验证
 P0-2  mise config 持久化       → entrypoint.sh    ~1h      ← 不修则排查成本翻倍
-P1-1  /etc/hosts 服务别名       → entrypoint.sh    ✅ 已实现（MR !52）⬆️ 从 P2 升级
-P1-2  共享 volume 权限          → entrypoint.sh    ✅ 已实现（MR !52）
+P1-1  /etc/hosts 服务别名       → entrypoint.sh    ~15min   ← ⬆️ 从 P2 升级，影响 40+ 项目
+P1-2  共享 volume 权限          → kyb create       ~30min
 P1-3  非 Maven 构建检测         → 模版 + flow      ~1h      ← ➕ 新增
-P1-4  DID PG 自启              → entrypoint.sh    ✅ 已实现（MR !52）
-P2-1  mise Java 默认版本       → 镜像层           ✅ 已实现（MR !52）— 直接装 JDK 21
+P1-4  DID PG 自启              → entrypoint.sh    ~30min
+P2-1  mise Java 默认版本       → entrypoint.sh    ~30min   ← 修完 P0-2 后此问题自然消失
 P2-2  CI 变量自动提取           → kyb onboard scan ~2h      ← ➕ 新增
 P2-3  proxy 兼容性             → entrypoint.sh    ~15min
 ```
