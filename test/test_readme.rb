@@ -323,7 +323,7 @@ class ReadmeTest < Minitest::Test
 
   def test_worktree_path_under_kyb
     c = Kyb::Container.new('proj', 'branch')
-    assert_match(%r{\.kyb/worktrees/proj/kyb-proj-branch\z}, c.worktree_path)
+    assert_match(%r{\.local/share/kyb/worktrees/proj/kyb-proj-branch\z}, c.worktree_path)
   end
 
   # -- git_url config -------------------------------------------------------

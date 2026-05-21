@@ -57,7 +57,7 @@ class ContainerTest < Minitest::Test
 
   def test_worktree_path
     c = Kyb::Container.new('niao', 'sandbox')
-    assert_equal File.expand_path('~/.kyb/worktrees/niao/kyb-niao-sandbox'), c.worktree_path
+    assert_equal File.expand_path('~/.local/share/kyb/worktrees/niao/kyb-niao-sandbox'), c.worktree_path
   end
 
   # --- volumes ---
