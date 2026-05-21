@@ -41,12 +41,10 @@ kyb create project branch
   │   └── git merge --ff-only origin/master   ← 保证 master 最新
   │
   └─ rw bind-mount ──→ 容器 ~/projects/project/
-                            └── agent 在完整 repo 上自由 git 操作
-
-同时：
-  宿主 ~/ 整个目录 ──ro──→ 容器 ~/projects-host/
-  所有项目随意参考，新增项目自动可见
-```
+  │    其他注册项目也逐一 rw mount
+  │    ~/ 全目录 rw mount 到 ~/projects-host/
+  │
+  └── agent 在完整 repo 上自由 git 操作
 
 ### --clone 模式
 
@@ -125,15 +123,21 @@ git merge --ff-only origin/master
 
 --clone 模式开多个容器无此问题，各自独立 repo。
 
-## 宿主机 ~/ → 容器 ro mount
+## Mount 策略
 
-启动时 mount 宿主 `~` 到容器 `~/projects-host/`（只读）：
+宿主的项目分散在 `~/leyan/`、`~/github/` 等位置，容器内统一在 `~/projects/` 下。所以必须逐项目 mount：
 
 ```
--v ~/:/home/dev/projects-host:ro
+kyb create project-a branch-1
+
+  -v ~/leyan/click-rest:/home/dev/projects/click-rest:rw       ← 当前项目
+  -v ~/github/niao:/home/dev/projects/niao:rw                    ← 其他注册项目
+  -v ~/github/hamilton:/home/dev/projects/hamilton:rw
+  ...config.yml 中注册的其他项目...
+  -v ~/:/home/dev/projects-host:rw                               ← 全部宿主路径参考
 ```
 
-无论宿主的项目在 `~/leyan/`、`~/github/` 还是哪里，agent 都可以 `cd ~/projects-host/` 参考任何已有代码。
+所有 mount 目前全 rw，未来可按需精细化。（实现上 kyb create 时从 config.yml 读取所有项目 path 逐一加 `-v`。）
 
 ## 改动范围
 
