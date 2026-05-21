@@ -197,9 +197,7 @@ if [ -d /home/dev/.claude-skills-host ] && [ ! -L /home/dev/.claude/skills ]; th
     ln -s /home/dev/.claude-skills-host /home/dev/.claude/skills
 fi
 
-touch /tmp/kyb-ready
-
-# Start PostgreSQL (also starts in DID containers for projects that need it)
+# Start PostgreSQL
 pg_ctlcluster 16 main start 2>/dev/null || true
 
 # pip tools (may fail during image build, retry here at runtime)
@@ -207,6 +205,8 @@ runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliu
 
 # Claude Code native binary (postinstall may fail during image build)
 runuser -u dev -- bash -l -c 'cmd=$(find /home/dev/.local/share/mise/installs/npm-anthropic-ai-claude-code -name install.cjs -path "*/@anthropic-ai/claude-code/*" 2>/dev/null | head -1); [ -n "$cmd" ] && node "$cmd" 2>/dev/null || true'
+
+touch /tmp/kyb-ready
 
 # Project setup: mise trust, npm install on first run
 if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
