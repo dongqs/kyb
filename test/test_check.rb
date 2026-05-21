@@ -14,6 +14,7 @@ class CheckTest < Minitest::Test
   # --- Docker ---
 
   def test_check_docker
+    skip 'Docker not available in CI' if ENV['CI']
     result = Kyb::Check.check_docker
     assert result[:ok], "Docker should be available: #{result[:msg]}"
     assert_match(/v\d/, result[:msg])
@@ -30,6 +31,7 @@ class CheckTest < Minitest::Test
   # --- Proxy detect ---
 
   def test_proxy_detect
+    skip 'Proxy not configured in CI' if ENV['CI']
     proxy = Kyb::Proxy.detect
     refute_nil proxy, 'should detect a proxy'
     assert_match(%r{socks5://|http://}, proxy)
