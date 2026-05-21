@@ -140,6 +140,35 @@ class EntrypointTest < Minitest::Test
     system('docker', 'volume', 'rm', vol, out: File::NULL, err: File::NULL)
   end
 
+  # --- Go proxy for China ---
+  def test_go_proxy_set
+    start_container
+    result = IO.popen(['docker', 'exec', '-u', 'dev', CONTAINER,
+                       'bash', '-l', '-c', 'echo $GOPROXY'],
+                      &:read)&.strip || ''
+    assert_equal('https://goproxy.cn,direct', result,
+                 'GOPROXY should be set to goproxy.cn for dev user in login shell')
+  end
+
+  def test_go_proxy_not_overridden_when_explicitly_set
+    cname = "#{CONTAINER}-goproxy-env"
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+    system('docker', 'run', '-d', '--name', cname,
+           '-e', 'GOPROXY=off',
+           '-e', 'HOST_UID=1000', '-e', 'HOST_GID=1000',
+           IMAGE, 'sleep', '300',
+           out: File::NULL, err: File::NULL)
+    wait_for_ready(cname)
+
+    result = IO.popen(['docker', 'exec', '-u', 'dev', cname,
+                       'bash', '-l', '-c', 'echo $GOPROXY'],
+                      &:read)&.strip || ''
+    assert_equal('off', result,
+                 'GOPROXY should not be overridden when explicitly set via env')
+
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+  end
+
   # --- Issue #11: DID toolchain ---
   def test_did_root_toolchain
     cname = "#{CONTAINER}-did-root"
