@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module Kyb::CLI
   DEFAULT_VOICE = 'Zarvox'
   DEFAULT_RATE  = 180
@@ -92,7 +94,7 @@ module Kyb::CLI
   end
 
   def containerized?
-    File.exist?('/.dockerenv')
+    Kyb.in_container?
   end
 
   def notify(level, message)

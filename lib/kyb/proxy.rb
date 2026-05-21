@@ -25,9 +25,24 @@ module Kyb::Proxy
   end
 
   def config_proxy
-    Kyb::Config.proxy
+    proxy = Kyb::Config.proxy
+    return nil unless proxy
+
+    uri = URI.parse(proxy)
+    # Inside Docker containers (kyb sandbox), 127.0.0.1/localhost refer to the
+    # container itself, not the host machine. Translate to host.orb.internal
+    # which resolves to the macOS host (works on both Orbstack and Docker Desktop).
+    if %w[127.0.0.1 localhost].include?(uri.host) && docker_container?
+      proxy.sub(uri.host, 'host.orb.internal')
+    else
+      proxy
+    end
   rescue
     nil
+  end
+
+  def docker_container?
+    Kyb.in_container?
   end
 
   def env_proxy

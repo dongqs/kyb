@@ -73,6 +73,10 @@ module Kyb
     exit 1
   end
 
+  def in_container?
+    File.exist?('/.dockerenv')
+  end
+
   def enable_profile
     $stdout = TimestampedOutput.new($stdout)
   end
