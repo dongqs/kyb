@@ -10,6 +10,8 @@ module Kyb::CLI
     container = Kyb::Container.new(project, branch)
     cname = container.name
 
+    Kyb::Reporter.emit_session_start(project: project, cli_type: cli)
+
     ensure_container(container, project, branch)
     stale_msg = stale_image_warning
     stale_msg = stale_image_warning

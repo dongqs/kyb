@@ -44,6 +44,9 @@ module Kyb::CLI
       end
     end
 
+    mode = repo_root == 'isolated_local_repo_clone' ? 'clone' : 'mount'
+    Kyb::Reporter.emit_container_create(project: project, branch: branch, mode: mode)
+
     puts
     puts "==> ／人◕ ‿‿ ◕人＼ Container ready! Container: #{container}  Image: #{image}  Ports: #{ports || 'none'}"
     puts "    kyb enter #{project}-#{branch}"

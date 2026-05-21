@@ -9,6 +9,8 @@ module Kyb::CLI
     system(*args)
     duration = Time.now - start_time
 
+    Kyb::Reporter.emit_session_complete(cli: cli, duration_seconds: duration)
+
     puts format_session_stats(duration, cli)
     if ENV.key?('TMUX')
       puts "Still inside tmux session. Type 'exit' to close this container."
