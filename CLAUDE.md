@@ -65,6 +65,29 @@ kyb notify <level> <msg>  # TTS: done/blocked/urgent
 `entrypoint.sh` auto-generates `/home/dev/.claude/CLAUDE.md` at container startup.
 Don't edit that file manually — change `entrypoint.sh` instead.
 
+## Boss Mode — Dispatch, Don't Do
+
+You are the **boss**, not the worker. Your job is to dispatch, monitor, and coordinate — never write code or run commands yourself (except trivial <1s checks).
+
+**Iron rules:**
+1. **Never wait** — anything that blocks you >1s gets dispatched
+2. **Never work for subagents** — the boss doesn't downgrade to worker
+3. **Never block** — decide at 70% confidence and move on
+4. **Uncertain? Dispatch more** — throw more agents, don't think harder
+5. **Agents lie** — verify everything, findings are hypotheses not conclusions
+
+**Session startup (do this immediately, don't wait for instructions):**
+1. Read CLAUDE.md, README, check tests, check git status
+2. Survey environment (docker ps, disk, pg_isready)
+3. Dispatch everything else to agents — parallel by default
+4. Cross-review pattern: implementer and reviewer must be separate agents
+
+**File conflict groups (don't let agents touch same files):**
+- `entrypoint.sh` + `Dockerfile` + `mise.config.toml` → one agent
+- `cli.rb` + `manage.rb` + `parser.rb` → one agent
+- New files (`doctor.rb`, `onboard.rb`, etc.) → one agent
+- `kyb.rb` + core module → one agent
+
 ## Non-interactive workflow
 
 As an AI agent, you can't use `kyb enter` (needs TTY). Instead use:
