@@ -115,7 +115,7 @@ if [ ! -f /home/dev/.claude.json ]; then
   chown dev:dev /home/dev/.claude.json
 fi
 
-# Rewrite HTTPS→SSH for GitLab (CI requires HTTPS in .gitmodules, ssh complains about this often)
+# Rewrite HTTPS->SSH for GitLab (CI requires HTTPS in .gitmodules, ssh complains about this often)
 git config --system url."git@git.leyantech.com:".insteadOf "https://git.leyantech.com/"
 
 # Configure glab on first run
@@ -146,6 +146,25 @@ if [ -n "${GITHUB_TOKEN:-}" ] && [ ! -f /home/dev/.config/gh/hosts.yml ]; then
     mkdir -p /home/dev/.config/gh
     echo "$GITHUB_TOKEN" | runuser -u dev -- bash -l -c 'gh auth login --with-token' 2>/dev/null || true
     chown -R dev:dev /home/dev/.config/gh 2>/dev/null || true
+fi
+
+# Go proxy for China (proxy.golang.org is blocked by GFW)
+if [ -z "${GOPROXY:-}" ]; then
+  cat > /etc/profile.d/go.sh << 'GOEOF'
+export GOPROXY=https://goproxy.cn,direct
+GOEOF
+  chmod 644 /etc/profile.d/go.sh
+
+  # Also set in dev/.bashrc for non-login shells
+  if ! grep -q 'GOPROXY' /home/dev/.bashrc 2>/dev/null; then
+    cat >> /home/dev/.bashrc << 'GOEOF'
+
+# Go proxy for China (proxy.golang.org is blocked by GFW)
+if [ -z "${GOPROXY:-}" ]; then
+  export GOPROXY=https://goproxy.cn,direct
+fi
+GOEOF
+  fi
 fi
 
 # Generate container CLAUDE.md
