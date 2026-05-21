@@ -19,6 +19,8 @@ module Kyb::CLI
     args = argv[1..] || []
 
     case cmd
+    when 'onboard'
+      onboard(args)
     when 'preflight', 'pre-flight', 'check'
       preflight
     when 'build'
@@ -123,6 +125,7 @@ module Kyb::CLI
       Usage:  kyb COMMAND
 
       Commands:
+        onboard [--auto]                 Interactive new-user setup wizard
         preflight                        Run pre-flight environment checks (proxy, mirrors, disk)
                                          Run before build to catch network issues early
         build                            Build base image
@@ -166,3 +169,4 @@ require_relative 'cli/tts'
 require_relative 'cli/did'
 require_relative 'cli/session'
 require_relative 'cli/assert'
+require_relative 'cli/onboard'
