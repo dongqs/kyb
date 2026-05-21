@@ -19,8 +19,6 @@ module Kyb::CLI
     args = argv[1..] || []
 
     case cmd
-    when 'doctor'
-      doctor(args)
     when 'preflight', 'pre-flight', 'check'
       preflight
     when 'build'
@@ -68,9 +66,10 @@ module Kyb::CLI
       project, branch = Kyb::Parser.parse(args.shift)
       start(project, branch)
     when 'rm'
-      Kyb.die("rm requires a project-branch\n  Usage: kyb rm PROJECT-BRANCH") unless args.first
+      force = args.delete("--force") ? true : false
+      Kyb.die("rm requires a project-branch\n  Usage: kyb rm PROJECT-BRANCH [--force]") unless args.first
       project, branch = Kyb::Parser.parse(args.shift)
-      rm(project, branch)
+      rm(project, branch, force: force)
     when 'prune'
       prune
     when 'did'
@@ -91,13 +90,6 @@ module Kyb::CLI
     when 'session'
       Kyb.die("Usage: kyb session wrap <cli> [args...]") unless args.first == 'wrap' && args.size >= 2
       session_wrap(args[1], args[2..])
-    when 'event'
-      Kyb.die("Usage: kyb event <type> <content>\n" \
-               "  Record an agent event to ClickHouse collective memory.\n" \
-               "  Example: kyb event result \"Fixed Nexus 403 by switching to go module proxy\"") if args.empty?
-      event_type = args.shift
-      content = args.join(' ')
-      event(event_type, content)
     when 'notify'
       Kyb.die("Usage: kyb notify <done|blocked|urgent> <message>\n" \
                "  done:    task complete. ALWAYS notify when done\n" \
@@ -118,7 +110,7 @@ module Kyb::CLI
 
   def preflight
     if Kyb.in_container?
-      puts "⚠️ preflight 命令不应在容器内运行"
+      puts " 命令不应在容器内运行"
       exit 1
     end
     Kyb::Config.load_config
@@ -132,7 +124,6 @@ module Kyb::CLI
       Usage:  kyb COMMAND
 
       Commands:
-        doctor [--prune]                 Scan containers/volumes, clean stale resources
         preflight                        Run pre-flight environment checks (proxy, mirrors, disk)
                                          Run before build to catch network issues early
         build                            Build base image
@@ -148,7 +139,7 @@ module Kyb::CLI
         exec  PROJECT-BRANCH [CMD...]    Run command in container
         stop  PROJECT-BRANCH             Stop container
         start PROJECT-BRANCH             Start stopped container
-        rm    PROJECT-BRANCH             Remove container
+        rm    PROJECT-BRANCH [--force]   Remove container (--force skips confirmation)
         prune                            Remove all containers
         assert <type> [args...]          Verify and auto-heal prerequisites
                                          Types: java [v], pg, mise <tool>
@@ -176,5 +167,3 @@ require_relative 'cli/tts'
 require_relative 'cli/did'
 require_relative 'cli/session'
 require_relative 'cli/assert'
-require_relative 'cli/doctor'
-require_relative 'cli/event'
