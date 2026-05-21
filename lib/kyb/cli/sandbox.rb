@@ -4,7 +4,7 @@ require 'json'
 require 'shellwords'
 
 module Kyb::CLI
-  SANDBOX_WORKTREE_BASE = File.expand_path('~/.kyb/worktrees')
+  SANDBOX_WORKTREE_BASE = File.expand_path('~/.local/share/kyb/worktrees')
 
   module_function
 

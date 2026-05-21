@@ -61,7 +61,7 @@ module Kyb
   end
   CONFIG_FILE = File.expand_path('~/.config/kyb/config.yml')
 
-  WORKTREE_BASE = File.expand_path('~/.kyb/worktrees')
+  WORKTREE_BASE = File.expand_path('~/.local/share/kyb/worktrees')
 
   GRADLE_CACHE_VOLUME = 'kyb-gradle-cache'
   MAVEN_CACHE_VOLUME = 'kyb-maven-cache'
