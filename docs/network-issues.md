@@ -144,3 +144,83 @@ PostgreSQL 在容器内由 entrypoint.sh 启动。如果连不上：
 pg_ctlcluster 16 main status   # 检查状态
 pg_ctlcluster 16 main start    # 手动启动
 ```
+
+
+---
+
+## TLS / SSL 客户端指纹问题（运行时）
+
+### 现象
+
+某些 HTTPS 端点（如 `status.deepseek.com`）在容器内用 `curl` 或 `openssl s_client` 访问时，TCP 三次握手成功，但 TLS Client Hello 发出后直接被对端关闭连接：
+
+```bash
+curl https://status.deepseek.com/feed.rss
+# → SSL_ERROR_SYSCALL / unexpected eof while reading / read 0 bytes
+```
+
+但同一时刻：
+- `api.deepseek.com` → 正常返回 401
+- `chat.deepseek.com` → 正常返回 429
+- 宿主机上某些工具可以访问，某些不行
+
+### 根因
+
+不是 DNS、路由、MTU、代理、证书、SNI、ALPN 或 TLS 版本问题。经过跨平台交叉验证，确认为**服务器端 WAF/负载均衡对特定 TLS Client Hello 指纹做了黑名单**。
+
+**失败的 SSL/TLS 库**：
+| 库 | 环境 | 结果 |
+|----|------|------|
+| OpenSSL 3.0.13 | Ubuntu 24.04 系统（容器内 curl/python3/openssl） | ❌ 失败 |
+| LibreSSL 3.3.6 | macOS 系统 curl | ❌ 失败 |
+
+**成功的 SSL/TLS 库**：
+| 库 | 环境 | 结果 |
+|----|------|------|
+| OpenSSL 3.2.0 | 宿主机 Ruby (rbenv) | ✅ 成功 |
+| OpenSSL 3.5.6 | 容器内 mise Python 3.10.20 / uv Python 3.13.13 | ✅ 成功 |
+| OpenSSL 3.6.2 | 宿主机 pyenv Python 3.10.13 | ✅ 成功 |
+
+LibreSSL 3.3.6 和 OpenSSL 3.0.13 虽然代码库完全不同，但它们的 **TLS Client Hello 指纹/扩展特征相似**，共同命中了服务器端 WAF 的黑名单。OpenSSL 3.2+ 的指纹不同，可以绕过。
+
+> 这不是 OpenSSL 3.0.13 本身的 bug，而是服务器端对"旧版 TLS 客户端指纹"的封锁。因此升级基础镜像中的 OpenSSL 或使用新版工具链是有效 workaround。
+
+### 对 kyb 的影响
+
+- `lib/kyb/check.rb` 使用 Ruby `Net::HTTP`，若 Ruby 链接的是系统 OpenSSL 3.0.13（Ubuntu 24.04 默认），检查 `status.deepseek.com` 等受 WAF 保护的端点时可能报 SSL 错误
+- 当前容器内**无系统 Ruby**，宿主机 Ruby (OpenSSL 3.2.0) 不受影响
+- `kyb preflight` 中使用的是 `curl`（容器内链接 OpenSSL 3.0.13），若检查列表中包含被 WAF 封锁的端点，会误报失败
+
+### Workaround
+
+**方案 A：使用 mise/uv 安装的新版 Python（推荐）**
+
+```bash
+# 容器内
+/home/dev/.local/share/mise/installs/python/3.10.20/bin/python3.10 -c \
+  "import urllib.request; print(urllib.request.urlopen('https://...').status)"
+```
+
+**方案 B：宿主机工具**
+
+宿主机 pyenv Python (OpenSSL 3.6.2) 或 Homebrew wget (OpenSSL 3.x) 均可正常访问。
+
+**方案 C：升级容器基础镜像 OpenSSL**
+
+在 Dockerfile 或基础镜像中把 `libssl3` 升级到 3.2+ / 3.5+，使系统 curl/openssl 恢复正常。需要修改 Dockerfile 并重建镜像。
+
+> 这不是通用网络故障，只影响特定端点（目前仅确认 `status.deepseek.com` 及其同 CDN 的站点）。大部分 API 端点不受影响。
+
+### 诊断速查
+
+```bash
+# 快速判断是否是 SSL 指纹问题（而非网络/代理问题）
+# 1. 同一域名，curl 失败但 Python (mise) 成功 → 大概率是 SSL 指纹
+# 2. 同一域名，curl 失败但 wget (Homebrew/OpenSSL) 成功 → 确认是 SSL 指纹
+# 3. api.deepseek.com 正常但 status.deepseek.com 失败 → 不是通用 deepseek 封锁
+
+# 容器内确认 SSL 库版本
+curl --version | head -1        # 看链接的 OpenSSL 版本
+python3 -c "import ssl; print(ssl.OPENSSL_VERSION)"   # 系统 Python
+/home/dev/.local/share/mise/installs/python/*/bin/python3* -c "import ssl; print(ssl.OPENSSL_VERSION)"  # mise Python
+```

@@ -39,6 +39,12 @@
 | `~/projects` | `/home/dev/projects` | 读写 |
 | `/var/run/docker.sock` | `/var/run/docker.sock` | Docker API |
 
+> **注意**：Docker socket 并非所有容器都有。`kyb create` 创建的容器有，但手动 `docker run` 创建的容器可能没有。需用 `docker ps` 确认。
+
+### 已知问题
+
+- **SSH zombie 进程**：每次 `ssh` 到 kyb 容器会残留 defunct sshd 进程，容器重启才清理。不影响功能，但 `ps aux` 时能看到一大堆 `<defunct>`。通常只在容器间互相 SSH 时出现（从外部 SSH 不存在此问题）。
+
 ### Git 配置
 
 entrypoint 自动配置了 `git config --system url."git@git.leyantech.com:".insteadOf "https://git.leyantech.com/"`。
