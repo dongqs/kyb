@@ -128,6 +128,52 @@ mig25 --help            # ✓
 | `pypi-all` | `pypi-internal` / tuna | 内网私有包不在聚合源中 |
 | 直接 `pip install` 不指定源 | `-i https://pypi.tuna.tsinghua.edu.cn/simple` | 国内访问 PyPI 官方极慢 |
 
+## 附：清理重来
+
+如果已经用古法（apt + `--break-system-packages`）搞脏了环境，按以下步骤清理后重新按 SOP 安装：
+
+```bash
+# 1. 卸掉 apt Ruby
+sudo apt remove --purge -y ruby-full ruby-dev
+sudo apt autoremove -y
+
+# 2. 卸掉 pip 乱装的包
+rm -rf ~/.local/lib/python3.12/site-packages/mig25*
+rm -rf ~/.local/lib/python3.12/site-packages/pydantic*
+rm -rf ~/.local/bin/mig25
+
+# 3. pip 源改回默认
+pip3 config unset global.index-url
+
+# 4. 装 mise（如未装）
+curl -fsSL https://mise.run | sh
+echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
+source ~/.bashrc
+
+# 5. mise 装 Ruby
+mise settings set ruby.compile true
+RUBY_BUILD_MIRROR_URL=https://cache.ruby-china.com/pub/ruby mise install ruby@3.3
+mise use -g ruby@3.3
+gem sources --remove https://rubygems.org/
+gem sources --add https://gems.ruby-china.com/
+bundle config mirror.https://rubygems.org https://gems.ruby-china.com/
+
+# 6. pipx 装 mig25
+sudo apt install -y pipx
+pipx ensurepath
+source ~/.bashrc
+pipx install mig25 \
+  -i "https://readonlyuser:密码@nexus.leyantech.com/repository/pypi-internal/simple"
+pipx runpip mig25 install 'click<8.1.0' 'pydantic<2.12.0' 'pydantic-settings<2.12.0' \
+  -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 7. 验证
+ruby --version   # 3.3.x
+mig25 --help     # 能用
+```
+
+清理完从头走一遍验证清单即可。
+
 ## 附：代理测速
 
 ```bash
