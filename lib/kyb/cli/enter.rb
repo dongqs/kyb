@@ -5,13 +5,17 @@ module Kyb::CLI
 
   module_function
 
-  def enter(project, branch, cli: 'claude')
+  def enter(project, branch, cli: 'claude', worldview: nil)
     Kyb::Config.load
     container = Kyb::Container.new(project, branch)
     cname = container.name
 
     ensure_container(container, project, branch)
     stale_msg = stale_image_warning
+    stale_msg = stale_image_warning
+    
+    worldview_name = resolve_worldview(worldview, cname)
+    prompt = inject_worldview(prompt, worldview_name) if worldview_name
 
     title = "kyb:#{cname}"
     prompt = build_default_prompt(stale_msg, project)
@@ -46,6 +50,12 @@ module Kyb::CLI
     Kyb::ExitFlow.enter_exit_cleanup(container, project, branch)
   end
 
+def resolve_worldview(cli_worldview, container_name)
+    return cli_worldview if cli_worldview
+    stored = Kyb::Worldview.assigned(container_name)
+    return stored if stored
+    nil
+  end
   def ensure_container(container, project, branch)
     cname = container.name
     return if container.running?

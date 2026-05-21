@@ -103,6 +103,8 @@ module Kyb::CLI
       did(args)
     when 'assert'
       assert_cmd(args)
+    when 'worldview'
+      worldview(args)
     when 'tts'
       Kyb.die("tts requires a subcommand\n  Usage: kyb tts {start|stop|status|speak|ping|done}") unless args.first
       case args[0]
@@ -199,4 +201,5 @@ require_relative 'cli/did'
 require_relative 'cli/session'
 require_relative 'cli/assert'
 require_relative 'cli/onboard'
-require_relative 'cli/morning'
+
+require_relative 'cli/worldview'
