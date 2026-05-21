@@ -105,6 +105,55 @@ class EntrypointTest < Minitest::Test
     system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
   end
 
+
+  # --- Issue #14: gh CLI ---
+  def test_gh_installed
+    start_container
+    assert(exec_user_bool('bash', '-l', '-c', 'gh --version >/dev/null 2>&1'), 'gh should be installed')
+  end
+
+  def test_github_token_auth
+    cname = "#{CONTAINER}-ghtoken"
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+    system('docker', 'run', '-d', '--name', cname, '-e', 'GITHUB_TOKEN=test-token-123', '-e', 'HOST_UID=1000', '-e', 'HOST_GID=1000', IMAGE, 'sleep', '300', out: File::NULL, err: File::NULL)
+    wait_for_ready(cname)
+    gh_config = exec_in(cname, 'bash', '-l', '-c', 'cat /home/dev/.config/gh/hosts.yml 2>/dev/null || echo NOFILE')
+    refute_equal('NOFILE', gh_config.strip, 'gh hosts.yml should be created when GITHUB_TOKEN is set')
+    assert_includes(gh_config, 'test-token-123', 'gh config should contain the provided GITHUB_TOKEN')
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+  end
+
+  # --- Issue #22: .ssh copy ---
+  def test_ssh_host_copied
+    vol = 'kyb-test-ssh-host'
+    system('docker', 'volume', 'create', vol, out: File::NULL, err: File::NULL)
+    system('docker', 'run', '--rm', '--entrypoint', 'bash', '-v', "#{vol}:/data", IMAGE, '-c', 'mkdir -p /data && touch /data/id_rsa /data/known_hosts /data/config', out: File::NULL, err: File::NULL)
+    cname = "#{CONTAINER}-ssh-copy"
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+    system('docker', 'run', '-d', '--name', cname, '-v', "#{vol}:/home/dev/.ssh-host:ro", '-e', 'HOST_UID=1000', '-e', 'HOST_GID=1000', IMAGE, 'sleep', '300', out: File::NULL, err: File::NULL)
+    wait_for_ready(cname)
+    assert(exec_bool_in(cname, 'test', '-f', '/home/dev/.ssh/id_rsa'), '.ssh/id_rsa should exist')
+    assert(exec_bool_in(cname, 'test', '-f', '/home/dev/.ssh/known_hosts'), '.ssh/known_hosts should exist')
+    assert_equal('dev', exec_in(cname, 'stat', '-c', '%U', '/home/dev/.ssh/id_rsa'), 'files should be owned by dev')
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+    system('docker', 'volume', 'rm', vol, out: File::NULL, err: File::NULL)
+  end
+
+  # --- Issue #11: DID toolchain ---
+  def test_did_root_toolchain
+    cname = "#{CONTAINER}-did-root"
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+    system('docker', 'run', '-d', '--name', cname, '-e', 'KYB_DID=1', '-e', 'HOST_UID=1000', '-e', 'HOST_GID=1000', IMAGE, 'sleep', '300', out: File::NULL, err: File::NULL)
+    wait_for_ready(cname)
+    assert_equal('/home/dev/.m2/settings.xml', exec_in(cname, 'readlink', '-f', '/root/.m2/settings.xml'), "root Maven settings should symlink to dev's")
+    assert_equal('/home/dev/.m2/repository', exec_in(cname, 'readlink', '-f', '/root/.m2/repository'), "root Maven repo should symlink to dev's")
+    assert_equal('/home/dev/.gradle', exec_in(cname, 'readlink', '-f', '/root/.gradle'), "root Gradle should symlink to dev's")
+    bashrc = exec_in(cname, 'cat', '/root/.bashrc')
+    assert_includes(bashrc, 'mise activate', "root .bashrc should have mise activation")
+    assert_includes(bashrc, '/home/dev/.local/bin', "root .bashrc should include dev local bin")
+    system('docker', 'rm', '-f', cname, out: File::NULL, err: File::NULL)
+  end
+
   private
 
   def start_container

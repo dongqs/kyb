@@ -5,8 +5,11 @@ python = "3.11"
 maven = "3.9"
 java = "corretto-21"
 glab = "1.92"
+gh = "latest"
 clickhouse = "26"
 "npm:@anthropic-ai/claude-code" = "2"
+go = "latest"
+rust = "latest"
 
 [settings]
 python.github_attestations = false
