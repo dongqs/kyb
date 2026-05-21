@@ -193,8 +193,27 @@ GitLab ──→ PVC ──────→ Pod 容器
 
 改为 `git clone GitLab_URL→PVC` 即可，架构不变。
 
+## 移除 kyb sandbox
+
+`sandbox` 模式当初是为了宿主机直跑 Claude Code 但保留 worktree 隔离。worktree 移除后 Docker 已是统一入口，sandbox 模式无存在意义。
+
+移除 `lib/kyb/cli/sandbox.rb` 及所有 sandbox 相关的 CLI 接口。用户统一走 `kyb create` / `kyb enter`。
+
+## kyb 自身开发
+
+kyb 项目自身必须用 `--clone` 模式：
+
+```bash
+kyb create --clone kyb fix-stale-hang
+  → 独立 repo 副本，不干扰 ~/.kyb/（同时是 build context）
+  → agent 在容器内 ruby -Ilib bin/kyb.rb 验证
+  → Dockerfile/entrypoint 需宿主同步（改 build context 后 kyb build）
+  → 宿主的 ~/.kyb/bin/kyb 不受容器内修改影响
+```
+
+容器内 PATH 上的 `kyb` 是老版本，agent 应建 alias `alias kyb-test='ruby -Ilib bin/kyb.rb'` 用于测试自身改动。
+
 ## 不涉及
 
-- kyb sandbox
 - kyb did CLI
 - 构建系统 / Dockerfile
