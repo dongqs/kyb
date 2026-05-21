@@ -1,6 +1,11 @@
 require_relative 'test_helper'
 
 class ContainerTest < Minitest::Test
+  def setup
+    skip 'Container tests require Docker (CI)' if ENV['CI']
+  end
+
+
   # --- constants ---
 
   def test_base_image

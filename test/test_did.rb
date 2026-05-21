@@ -1,6 +1,11 @@
 require_relative 'test_helper'
 
 class DIDTest < Minitest::Test
+  def setup
+    skip 'DID tests require Docker (CI)' if ENV['CI']
+  end
+
+
   def test_did_create_refuses_nesting
     ENV['KYB_DID'] = 'inner'
     assert_raises(SystemExit) { capture_io { Kyb::CLI.did_create(['nested']) } }
