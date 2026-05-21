@@ -116,6 +116,14 @@ RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install java@corretto-21 && break; sleep 5; done
 
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
+    for i in 1 2 3; do /home/dev/.local/bin/mise install go@latest && break; sleep 5; done
+
+RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+    sudo chown -R dev:dev /home/dev/.local/share/mise && \
+    for i in 1 2 3; do /home/dev/.local/bin/mise install rust@latest && break; sleep 5; done
+
 # --- mirror configs (fast, rarely changes) — before slow project tools ---
 
 # Gradle Nexus credentials (same readonly user as pip)

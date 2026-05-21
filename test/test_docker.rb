@@ -464,6 +464,32 @@ class DockerTest < Minitest::Test
     end
   end
 
+  # --- base image toolchain ---
+
+  def test_mise_config_includes_go
+    config = File.read(File.expand_path('../../mise.config.toml', __FILE__))
+    assert config.include?('go = "latest"'),
+           "mise.config.toml should have go = \"latest\""
+  end
+
+  def test_mise_config_includes_rust
+    config = File.read(File.expand_path('../../mise.config.toml', __FILE__))
+    assert config.include?('rust = "latest"'),
+           "mise.config.toml should have rust = \"latest\""
+  end
+
+  def test_dockerfile_installs_go
+    dockerfile = File.read(File.expand_path('../../Dockerfile', __FILE__))
+    assert dockerfile.include?('mise install go@latest'),
+           "Dockerfile should have a mise install go@latest layer"
+  end
+
+  def test_dockerfile_installs_rust
+    dockerfile = File.read(File.expand_path('../../Dockerfile', __FILE__))
+    assert dockerfile.include?('mise install rust@latest'),
+           "Dockerfile should have a mise install rust@latest layer"
+  end
+
   def docker_available?
     system('docker', 'version', out: File::NULL, err: File::NULL)
   end
