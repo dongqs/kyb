@@ -27,8 +27,7 @@ module Kyb::CLI
       init(args)
     when 'create'
       Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--clone] [--ports HOST:CONTAINER] [--model flash|pro]") unless args.first
-      clone = false
-      clone = true if args.first == '--clone' && args.shift
+      clone = args.delete('--clone') || false
       port_overrides = nil
       model = nil
       project, branch = Kyb::Parser.parse(args.shift)
