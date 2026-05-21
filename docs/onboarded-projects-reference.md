@@ -22,6 +22,7 @@
 | [peroration](#peroration) | 杨孙学 | [repo](https://git.leyantech.com/base-service/peroration) | ✅ 收敛 | ✅ [!76](https://git.leyantech.com/base-service/peroration/-/merge_requests/76) | Java 8 + Maven | Nexus | PostgreSQL | — | — | ❌ |
 | [lighthouse](#lighthouse) | — | [repo](https://git.leyantech.com/base-service/lighthouse) | ✅ 收敛 | ✅ [!36](https://git.leyantech.com/base-service/lighthouse/-/merge_requests/36) | Java 8 + Maven | Nexus（leyan-proto 107MB） | PostgreSQL + jOOQ | JUnit 60 tests 灯塔助手 | — | ❌ |
 | [sidecar](#sidecar) | 王龙 | [repo](https://git.leyantech.com/support/sidecar) | ✅ 收敛 | ✅ [!6](https://git.leyantech.com/support/sidecar/-/merge_requests/6) | Python 3.11 + uv | Nexus（PyPI） | PostgreSQL | pytest 88 tests | — | ❌ |
+| [citi](#citi) | AI | [repo](https://git.leyantech.com/ai/citi) | 🟡 Round 1 | — | Python 3.11 + uv | Nexus PyPI | SQLite (测试) | pytest 228 tests | .arc-extensions | ❌ |
 | [business-rule](#business-rule) | AI | [repo](https://git.leyantech.com/ai/business-rule) | 🟡 Round 1 | — | Python 3.10 + Maven | Nexus (Maven) + PyPI | — | JUnit 集成测试 | .arc-extensions | ❌ |
 
 > **负责人数据来源**: ntsb `resources/dbs.toml` 的 maintainer 字段 + 各项目 Git commit 贡献度交叉验证。添加新项目时同步更新。
@@ -178,6 +179,19 @@
 - **MR**: !6（✅ merged）
 - **关键踩坑**: `uv python pin` 后需手动验证 .python-version 文件已创建
 - **推荐参考场景**: Python + uv 项目、纯 Python 无明显 tech-debt 项目
+
+### citi
+
+- **描述**: 商家意图管理（NLP 分类/聚类）服务。Python 3.11 + uv + Flask + SQLAlchemy + Celery + Kafka + gRPC，228 tests
+- **MR**: 待创建
+- **关键踩坑**:
+  - **grpcio 1.43.0 arm64 不兼容**：`leyan-proto`/`common-libs` 硬依赖 grpcio==1.43.0，该版本无 arm64 linux 二进制 wheel 且源码不兼容 GCC 13。解决方案：`pip install 'grpcio==1.80.0'` + 内部包用 `--no-deps`
+  - **kyb-base Python 版本不满足**：项目要求 >=3.11，kyb-base 只有 3.10。需 `uv python pin 3.11.15`
+  - **librdkafka-dev 缺失**：confluent-kafka 编译需要 `sudo apt-get install -y librdkafka-dev`
+  - **protobuf 版本兼容**：leyan-proto 的 pb2 文件需 protobuf 3.x，新 protobuf 5.x 不兼容。`pip install 'protobuf>=3.20,<4'`
+  - **pip install -e . 失败**：pyproject.toml 缺少 `[tool.setuptools.packages.find]` 配置。临时方案用 `PYTHONPATH=$PWD`
+  - **测试完全自包含**：SQLite :memory: + mock 外部服务，无需 PG/Redis/Kafka
+- **推荐参考场景**: Python + uv 项目、重度 gRPC/Proto 项目、arm64 环境踩坑参考
 
 ### business-rule
 
