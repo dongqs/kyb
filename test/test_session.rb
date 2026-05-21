@@ -2,13 +2,14 @@ require_relative 'test_helper'
 
 class SessionTest < Minitest::Test
   def setup
+    @_orig_session_wrap = Kyb::CLI.method(:session_wrap) rescue nil
     Kyb::CLI.define_singleton_method(:session_wrap) do |cli, cli_args|
       @__captured = [:session_wrap, cli, cli_args]
     end
   end
 
   def teardown
-    Kyb::CLI.singleton_class.remove_method(:session_wrap)
+    Kyb::CLI.define_singleton_method(:session_wrap, @_orig_session_wrap) if @_orig_session_wrap
   end
 
   def dispatch(*argv)

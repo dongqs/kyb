@@ -1,8 +1,17 @@
 require_relative 'test_helper'
 
 class MorningTest < Minitest::Test
+  MORNING_METHODS = %i[
+    morning_hostname morning_project morning_branch morning_user
+    morning_git_status_text morning_docker_running morning_docker_images_size
+    morning_disk_pct morning_pg_ready? morning_ck_table_info
+    morning_proxy_url morning_proxy_check morning_recent_events morning_batch_tasks
+  ].freeze
+
   def setup
     require_relative '../lib/kyb/cli/morning'
+    @_orig_morning = {}
+    MORNING_METHODS.each { |m| @_orig_morning[m] = Kyb::CLI.method(m) rescue nil }
     Kyb::CLI.define_singleton_method(:morning_hostname) { 'kyb-test-box' }
     Kyb::CLI.define_singleton_method(:morning_project) { 'test' }
     Kyb::CLI.define_singleton_method(:morning_branch) { 'dev' }
@@ -20,14 +29,7 @@ class MorningTest < Minitest::Test
   end
 
   def teardown
-    %i[
-      morning_hostname morning_project morning_branch morning_user
-      morning_git_status_text morning_docker_running morning_docker_images_size
-      morning_disk_pct morning_pg_ready? morning_ck_table_info
-      morning_proxy_url morning_proxy_check morning_recent_events morning_batch_tasks
-    ].each { |m|
-      Kyb::CLI.singleton_class.remove_method(m) if Kyb::CLI.respond_to?(m)
-    }
+    @_orig_morning&.each { |m, orig| Kyb::CLI.define_singleton_method(m, orig) if orig }
   end
 
   def test_header
@@ -141,7 +143,6 @@ class MorningTest < Minitest::Test
     Kyb::CLI.dispatch(%w[morning])
     assert_equal [:morning], Kyb::CLI.instance_variable_get(:@__captured)
   ensure
-    Kyb::CLI.singleton_class.remove_method(:morning) if Kyb::CLI.respond_to?(:morning)
     Kyb::CLI.define_singleton_method(:morning, orig) if orig
   end
 end

@@ -3,21 +3,18 @@
 require_relative 'test_helper'
 
 class ReporterTest < Minitest::Test
-  def teardown
+  def setup
+    @_orig_reporter = {}
+    @_orig_config = {}
     %i[http_post reporting_enabled?].each do |m|
-      Kyb::Reporter.singleton_class.remove_method(m) rescue nil
-      Kyb::Config.singleton_class.remove_method(m) rescue nil
+      @_orig_reporter[m] = Kyb::Reporter.method(m) rescue nil
+      @_orig_config[m] = Kyb::Config.method(m) rescue nil
     end
-    # Restore original method if it was removed
-    unless Kyb::Config.respond_to?(:reporting_enabled?)
-      Kyb::Config.define_singleton_method(:reporting_enabled?) do
-        cfg = load_config
-        return true unless cfg.is_a?(Hash)
-        reporting = cfg['reporting']
-        return true unless reporting.is_a?(Hash)
-        reporting['enabled'] != false
-      end
-    end
+  end
+
+  def teardown
+    @_orig_reporter&.each { |m, orig| Kyb::Reporter.define_singleton_method(m, orig) if orig }
+    @_orig_config&.each   { |m, orig| Kyb::Config.define_singleton_method(m, orig) if orig }
   end
 
   def test_default_enabled
@@ -97,7 +94,6 @@ class ReporterTest < Minitest::Test
     Kyb::Config.instance_variable_set(:@config, nil) rescue nil
     refute Kyb::Config.reporting_enabled?
   ensure
-    Kyb::Config.singleton_class.remove_method(:load_config)
     Kyb::Config.define_singleton_method(:load_config, orig) if orig
     Kyb::Config.instance_variable_set(:@config, nil) rescue nil
   end

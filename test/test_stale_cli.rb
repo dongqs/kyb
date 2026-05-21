@@ -2,6 +2,7 @@ require_relative 'test_helper'
 
 class StaleCLITest < Minitest::Test
   def setup
+    @_orig_load = Kyb::Config.method(:load) rescue nil
     Kyb::Config.define_singleton_method(:load) { nil }
     # CLITest.teardown removes singleton methods via remove_method,
     # which can permanently remove module_function methods.
@@ -14,7 +15,7 @@ class StaleCLITest < Minitest::Test
   end
 
   def teardown
-    Kyb::Config.singleton_class.remove_method(:load) rescue nil
+    Kyb::Config.define_singleton_method(:load, @_orig_load) if @_orig_load
   end
 
   def stub_project
