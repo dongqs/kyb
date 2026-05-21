@@ -68,11 +68,36 @@ module Kyb::CLI
 
     c = Kyb::Container.new(project, branch)
 
+    unless force
+      is_git = File.directory?("#{path}/.git")
+      dirty = false
+      unpushed = false
+
+      if is_git
+        dirty = !Dir.chdir(path) { system('git', 'diff', '--quiet', %i[out err] => File::NULL) }
+        unpushed = Dir.chdir(path) { `git cherry 2>/dev/null`.lines.count > 0 }
+      end
+
+      did_children = `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name} 2>/dev/null`
+                      .lines.map(&:strip).reject(&:empty?)
+
+      if dirty || unpushed || did_children.any?
+        puts "==> Pre-delete checks for #{c.name}:"
+        puts "  ✗ dirty repo (uncommitted changes)" if dirty
+        puts "  ✗ unpushed commits" if unpushed
+        puts "  ✗ DID children: #{did_children.join(', ')}" if did_children.any?
+        puts
+        print "Delete anyway? [y/N] "
+        ans = $stdin.gets.to_s.strip.downcase
+        Kyb.die("Aborted.") unless ans == 'y'
+      end
+    end
+
     # Clean up any DID children first (cascade: children → parent)
     # DID containers are labeled did_parent=<parent-container>, so without
     # this cascade the parent volume would be removed while children still
     # reference parent-owned networks.
-    `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name}`.lines.map(&:strip).each do |did_child|
+    `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name} 2>/dev/null`.lines.map(&:strip).each do |did_child|
       puts "==> #{did_child}: removing DID child container"
       system('docker', 'rm', '-f', did_child)
       system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)

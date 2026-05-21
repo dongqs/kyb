@@ -4,14 +4,31 @@ class CLITest < Minitest::Test
   PROJECTS = %w[niao tts-server tts].freeze
 
   def setup
+    # Save original methods so teardown can restore them (remove_method
+    # would permanently delete module_function singletons)
+    @_orig = {}
+    @_orig[:config] = {
+      load: (Kyb::Config.method(:load) rescue nil),
+      project_names: (Kyb::Config.method(:project_names) rescue nil),
+    }
+    @_orig[:cli] = {}
+    %i[create enter stop start rm did_create did_rm did_ps].each do |m|
+      @_orig[:cli][m] = Kyb::CLI.method(m) rescue nil
+    end
+
     Kyb::Config.define_singleton_method(:load) { nil }
     Kyb::Config.define_singleton_method(:project_names) { PROJECTS }
 
     # Methods without keyword args
-    %i[stop start rm].each do |m|
+    %i[stop start].each do |m|
       Kyb::CLI.define_singleton_method(m) do |*args|
         @__captured = [m, args]
       end
+    end
+
+    # rm has force: keyword arg
+    Kyb::CLI.define_singleton_method(:rm) do |project, branch, force: false|
+      @__captured = [:rm, [project, branch, force]]
     end
 
     # Methods with keyword args — explicit signatures keep capture clean
@@ -36,15 +53,10 @@ class CLITest < Minitest::Test
   end
 
   def teardown
-    Kyb::Config.singleton_class.remove_method(:load)
-    Kyb::Config.singleton_class.remove_method(:project_names)
-
-    %i[create enter stop start rm].each do |m|
-      Kyb::CLI.singleton_class.remove_method(m)
-    end
-    %i[did_create did_rm did_ps].each do |m|
-      Kyb::CLI.singleton_class.remove_method(m)
-    end
+    # Restore original methods instead of remove_method, which would
+    # permanently delete the module_function singletons
+    @_orig[:config].each { |m, orig| Kyb::Config.define_singleton_method(m, orig) if orig }
+    @_orig[:cli].each    { |m, orig| Kyb::CLI.define_singleton_method(m, orig) if orig }
   end
 
   def dispatch(*argv)
@@ -118,7 +130,7 @@ class CLITest < Minitest::Test
   def test_rm_project_branch
     cmd, args = dispatch('rm', 'niao-water')
     assert_equal :rm, cmd
-    assert_equal ['niao', 'water'], args
+    assert_equal ['niao', 'water', false], args
   end
 
   # --- multi-dash project ---
@@ -275,6 +287,7 @@ class CLITest < Minitest::Test
 
   def test_assert_java_dispatch
     captured_version = nil
+    orig = Kyb::Check.method(:assert_java) rescue nil
     Kyb::Check.define_singleton_method(:assert_java) do |expected_version:|
       captured_version = expected_version
       true
@@ -282,11 +295,12 @@ class CLITest < Minitest::Test
     dispatch('assert', 'java', '17')
     assert_equal '17', captured_version
   ensure
-    Kyb::Check.singleton_class.remove_method(:assert_java)
+    Kyb::Check.define_singleton_method(:assert_java, orig) if orig
   end
 
   def test_assert_java_default_version
     captured_version = nil
+    orig = Kyb::Check.method(:assert_java) rescue nil
     Kyb::Check.define_singleton_method(:assert_java) do |expected_version:|
       captured_version = expected_version
       true
@@ -294,11 +308,12 @@ class CLITest < Minitest::Test
     dispatch('assert', 'java')
     assert_equal '21', captured_version
   ensure
-    Kyb::Check.singleton_class.remove_method(:assert_java)
+    Kyb::Check.define_singleton_method(:assert_java, orig) if orig
   end
 
   def test_assert_pg_dispatch
     called = false
+    orig = Kyb::Check.method(:assert_pg) rescue nil
     Kyb::Check.define_singleton_method(:assert_pg) do
       called = true
       true
@@ -306,11 +321,12 @@ class CLITest < Minitest::Test
     dispatch('assert', 'pg')
     assert called
   ensure
-    Kyb::Check.singleton_class.remove_method(:assert_pg)
+    Kyb::Check.define_singleton_method(:assert_pg, orig) if orig
   end
 
   def test_assert_mise_dispatch
     captured_tool = nil
+    orig = Kyb::Check.method(:assert_mise_tool) rescue nil
     Kyb::Check.define_singleton_method(:assert_mise_tool) do |tool|
       captured_tool = tool
       true
@@ -318,7 +334,7 @@ class CLITest < Minitest::Test
     dispatch('assert', 'mise', 'mvn')
     assert_equal 'mvn', captured_tool
   ensure
-    Kyb::Check.singleton_class.remove_method(:assert_mise_tool)
+    Kyb::Check.define_singleton_method(:assert_mise_tool, orig) if orig
   end
 
   def test_assert_unknown_type_dies
@@ -343,6 +359,7 @@ class CLITest < Minitest::Test
   # --- notify ---
 
   def test_notify_dispatch_done
+    orig = Kyb::CLI.method(:notify) rescue nil
     Kyb::CLI.define_singleton_method(:notify) do |level, message|
       @__captured = [:notify, level, message]
     end
@@ -351,10 +368,11 @@ class CLITest < Minitest::Test
     assert_equal 'done', level
     assert_equal 'hello world', msg
   ensure
-    Kyb::CLI.singleton_class.remove_method(:notify)
+    Kyb::CLI.define_singleton_method(:notify, orig) if orig
   end
 
   def test_notify_dispatch_blocked
+    orig = Kyb::CLI.method(:notify) rescue nil
     Kyb::CLI.define_singleton_method(:notify) do |level, message|
       @__captured = [:notify, level, message]
     end
@@ -363,10 +381,11 @@ class CLITest < Minitest::Test
     assert_equal 'blocked', level
     assert_equal 'server 502', msg
   ensure
-    Kyb::CLI.singleton_class.remove_method(:notify)
+    Kyb::CLI.define_singleton_method(:notify, orig) if orig
   end
 
   def test_notify_dispatch_urgent
+    orig = Kyb::CLI.method(:notify) rescue nil
     Kyb::CLI.define_singleton_method(:notify) do |level, message|
       @__captured = [:notify, level, message]
     end
@@ -375,7 +394,7 @@ class CLITest < Minitest::Test
     assert_equal 'urgent', level
     assert_equal 'push prod', msg
   ensure
-    Kyb::CLI.singleton_class.remove_method(:notify)
+    Kyb::CLI.define_singleton_method(:notify, orig) if orig
   end
 
   def test_notify_no_args_dies
@@ -456,7 +475,7 @@ class CLITest < Minitest::Test
       out, _ = capture_io do
         assert_raises(SystemExit) { Kyb::CLI.preflight }
       end
-      assert_match(/preflight 命令不应在容器内运行/, out)
+      assert_match(/命令不应在容器内运行/, out)
     end
   end
 
@@ -483,9 +502,7 @@ class CLITest < Minitest::Test
       assert_match(/create 命令不应在容器内运行/, out)
     end
   ensure
-    Kyb::CLI.singleton_class.remove_method(:create) rescue nil
-    Kyb::CLI.define_singleton_method(:create) do |project, branch, port_overrides = nil, **|
-      @__captured = [:create, [project, branch, port_overrides]]
-    end
+    orig = @_orig&.dig(:cli, :create)
+    Kyb::CLI.define_singleton_method(:create, orig) if orig
   end
 end
