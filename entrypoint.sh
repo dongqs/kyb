@@ -182,6 +182,12 @@ if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
         fi
 
         echo ""
+        echo "## Tailscale"
+        echo "- Host Tailscale routes already reachable from container."
+        echo "- **Do NOT install/configure Tailscale inside this container.**"
+        echo "- SSH to target machines and run Tailscale commands there."
+        echo "- If SSH via Tailscale IP fails, use public IP or fallback (e.g. sim 47.100.71.220)."
+        echo ""
         echo "## kyb Docs"
         echo "- Read \`/home/dev/kyb\` for container setup, config reference, and how-tos."
         echo ""
