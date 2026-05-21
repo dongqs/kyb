@@ -117,6 +117,8 @@ module Kyb::CLI
     when 'session'
       Kyb.die("Usage: kyb session wrap <cli> [args...]") unless args.first == 'wrap' && args.size >= 2
       session_wrap(args[1], args[2..])
+    when 'morning'
+      morning(args)
     when 'notify'
       Kyb.die("Usage: kyb notify <done|blocked|urgent> <message>\n" \
                "  done:    task complete. ALWAYS notify when done\n" \
@@ -175,6 +177,7 @@ module Kyb::CLI
         did rm <name>                   DID: remove container
         did ps, ls                      DID: list containers
         tts {start|stop|speak...}        macOS TTS controls
+        morning                          Show morning status overview
         notify <done|blocked|urgent> <message>
                                          Send TTS notification
                                          done=task complete, blocked=need help,
@@ -196,3 +199,4 @@ require_relative 'cli/did'
 require_relative 'cli/session'
 require_relative 'cli/assert'
 require_relative 'cli/onboard'
+require_relative 'cli/morning'

@@ -79,3 +79,11 @@ class EnterTest < Minitest::Test
     end
   end
 end
+
+
+  def test_build_prompt_includes_morning
+    Kyb::Config.stub(:project, ->(*) { {} }) do
+      prompt = Kyb::CLI.build_default_prompt(nil, 'test')
+      assert_includes prompt, 'kyb morning'
+    end
+  end

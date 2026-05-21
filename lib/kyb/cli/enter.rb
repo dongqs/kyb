@@ -100,6 +100,7 @@ module Kyb::CLI
     prompt += " #{stale_msg}" if stale_msg
     proj = Kyb::Config.project(project)
     prompt += " #{proj[:extra_prompt]}" if proj[:extra_prompt]
+    prompt += " Run `kyb morning` first to see today's status."
     prompt
   end
 
