@@ -66,9 +66,10 @@ module Kyb::CLI
       project, branch = Kyb::Parser.parse(args.shift)
       start(project, branch)
     when 'rm'
-      Kyb.die("rm requires a project-branch\n  Usage: kyb rm PROJECT-BRANCH") unless args.first
+      force = args.delete("--force") ? true : false
+      Kyb.die("rm requires a project-branch\n  Usage: kyb rm PROJECT-BRANCH [--force]") unless args.first
       project, branch = Kyb::Parser.parse(args.shift)
-      rm(project, branch)
+      rm(project, branch, force: force)
     when 'prune'
       prune
     when 'did'
@@ -109,7 +110,7 @@ module Kyb::CLI
 
   def preflight
     if Kyb.in_container?
-      puts "⚠️ preflight 命令不应在容器内运行"
+      puts " 命令不应在容器内运行"
       exit 1
     end
     Kyb::Config.load_config
@@ -138,7 +139,7 @@ module Kyb::CLI
         exec  PROJECT-BRANCH [CMD...]    Run command in container
         stop  PROJECT-BRANCH             Stop container
         start PROJECT-BRANCH             Start stopped container
-        rm    PROJECT-BRANCH             Remove container
+        rm    PROJECT-BRANCH [--force]   Remove container (--force skips confirmation)
         prune                            Remove all containers
         assert <type> [args...]          Verify and auto-heal prerequisites
                                          Types: java [v], pg, mise <tool>
