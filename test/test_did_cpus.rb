@@ -2,6 +2,7 @@ require_relative 'test_helper'
 
 class DIDCpusTest < Minitest::Test
   def setup
+    skip 'DID tests require Docker (CI)' if ENV['CI']
     ENV['KYB_PROJECT'] = 'testproj'
     ENV['KYB_BRANCH']  = 'testbr'
   end

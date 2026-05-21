@@ -1,6 +1,11 @@
 require_relative 'test_helper'
 
 class DockerTest < Minitest::Test
+  def setup
+    skip 'Docker tests require Docker (CI)' if ENV['CI']
+  end
+
+
   # --- container_name ---
 
   def test_container_name_with_default_branch
