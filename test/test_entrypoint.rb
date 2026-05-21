@@ -5,6 +5,7 @@ class EntrypointTest < Minitest::Test
   CONTAINER = 'kyb-test-entrypoint'
 
   def setup
+    skip 'entrypoint tests require Docker and kyb-base image (CI)' if ENV['CI']
     # Skip if base image missing
     skip "#{IMAGE} not found — build it first with `kyb build`" unless
       system('docker', 'image', 'inspect', IMAGE,
