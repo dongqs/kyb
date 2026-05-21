@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 module Kyb::CLI
-  module_function
-
   def did(argv)
     show_all = argv.delete('--all') || argv.delete('-a')
     cmd = argv.first
@@ -211,4 +209,6 @@ module Kyb::CLI
         ps, ls [--all]   List DID containers (--all: show all, default: siblings)
     HELP
   end
+
+  module_function :did, :did_create, :did_rm, :did_ps, :did_help, :fix_did_swift_path
 end
