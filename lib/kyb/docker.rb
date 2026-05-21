@@ -79,6 +79,20 @@ module Kyb::Docker
     end
   end
 
+  def clone_path(project, container)
+    File.join(Kyb::CLONE_BASE, project, container.name)
+  end
+
+  def setup_clone(source_path, clone_target, project, container)
+    puts "==> cloning #{source_path} -> #{clone_target}"
+    FileUtils.mkdir_p(File.dirname(clone_target))
+    system('git', 'clone', source_path, clone_target) || Kyb.die('git clone failed')
+  end
+
+  def check_shared_project_conflict(project)
+    containers_for_project(project).select { |name| running?(name) }
+  end
+
   def assign_ports(container_ports)
     container_ports.map do |cport|
       hport = cport
@@ -257,7 +271,7 @@ module Kyb::Docker
     puts "==> Done: #{container} started"
   end
 
-  def create_container(project, branch, port_overrides = nil, model: nil)
+  def create_container(project, branch, port_overrides = nil, model: nil, clone: false)
     Kyb::Config.load
 
     if %w[master main].include?(branch)
@@ -282,13 +296,24 @@ module Kyb::Docker
 
     image = Kyb::Container::BASE_IMAGE
 
-    if proj[:cp_files]
+    # Clone mode: create independent git clone
+    clone_target = nil
+    if clone
+      clone_target = clone_path(project, container)
+      setup_clone(path, clone_target, project, container)
+    else
+      ensure_master_synced(path, proj[:base_branch])
+    end
+
+    # cp_files only in clone mode (default mount means host already has these files)
+    if clone && proj[:cp_files]
       base_keys = proj[:cp_files_base_keys] || [].freeze
       proj[:cp_files].each do |dst, src|
         src_path = File.join(path, src)
         if File.exist?(src_path)
           puts "     cp #{src} -> #{dst}"
-          FileUtils.cp(src_path, File.join(path, dst))
+          target = clone ? clone_target : path
+          FileUtils.cp(src_path, File.join(target, dst))
         elsif !base_keys.include?(dst)
           puts "     warn: #{src} not found, skipped"
         end
@@ -302,10 +327,11 @@ module Kyb::Docker
 
     FileUtils.mkdir_p(File.expand_path('~/.kimi'))
 
+    repo_path = clone ? clone_target : path
     run(
       container: container,
       image: image,
-      repo_path: path,
+      repo_path: repo_path,
       project_name: project,
       project_path: path,
       ports: ports,
@@ -324,6 +350,17 @@ module Kyb::Docker
                       'test', '-f', '/tmp/kyb-ready',
                       out: File::NULL, err: File::NULL)
       sleep 0.5
+    end
+
+    # Conflict detection: warn about shared-repo containers
+    unless clone
+      same_project = check_shared_project_conflict(project) - [container.name]
+      if same_project.any?
+        puts
+        puts "==> ⚠ 注意：项目 #{project} 已有运行中容器（#{same_project.join(', ')}）"
+        puts "    多个容器共享同一 repo，git 操作可能互相影响。"
+        puts "    如需隔离建议：kyb create --clone #{project}-<branch>"
+      end
     end
 
     if File.exist?('/.dockerenv')

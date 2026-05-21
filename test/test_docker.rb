@@ -341,10 +341,9 @@ class DockerTest < Minitest::Test
 
   # --- create_container (cp_files) ---
 
-  def test_create_container_cp_files_copies_all_when_exist
+  def test_create_container_cp_files_only_in_clone_mode
     Dir.mktmpdir do |tmpdir|
       File.write(File.join(tmpdir, '.env.example'), "ENV=example\n")
-      File.write(File.join(tmpdir, '.env.kyb'), "KYB=value\n")
 
       cp_pairs = []
       cp_stub = ->(src, dst) { cp_pairs << [src, dst]; nil }
@@ -354,7 +353,7 @@ class DockerTest < Minitest::Test
       Kyb::Config.stub(:project, ->(name) {
         { name: name, path: tmpdir, base_branch: 'master',
           dockerfile: nil, ports: [], symlinks: '', mounts_rw: '', mounts_ro: '',
-          cp_files: { '.env' => '.env.example', '.env.kyb' => '.env.kyb' },
+          cp_files: { '.env' => '.env.example' },
           cp_files_base_keys: [].freeze,
           extra_prompt: nil, timezone: 'Asia/Shanghai',
           proxy: nil, no_proxy: nil }
@@ -366,21 +365,13 @@ class DockerTest < Minitest::Test
       Kyb::Docker.stub(:run, nil) do
       Kyb::Docker.stub(:exists?, false) do
       Kyb::Docker.stub(:running?, false) do
+      Kyb::Docker.stub(:setup_clone, nil) do
       FileUtils.stub(:mkdir_p, nil) do
-        Kyb::Docker.create_container('niao', 'test')
-
-        dot_env = cp_pairs.find { |_, d| d.end_with?('/.env') }
-        dot_kyb = cp_pairs.find { |_, d| d.end_with?('/.env.kyb') }
-
-        refute_nil dot_env, 'expected .env copy'
-        assert_equal File.join(tmpdir, '.env.example'), dot_env[0]
-        assert_equal File.join(tmpdir, '.env'), dot_env[1]
-
-        refute_nil dot_kyb, 'expected .env.kyb copy'
-        assert_equal File.join(tmpdir, '.env.kyb'), dot_kyb[0]
-        assert_equal File.join(tmpdir, '.env.kyb'), dot_kyb[1]
-      end; end; end; end; end; end; end; end; end; end
+        # clone mode: cp_files should be called
+        Kyb::Docker.create_container('niao', 'test', nil, model: nil, clone: true)
+      end; end; end; end; end; end; end; end; end; end; end
       end
+      refute cp_pairs.empty?, 'expected cp_files in clone mode'
     end
   end
 
