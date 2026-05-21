@@ -243,6 +243,12 @@ ecplatform converged: 7 modules, 124 jOOQ files generated, MR !820. 0 tests but 
 
 ## 07:36 — policy-tools done
 
-policy-tools converged: Lombok + JDK 8 version lock, 93MB leyan-proto jar, 0 tests (JUnit 4/5 bridge missing). Can't push MR — dongqs has read-only access to dialogue-engine/policy-tools. Branch exists locally, needs maintainer.
+policy-tools converged: Lombok + JDK 8 version lock, 93MB leyan-proto jar, 0 tests. Read-only repo — MR blocked.
+
+---
+
+## 08:00 — citi done
+
+citi converged: 228 Python tests, MR !358. First Python ML project. Found gaps: Python 3.10 outdated (needs 3.11+), grpcio 1.43 broken on arm64, librdkafka-dev missing, protobuf version conflict. All worked around. kyb-base needs Python upgrade for the Python batch.
 
 ／人◕ ‿‿ ◕人＼
