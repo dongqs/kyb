@@ -6,6 +6,7 @@ require 'socket'
 require 'delegate'
 require 'net/http'
 require 'uri'
+require 'open3'
 
 module Kyb
   VERSION = '0.10.0'

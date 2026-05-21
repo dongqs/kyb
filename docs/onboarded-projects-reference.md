@@ -17,9 +17,13 @@
 | [rating-boost](#rating-boost) | 泽坤 | [repo](https://git.leyantech.com/base-service/rating-boost) | ✅ 收敛 | ✅ [!44](https://git.leyantech.com/base-service/rating-boost/-/merge_requests/44) | Java 21 + Maven | Nexus（jOOQ + Apollo + RocketMQ） | PostgreSQL | — | — | ❌ |
 | [netflix](#netflix) | 方剑峰 | [repo](https://git.leyantech.com/marketing/netflix) | ✅ 收敛 | ✅ [!49](https://git.leyantech.com/marketing/netflix/-/merge_requests/49) | Java 8 + Maven | Nexus | — | — | — | ❌ |
 | [recommendation-filter](#recommendation-filter) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-filter) | ✅ 收敛 | ✅ [!205](https://git.leyantech.com/recommendation/recommendation-filter/-/merge_requests/205) | Java 8 + Maven | Nexus | — | gRPC + Kafka | — | ❌ |
+| [recommendation-config](#recommendation-config) | 泽坤 | [repo](https://git.leyantech.com/recommendation/recommendation-config) | 🟡 Round 2 | ✅ [!298](https://git.leyantech.com/recommendation/recommendation-config/-/merge_requests/298) | Java 8 + Maven | Nexus（leyan-proto 95MB） | MySQL/SQLite（测试用嵌入式） | JUnit 50 测试（3 个已知失败） | — | ❌ |
 | [recommendation-finder](#recommendation-finder) | 郑一飞 | [repo](https://git.leyantech.com/recommendation/recommendation-finder) | ✅ 收敛 | ✅ [!172](https://git.leyantech.com/recommendation/recommendation-finder/-/merge_requests/172) | Java + Maven | Nexus | — | — | — | ❌ |
 | [peroration](#peroration) | 杨孙学 | [repo](https://git.leyantech.com/base-service/peroration) | ✅ 收敛 | ✅ [!76](https://git.leyantech.com/base-service/peroration/-/merge_requests/76) | Java 8 + Maven | Nexus | PostgreSQL | — | — | ❌ |
+| [lighthouse](#lighthouse) | — | [repo](https://git.leyantech.com/base-service/lighthouse) | ✅ 收敛 | ✅ [!36](https://git.leyantech.com/base-service/lighthouse/-/merge_requests/36) | Java 8 + Maven | Nexus（leyan-proto 107MB） | PostgreSQL + jOOQ | JUnit 60 tests 灯塔助手 | — | ❌ |
 | [sidecar](#sidecar) | 王龙 | [repo](https://git.leyantech.com/support/sidecar) | ✅ 收敛 | ✅ [!6](https://git.leyantech.com/support/sidecar/-/merge_requests/6) | Python 3.11 + uv | Nexus（PyPI） | PostgreSQL | pytest 88 tests | — | ❌ |
+| [citi](#citi) | AI | [repo](https://git.leyantech.com/ai/citi) | 🟡 Round 1 | — | Python 3.11 + uv | Nexus PyPI | SQLite (测试) | pytest 228 tests | .arc-extensions | ❌ |
+| [business-rule](#business-rule) | AI | [repo](https://git.leyantech.com/ai/business-rule) | 🟡 Round 1 | — | Python 3.10 + Maven | Nexus (Maven) + PyPI | — | JUnit 集成测试 | .arc-extensions | ❌ |
 
 > **负责人数据来源**: ntsb `resources/dbs.toml` 的 maintainer 字段 + 各项目 Git commit 贡献度交叉验证。添加新项目时同步更新。
 
@@ -29,14 +33,15 @@
 
 | JDK | 项目 | 备注 |
 |-----|------|------|
-| **8** | dredge-lxk | 需手动 `mise install java@corretto-8` |
+| **8** | dredge-lxk, lighthouse | 需手动 `mise install java@corretto-8`（parent POM 强制 `1.8`） |
+| **17** | form-manager | Lombok 兼容性 |
 | **21** | buyer-center, buyer-server, nova, data-ant, triggers-refund | kyb-base 预装 |
 
 ### 按数据库
 
 | 数据库 | 项目 |
 |--------|------|
-| **仅 PostgreSQL** | buyer-center, buyer-server, nova, data-ant, triggers-refund |
+| **仅 PostgreSQL** | buyer-center, buyer-server, nova, data-ant, triggers-refund, lighthouse |
 | **PostgreSQL + ClickHouse** | dredge-lxk |
 
 ### 按外部服务
@@ -146,12 +151,58 @@
 - **关键踩坑**: JAVA_HOME 需显式 export、mig25 status 不存在（用 psql 替代）
 - **推荐参考场景**: Java 8 + jOOQ codegen + 多外部服务（Kafka/Redis）项目
 
+### lighthouse
+
+- **描述**: 灯塔助手服务，Java 8 + Maven + PostgreSQL + jOOQ codegen + Jooby + gRPC + Apollo，4 模块，60 tests
+- **MR**: [!36](https://git.leyantech.com/base-service/lighthouse/-/merge_requests/36)（✅ merged）
+- **关键踩坑**:
+  - JDK 8 必须（parent POM `com.leyantech:base:1.0.23` 强制 `<requireJavaVersion>1.8</requireJavaVersion>`）
+  - Lombok 1.18.12 与 JDK 17+ 不兼容（`IllegalAccessError`）
+  - `JAVA_HOME` 需显式 export（`export JAVA_HOME=$(mise where java@corretto-8)`）
+  - leyan-proto 1.41.66 达 107MB，大文件下载可能因网络不稳定失败
+  - mig25 需要从项目目录执行才能读取 `m25.yml`
+- **推荐参考场景**: Java 8 + Maven multi-module + jOOQ codegen + Jooby + gRPC 项目
+
+### recommendation-config
+
+- **描述**: 推荐服务的配置管理，Java 8 + Maven 4 模块（config-core/rpc/web/consumer），生产 MySQL，测试 SQLite（嵌入式），gRPC + Kafka consumer + Jooby + Lombok 1.18.8
+- **MR**: [!298](https://git.leyantech.com/recommendation/recommendation-config/-/merge_requests/298)（🟡 Round 2 进行中）
+- **关键踩坑**:
+  - JDK 8 必须（Lombok 1.18.8 + JaCoCo 0.8.4 + gRPC `Field.modifiers` 反射均不兼容 JDK 9+）
+  - leyan-proto-1.38.45.jar 95MB，首次下载可能因 socks5 代理超时中断
+  - 测试非幂等：CategoryServiceImplTest.testGet 和 ConfigHandlerTest.testScene 有数据残留问题
+- **推荐参考场景**: Java 8 + gRPC + 测试用嵌入式 DB（SQLite）项目
+
 ### sidecar
 
 - **描述**: 京东服务商辅助工具，Python 3.11 + uv + PostgreSQL，88 tests
 - **MR**: !6（✅ merged）
 - **关键踩坑**: `uv python pin` 后需手动验证 .python-version 文件已创建
 - **推荐参考场景**: Python + uv 项目、纯 Python 无明显 tech-debt 项目
+
+### citi
+
+- **描述**: 商家意图管理（NLP 分类/聚类）服务。Python 3.11 + uv + Flask + SQLAlchemy + Celery + Kafka + gRPC，228 tests
+- **MR**: 待创建
+- **关键踩坑**:
+  - **grpcio 1.43.0 arm64 不兼容**：`leyan-proto`/`common-libs` 硬依赖 grpcio==1.43.0，该版本无 arm64 linux 二进制 wheel 且源码不兼容 GCC 13。解决方案：`pip install 'grpcio==1.80.0'` + 内部包用 `--no-deps`
+  - **kyb-base Python 版本不满足**：项目要求 >=3.11，kyb-base 只有 3.10。需 `uv python pin 3.11.15`
+  - **librdkafka-dev 缺失**：confluent-kafka 编译需要 `sudo apt-get install -y librdkafka-dev`
+  - **protobuf 版本兼容**：leyan-proto 的 pb2 文件需 protobuf 3.x，新 protobuf 5.x 不兼容。`pip install 'protobuf>=3.20,<4'`
+  - **pip install -e . 失败**：pyproject.toml 缺少 `[tool.setuptools.packages.find]` 配置。临时方案用 `PYTHONPATH=$PWD`
+  - **测试完全自包含**：SQLite :memory: + mock 外部服务，无需 PG/Redis/Kafka
+- **推荐参考场景**: Python + uv 项目、重度 gRPC/Proto 项目、arm64 环境踩坑参考
+
+### business-rule
+
+- **描述**: AI NLP 规则管理。Python + Airflow + Maven(integration-test) 混合项目。
+- **MR**: 待创建
+- **关键踩坑**:
+  - Nexus 403：容器 IP 192.168.215.0/24 不在 Nexus 白名单，阻断 Maven 编译和测试
+  - PyYAML 6.0+ `yaml.load()` 不兼容（项目代码用无参 `yaml.load()`）
+  - oss2 未预装，Airflow 脚本需要
+  - 无数据库依赖
+- **推荐参考场景**: Python + Maven 混合项目、项目有 IP 白名单限制的项目
 
 ## 常见坑速查
 
@@ -168,3 +219,4 @@
 | 9 | Lombok + Java 21 不兼容 | form-manager | 用 Lombok 的项目 | 切 Java 17 编译或升级 Lombok |
 | 10 | JaCoCo 0.8.8 + JDK 21 | netflix | 用 JaCoCo + JDK 21 的项目 | 升级 JaCoCo 或加 `-Djacoco.skip=true` |
 | 11 | jOOQ codegen class version 冲突 | moneta/rating-boost | 用 jOOQ + JDK 21 的项目 | 确保 Maven 运行在兼容的 JDK 版本 |
+| 12 | Nexus 403 IP 白名单 | business-rule | 首次遇到 IP 限制的项目 | 宿主机将 `192.168.215.0/24` 加入 Nexus 白名单 |

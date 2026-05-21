@@ -14,6 +14,18 @@
 
 <一句话：项目用途、技术栈、关键依赖>
 
+## 构建系统
+
+<!-- AI: 扫描项目根目录，确认构建文件类型，填入下表 -->
+
+| 字段 | 值 |
+|------|-----|
+| 构建工具 | maven / gradle / build.sh / uv / ... |
+| JDK 版本 | 21 / 17 / 8 / none |
+| 构建命令 | mvn compile / ./build.sh / uv sync / ... |
+| 测试命令 | mvn test / ./build.sh test / uv run pytest / ... |
+| 构建工具检查 | mvn --version / gradle --version / python3 --version / go version |
+
 ## 设计原理
 
 本文档按**系统论**（分层抽象）和**控制论**（闭环反馈）两个原理组织。
@@ -38,11 +50,11 @@
 ## 预装状态
 
 kyb-base 已预装：PostgreSQL 16 ✅ | Python 3.10 ✅ | mise ✅
-需手动装：<JDK/Maven/其他>（`mise install <tool>` + `mise use -g`，~Nmin）
+需手动装：见上方"构建系统"表（`mise install <tool>` + `mise use -g`，~Nmin）
 
 ⚠️ `mise install` 后必须 `mise use -g` 激活，否则命令找不到。
 
-> **旧项目 Lombok 兼容性**：若项目使用的 Lombok 版本较旧（parent POM 为 2022 年前），
+> **旧项目 Lombok 兼容性**：若项目使用的 Lombok 版本较旧（parent 项目定义为 2022 年前），
 > JDK 17+ 编译时可能报 `IllegalAccessError: cannot access com.sun.tools.javac...`。
 > 此情形需改用 JDK 11（`mise install java@corretto-11 && mise use -g java@corretto-11`）。
 > 不要试图加 `--add-exports`——旧 Lombok 访问的内部 API 太多，逐个添加不现实。
@@ -68,27 +80,28 @@ Agent 启动前先探测可用服务，根据结果决定完整流程或降级�
 ## Quick Start
 
 ```bash
-# 以下命令以 root 执行。pip3 等需 su - dev。mise 管理的工具（java 等）需 bash -l -c 或 eval "$(mise activate bash)"。
-# 0. 前提 — 容器已创建，PG 已启动
-pg_isready                                           # → accepting connections
+# 以下命令在交互式 shell 中执行。非交互式（docker exec）需 su - dev -c 或手动设环境变量。
+#
+# 所有 kyb assert 命令可重复执行（幂等）——会先检查再修复。
+# 退出码：0=通过, 1=失败（已尝试自动修复但仍未通过）。
 
-# 1. 工具
-<安装JDK等> && mise use -g <tool>
-eval "$(mise activate bash)" && java -version   # 验证 JDK 已激活
-su - dev -c "pip3 install <工具>"
+# 0. 工具确认（自动安装/激活）
+kyb assert java                                 # Verify/install JDK (default 21)
+kyb assert mise <tool>                          # Verify/install build tool (mvn, gradle, ...)
+kyb assert pg                                   # Verify/start PostgreSQL
 
-# 2. 子模块
+# 1. 子模块
 cd ~/projects/<project> && git submodule update --init --recursive
 
-# 3. 数据库
+# 2. 数据库
 psql -U postgres -c "CREATE DATABASE <db>"
 MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25 upgrade
 
-# 4. 代码生成
+# 3. 代码生成
 MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25-codegen generate
 
-# 5. 编译 + 测试
-export <凭据等> && <构建命令>
+# 4. 编译 + 测试
+export <凭据> && <构建命令>
 ```
 
 ## 启动前检查
@@ -119,10 +132,11 @@ echo "" >> /tmp/.kyb-verification.md && echo "## 结果" >> /tmp/.kyb-verificati
 **不要尝试修任何问题**。没有 docker sock，你修不了。卡住就是文档的问题，交给外圈修。
 
 > **DID 容器内 `docker exec` 注意事项**（供 onboarding agent 参考）：
-> `docker exec` 默认以 root 身份执行，其创建的文件（如 Maven 缓存 `~/.m2/repository`）
-> 会被 root 拥有。后续 `su - dev -c "mvn ..."` 会因权限不足失败。
-> 如需在 DID 容器内执行 Maven 命令，始终用 `su - dev -c "..."` 而非裸 `docker exec`。
-> 若已污染，执行 `docker exec ... chown -R dev:dev ~/.m2` 修复。
+> `docker exec` 默认以 root 身份执行，其创建的构建缓存文件
+>（如 `~/.m2/repository`、`~/.gradle`、`~/.cache/uv`、`~/.cache/pip`）
+> 会被 root 拥有。后续 `su - dev -c "<构建命令>"` 会因权限不足失败。
+> 如需在 DID 容器内执行构建命令，始终用 `su - dev -c "..."` 而非裸 `docker exec`。
+> 若已污染，执行 `docker exec ... chown -R dev:dev ~/.m2 ~/.gradle ~/.cache` 修复。
 
 ## 完整流程
 
@@ -130,23 +144,29 @@ echo "" >> /tmp/.kyb-verification.md && echo "## 结果" >> /tmp/.kyb-verificati
 
 ### 1. 工具确认 [`工具层`]
 
+先验证或自动修复环境依赖。所有 `kyb assert` 命令幂等，退出码 0=通过、1=失败。
+
 ```bash
-pg_isready                                     # → accepting connections  ✅ | ❌ 启PG
-bash -l -c "java -version"                    # → openjdk 21.0.x  ✅ | ❌ mise install + use -g
-<构建工具> --version | head -1                  # → ver  ✅ | ❌ 见排查
+kyb assert java                                 # Verify/install JDK (see 构建系统 table for version)
+kyb assert mise <tool>                          # Verify/install build tool (mvn, gradle, ...)
+kyb assert pg                                   # Verify/start PostgreSQL
+# → All pass ✅ | ❌ 见排查
 ```
+
+> **JDK 版本**：如果"构建系统"表声明了不同版本，用 `kyb assert java <版本>` 替代默认的 21。
+> **构建工具**：`kyb assert mise <tool>` 中的 `<tool>` 替换为"构建系统"表中的工具名。
 
 **❌ 排查**：
 | 现象 | 可能原因 | 修复 |
 |------|---------|------|
-| `java: not found` | 未安装/未激活 | `mise install <tool>` + `mise use -g` |
+| `kyb assert` 退出码 1 | 自动修复失败 | 看具体错误输出，手动装对应工具 |
+| 构建工具找不到 | 未安装 | `mise install <tool>` + `mise use -g` |
 | `mvn` 报 `JAVA_HOME` 错误 | Java 已安装但未设环境变量 | `export JAVA_HOME=$(mise where java)` |
-| 构建工具找不到 | 未安装 | `mise install <tool>` |
 | PG 连不上 | 服务未启 | `pg_ctlcluster 16 main start` |
 | pip3 找不到 | 用户不对 | `su - dev -c "pip3 ..."` 或 `pip3 install --user` |
 | 代理问题 | socks5 与 rustls 不兼容 | 用 `https_proxy=http` 而非 `ALL_PROXY=socks5` |
 | Gradle 找不到指定版本 JDK | 未配 toolchain 路径 | `printf 'org.gradle.java.installations.paths=<JDK路径>' >> ~/.gradle/gradle.properties` |
-| DID 容器内 `.gradle`/`.m2` 写拒绝 | share volume 属主(501) ≠ 容器 UID(1000) | docker exec 先 `sudo chown -R dev:dev /home/dev/.gradle` |
+| DID 容器内 `.gradle`/`.m2`/`.cache` 写拒绝 | share volume 属主(501) ≠ 容器 UID(1000) | docker exec 先 `sudo chown -R dev:dev /home/dev/.gradle /home/dev/.m2` |
 | Lombok `IllegalAccessError`（`cannot access com.sun.tools.javac...`） | JDK 17 强封装 + 旧 Lombok | 改用 JDK 11（`mise install java@corretto-11 && mise use -g java@corretto-11`） |
 
 ### 2. 子模块 [`依赖层`]
@@ -154,6 +174,11 @@ bash -l -c "java -version"                    # → openjdk 21.0.x  ✅ | ❌ mi
 ```bash
 cd ~/projects/<project> && git submodule update --init --recursive
 # → 子模块目录非空  ✅ | ❌ 查嵌套 submodule
+
+# Verify: 所有子模块目录存在且非空
+for dir in $(git config --file .gitmodules --get-regexp path 2>/dev/null | awk '{print $2}'); do
+  test -d "$dir" && test -n "$(ls -A "$dir" 2>/dev/null)" && echo "✅ $dir" || echo "❌ $dir empty/missing"
+done
 ```
 
 **❌ 排查**：嵌套 submodule → 加 `--recursive`。网络问题 → 确认 `NO_PROXY` 含内网域名。
@@ -161,12 +186,20 @@ cd ~/projects/<project> && git submodule update --init --recursive
 ### 3. 数据库 [`数据层`]
 
 ```bash
+# Pre: 确认 PG 运行
+kyb assert pg
+
+# Execute: 创建数据库
 psql -U postgres -c "CREATE DATABASE <db>;"
 # → CREATE DATABASE  ✅ | ❌ 确认 PG 运行
 
+# Execute: 执行迁移
 MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25 upgrade
 # → migrations 全部执行完毕  ✅ | ❌ 见排查
-# 执行后用 mig25 list 确认总量
+
+# Verify: 确认迁移总量
+MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25 list
+# → 迁移计数 > 0  ✅ | ❌ 迁移未执行
 ```
 
 **❌ 排查**：
@@ -181,24 +214,62 @@ MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25 upgrade
 ```bash
 MIG25_DSN="postgresql://postgres:postgres@127.0.0.1:5432/<db>" mig25-codegen generate
 # → 生成完成  ✅ | ❌ 见排查
+
+# Verify: 确认输出目录存在且非空
+test -d <output-dir> && echo "✅ codegen output: <output-dir>" || echo "❌ output missing"
 ```
+
+> 输出目录名称因项目而异（如 `build/generated/`、`src/main/generated/`、`app/src/main/java/`）。
+> 在首次运行前先确定目录路径，参考 `mig25-codegen` 配置或 CI 中的输出目录。
 
 **❌ 排查**：
 | 现象 | 可能原因 | 修复 |
 |------|---------|------|
 | schema 不存在 | migration 未执行 | 回到步骤 3 重跑 |
 | 连接 DB 失败 | DSN 不对 | 确认指向 `localhost:5432` |
+| output 目录未生成 | codegen 配置不对 | 检查 `mig25-codegen` 的 YAML 配置 |
 
-### 5. 编译 [`工具层`]
+### 5. 编译 [`工具层 / 项目层`]
+
+构建命令已在"构建系统"表中定义。如果尚未填写，先检测构建文件类型：
 
 ```bash
-export <凭据> && <构建命令> compileKotlin
-# → BUILD SUCCESS  ✅ | ❌ 见排查
+# 检测构建类型（如 构建系统 表已填可跳过）
+if [ -f pom.xml ]; then
+  echo "✅ Detected: Maven (pom.xml)"
+elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then
+  echo "✅ Detected: Gradle"
+elif [ -f build.sh ]; then
+  echo "✅ Detected: build.sh"
+elif [ -f pyproject.toml ]; then
+  echo "✅ Detected: Python (pyproject.toml)"
+elif [ -f go.mod ]; then
+  echo "✅ Detected: Go (go.mod)"
+elif [ -f Makefile ]; then
+  echo "✅ Detected: Makefile (make)"
+else
+  echo "⚠️ No recognized build file. Fill 构建系统 table manually."
+fi
 ```
 
-> 如果项目在 CI 中设置了 `GRADLE_USER_HOME`（如 `GRADLE_USER_HOME=.cache`），本地编译时也需要同步设置以复用缓存。
+```bash
+# Pre: 防御性重确认
+kyb assert java                                 # Verify JDK still active
+kyb assert mise <tool>                          # Verify build tool still active
 
-**❌ 排查**：
+# Execute: 编译
+export <凭据> && <构建命令>
+# → BUILD SUCCESS / Exit 0  ✅ | ❌ 见排查
+```
+
+> **凭据注意**：CI 中可能有仓库凭据（NEXUS_USER, NEXUS_PASS 等），本地编译需要同步设置。
+> 如果项目在 CI 中设置了 `GRADLE_USER_HOME`（如 `GRADLE_USER_HOME=.cache`），本地编译时也需要同步设置以复用缓存。
+> Python 项目通常不需要 Nexus 凭据，但可能需要 PyPI mirror（`UV_INDEX_URL` / `PIP_INDEX_URL`）。
+> build.sh 项目：凭据需求取决于脚本内容，检查 CI 中 `before_script`。
+
+**❌ 排查**（按构建类型展开）：
+
+**Maven / Gradle**（Java 项目）：
 | 现象 | 可能原因 | 修复 |
 |------|---------|------|
 | `Could not resolve` 依赖 | 仓库凭据 | 设对应环境变量 |
@@ -206,16 +277,51 @@ export <凭据> && <构建命令> compileKotlin
 | 构建工具下载慢 | 网络 | 首次冷启动需等待，热启动秒级 |
 | 编译错误（非依赖） | 项目层 | 检查具体报错 |
 
+**Python** 项目：
+| 现象 | 可能原因 | 修复 |
+|------|---------|------|
+| `uv: command not found` | 未安装 | `pip3 install uv` 或 `pip3 install` |
+| `Could not find a pyproject.toml` | 目录不对 | 确认在项目根目录 |
+| Package install 失败 | PyPI mirror | 设 `UV_INDEX_URL` 或 `PIP_INDEX_URL` |
+| Dependency conflict | 依赖冲突 | `uv lock --upgrade` 或手动解决 |
+
+**build.sh** 项目：
+| 现象 | 可能原因 | 修复 |
+|------|---------|------|
+| `build.sh: not found` | 无可执行权限 | `chmod +x build.sh` |
+| 脚本中命令失败 | 缺少运行时 | 检查脚本中 `apt`/`mise install`/`pip3` 依赖是否已安装 |
+| 编译产物找不到 | 输出路径不对 | 检查 build.sh 内 `OUTPUT_DIR` |
+**Go** 项目：
+| 现象 | 可能原因 | 修复 |
+|------|---------|------|
+| `go: command not found` | 未安装 | `mise install go && mise use -g go` |
+| `go mod download` 慢 | 网络 / GOPROXY | 设 `GOPROXY=https://goproxy.cn,direct` |
+| 编译错误（非依赖） | 项目层 | 检查具体报错 |
+| `package X is not in GOROOT` | 缺少 vendor/module | `go mod tidy` 或 `go mod vendor` |
+
 ### 6. 测试 [`项目层`]
 
-先探测外部服务：
+测试命令已在"构建系统"表中定义。先探测外部服务：
+
 ```bash
-curl -s <service>:<port> >/dev/null 2>&1 && echo "有 <服务>" || echo "无 <服务>，降级"
+# 探测外部服务可用性
+curl -s <service>:<port> >/dev/null 2>&1 && echo "✅ <service> available" || echo "⚠️ <service> unavailable, tests may fail"
 ```
 
 ```bash
-export <凭据> && <构建命令> test
-# → BUILD SUCCESS  ✅ | ❌ 见排查
+# Pre: 确认构建产物存在（编译已通过）
+test -d <output-dir> && echo "✅ Build artifacts exist" || echo "⚠️ No build artifacts, compile may not have produced output"
+
+# Execute: 测试
+export <凭据> && <测试命令>
+# → BUILD SUCCESS / Tests passed / Exit 0  ✅ | ❌ 见排查
+
+# Verify: 检查测试结果
+# Java (Maven): grep "BUILD SUCCESS" output
+# Java (Gradle): grep "BUILD SUCCESSFUL" output
+# Python: check exit code 0
+# Go: check exit code 0
+# build.sh / Makefile: check exit code 0
 ```
 
 **❌ 排查**：
@@ -224,6 +330,9 @@ export <凭据> && <构建命令> test
 | 全部失败/无法启动 | DB 连不上 / 测试数据残留 | 确认 DB 用 `localhost` 而非 CI hostname；注意 `ON CONFLICT DO NOTHING` 模式导致非幂等，重跑前 truncate 测试表 |
 | 某集成测试失败 | 缺外部服务 | 启动对应服务或用 mock/in-memory |
 | 单测级别失败 | 项目层 | 检查具体报错 |
+| Python 测试 `ModuleNotFoundError` | 缺依赖 | 检查 `uv sync` 或 `pip3 install -r requirements.txt` |
+| Maven 测试 0 tests run | surefire 配置不对 | 检查 `pom.xml` 中 `maven-surefire-plugin` 配置 |
+| Gradle test 无输出 | 测试任务名不对 | 确认 `./gradlew test` 还是 `./gradlew check` |
 
 ---
 
@@ -245,7 +354,7 @@ export <凭据> && <构建命令> test
 | 资源 | 缓存方式 | 所属层 | 自动? | 冷启动方式 | 等待耗时（冷→热） |
 |------|---------|--------|-------|-----------|-------------------|
 | <JDK/工具> | `kyb-mise-cache` | 工具层 | ❌ | `mise install <tool>`（注意代理） | Nmin→0s |
-| 构建依赖 | shared volume | 工具层 | <✅/❌> | 首次构建自动下载 | Nmin→Ns |
+| 构建依赖 | 构建系统表声明路径 | 工具层 | <✅/❌> | 首次 `<构建命令>` 自动下载 | Nmin→Ns |
 | Git 子模块 | 项目目录 | 依赖层 | ❌ | `git submodule update --init --recursive` | Ns→0s |
 | DB + migration | 容器内 pg data | 数据层 | ❌ | `createdb` + `mig25 upgrade` | Ns→Ns |
 | Codegen | `build/generated/` | 数据层 | ❌ | `<codegen命令>` | Ns→Ns |
@@ -256,7 +365,7 @@ export <凭据> && <构建命令> test
 | # | 问题 | 所属层 | 现象 | 原因 | 修复 |
 |---|------|--------|------|------|------|
 | 1 | JDK 17 + 旧 Lombok 不兼容 | 工具层 | `Fatal error compiling: IllegalAccessError: cannot access com.sun.tools.javac...` | 旧 Lombok 访问 JDK 内部 API，JDK 17 强封装 | 改用 JDK 11 |
-| 2 | DID 容器 Maven 缓存 root 权限 | 工具层 | `rm: cannot remove: Permission denied` / Maven install 失败 | `docker exec` 以 root 运行，Maven 缓存文件被 root 创建 | 始终用 `su - dev -c "..."` 而非裸 `docker exec` |
+| 2 | DID 容器构建缓存 root 权限 | 工具层 | `rm: cannot remove: Permission denied` / 构建失败 | `docker exec` 以 root 运行，缓存文件被 root 创建 | 始终用 `su - dev -c "..."` 而非裸 `docker exec` |
 
 ## 按层快速排查
 

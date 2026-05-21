@@ -271,6 +271,69 @@ class CLITest < Minitest::Test
     assert_raises(SystemExit) { capture_io { dispatch('did', 'rm') } }
   end
 
+  # --- assert ---
+
+  def test_assert_java_dispatch
+    captured_version = nil
+    Kyb::Check.define_singleton_method(:assert_java) do |expected_version:|
+      captured_version = expected_version
+      true
+    end
+    dispatch('assert', 'java', '17')
+    assert_equal '17', captured_version
+  ensure
+    Kyb::Check.singleton_class.remove_method(:assert_java)
+  end
+
+  def test_assert_java_default_version
+    captured_version = nil
+    Kyb::Check.define_singleton_method(:assert_java) do |expected_version:|
+      captured_version = expected_version
+      true
+    end
+    dispatch('assert', 'java')
+    assert_equal '21', captured_version
+  ensure
+    Kyb::Check.singleton_class.remove_method(:assert_java)
+  end
+
+  def test_assert_pg_dispatch
+    called = false
+    Kyb::Check.define_singleton_method(:assert_pg) do
+      called = true
+      true
+    end
+    dispatch('assert', 'pg')
+    assert called
+  ensure
+    Kyb::Check.singleton_class.remove_method(:assert_pg)
+  end
+
+  def test_assert_mise_dispatch
+    captured_tool = nil
+    Kyb::Check.define_singleton_method(:assert_mise_tool) do |tool|
+      captured_tool = tool
+      true
+    end
+    dispatch('assert', 'mise', 'mvn')
+    assert_equal 'mvn', captured_tool
+  ensure
+    Kyb::Check.singleton_class.remove_method(:assert_mise_tool)
+  end
+
+  def test_assert_unknown_type_dies
+    assert_raises(SystemExit) { capture_io { dispatch('assert', 'unknown') } }
+  end
+
+  def test_assert_mise_no_tool_dies
+    assert_raises(SystemExit) { capture_io { dispatch('assert', 'mise') } }
+  end
+
+  def test_assert_help
+    out, _ = capture_io { dispatch('assert', 'help') }
+    assert_match(/kyb assert/, out)
+  end
+
   # --- version ---
 
   def test_version

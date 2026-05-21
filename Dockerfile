@@ -17,6 +17,7 @@ RUN apt-get update && apt-get upgrade -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ca-certificates curl wget git build-essential \
     libpq-dev libssl-dev libreadline-dev zlib1g-dev libffi-dev libyaml-dev \
+    librdkafka-dev \
     vim tmux htop gnupg unzip jq docker-compose-v2 \
     ripgrep fd-find fzf \
     lsof net-tools dnsutils iputils-ping traceroute tcpdump \
@@ -85,7 +86,7 @@ RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     sudo chown -R dev:dev /home/dev/.local/share/mise && \
-    for i in 1 2 3; do /home/dev/.local/bin/mise install python@3.10 && break; sleep 5; done
+    for i in 1 2 3; do /home/dev/.local/bin/mise install python@3.11 && break; sleep 5; done
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     sudo chown -R dev:dev /home/dev/.local/share/mise && \
