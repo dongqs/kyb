@@ -44,8 +44,13 @@ module Kyb::CLI
     when 'ps', 'ls'
       ps
     when 'enter'
-      Kyb.die("enter requires a project-branch\n  Usage: kyb enter PROJECT-BRANCH [--cli claude|kimi|bash]") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("enter requires a project-branch")
+                        end
       cli = 'claude'
       if args.first == '--cli'
         args.shift
@@ -54,20 +59,40 @@ module Kyb::CLI
       end
       enter(project, branch, cli: cli)
     when 'exec'
-      Kyb.die("exec requires a project-branch\n  Usage: kyb exec PROJECT-BRANCH [CMD...]") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("exec requires a project-branch")
+                        end
       exec_cmd(project, branch, args)
     when 'stop'
-      Kyb.die("stop requires a project-branch\n  Usage: kyb stop PROJECT-BRANCH") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("stop requires a project-branch")
+                        end
       stop(project, branch)
     when 'start'
-      Kyb.die("start requires a project-branch\n  Usage: kyb start PROJECT-BRANCH") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("start requires a project-branch")
+                        end
       start(project, branch)
     when 'rm'
-      Kyb.die("rm requires a project-branch\n  Usage: kyb rm PROJECT-BRANCH") unless args.first
-      project, branch = Kyb::Parser.parse(args.shift)
+      project, branch = if args.first
+                          Kyb::Parser.parse(args.shift)
+                        elsif (detected = Kyb::Parser.auto_detect)
+                          detected
+                        else
+                          Kyb.die("rm requires a project-branch")
+                        end
       rm(project, branch)
     when 'prune'
       prune

@@ -6,6 +6,7 @@ class CLITest < Minitest::Test
   def setup
     Kyb::Config.define_singleton_method(:load) { nil }
     Kyb::Config.define_singleton_method(:project_names) { PROJECTS }
+    Kyb::Config.define_singleton_method(:project) { |_| { path: "/nonexistent/path" } }
 
     # Methods without keyword args
     %i[stop start rm].each do |m|
@@ -38,6 +39,7 @@ class CLITest < Minitest::Test
   def teardown
     Kyb::Config.singleton_class.remove_method(:load)
     Kyb::Config.singleton_class.remove_method(:project_names)
+    Kyb::Config.singleton_class.remove_method(:project) rescue nil
 
     %i[create enter stop start rm].each do |m|
       Kyb::CLI.singleton_class.remove_method(m)
