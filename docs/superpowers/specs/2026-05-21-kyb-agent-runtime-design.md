@@ -231,7 +231,69 @@ kyb prod trace <trace-id>                          # 链路追踪
 
 实现层：SLS SDK / CK HTTP API / Grafana API，通过认证隧道包装。agent 不关心凭证管理，`kyb prod` 统一处理。
 
-## 自迭代闭环
+## 通讯渠道
+
+agent 在云上跑，人在手机上接收结果和下达指令。通讯渠道是 agent 与人之间的异步接口。
+
+```
+kyb prod sls "status >= 500"                  # 查生产日志
+  → agent 发现异常 → 修复
+  → 通过微信发你："issue #42 已修复，MR 已提交"
+  → 你回："合并"
+  → agent 合并 MR → 更新版本 → 通知你："已上线"
+```
+
+二层抽象：
+
+```go
+type Channel interface {
+    Send(ctx context.Context, msg *Message) error
+    Listen(ctx context.Context, handler func(*Message)) error  // 接收回复
+}
+
+type Message struct {
+    From    string    // 渠道 ID
+    Content string    // 文本
+    Attachments []string  // 图片/文件
+}
+```
+
+```bash
+kyb channel bind wechat                  # 绑定微信
+kyb channel bind dingtalk                # 绑定钉钉
+kyb channel list                         # 当前绑定渠道
+kyb send "all issues fixed, ready to review"  # 通过已绑定渠道发送
+```
+
+### 集成模式
+
+kyb 不封装 WeChat/DingTalk SDK——太重了。kyb 只提供**认证隧道 + 消息转发**：
+
+```
+火山云 VKE pod
+  └─ kyb channel（小的 HTTP server）
+       ├─ 微信 webhook → 转发到你手机
+       └─ 接收消息 → 注入 agent prompt
+
+你手机
+  └─ 微信 → 收到 agent 消息
+       └─ 回复 → 转发到 kyb → agent 处理
+```
+
+实现上可以是：
+- **推送方向**：企业微信机器人 webhook / 个人微信桥（wechaty 等）/ 钉钉机器人
+- **接收方向**：企业微信回调 / 轮询微信消息 / 钉钉回调
+- 初期只做推送（agent → 人），不做接收（人 → agent），降低复杂度
+
+### 与 notify 的关系
+
+| 命令 | 场景 | 渠道 |
+|------|------|------|
+| `kyb notify done` | 本地开发，agent 在容器里 | macOS say + afplay |
+| `kyb send` | 云上生产，agent 在云上 | 微信/钉钉推送 |
+| `kyb channel bind` | 配置绑定 | 初始化 |
+
+`notify` 保持本地（扬声器），`send` 走向远程（通讯 App）。两套不冲突。
 
 ```
          ┌─────────────────────────────────────┐
@@ -273,8 +335,9 @@ Go 版第一版目标：**CLI 命令全集 + LocalDockerProvider + 测试通过*
 | 1 | Go 迁移：翻译现有 Ruby 到 Go，provider 先只实现 local Docker | 无 |
 | 2 | Provider 接口：实现 CloudProvider（VKE/ECS）| 火山云账号 |
 | 3 | 生产数据接入：SLS / CK / Grafana 认证和查询 | SLS/CK/Grafana 权限 |
-| 4 | 工具集成：从 agent 踩坑记录固化 kyb fix/* 命令 | 持续积累 |
-| 5 | 自迭代：agent 改自己代码 → 测试 → MR merge | 信任 + CI 自动化 |
+| 4 | 通讯渠道：WeChat/DingTalk 等推送和异步回复 | 微信/钉钉凭证 |
+| 5 | 工具集成：从 agent 踩坑记录固化 kyb fix/* 命令 | 持续积累 |
+| 6 | 自迭代：agent 改自己代码 → 测试 → MR merge | 信任 + CI 自动化 |
 
 ## 不涉及（明确的非目标）
 
@@ -284,3 +347,4 @@ Go 版第一版目标：**CLI 命令全集 + LocalDockerProvider + 测试通过*
 - 不做中间件全家桶（按需 `--with` / agent 自己起）
 - 不做 kyb 自身日志系统（SLS）
 - 不做 AMQP/gRPC 接入层（没必要）
+- 不自行实现 WeChat/DingTalk SDK（走 webhook + 轻量桥接）
