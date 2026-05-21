@@ -108,6 +108,10 @@ module Kyb::CLI
   end
 
   def preflight
+    if Kyb.in_container?
+      puts "⚠️ preflight 命令不应在容器内运行"
+      exit 1
+    end
     Kyb::Config.load_config
     Kyb::Check.run_checks
   end

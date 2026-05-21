@@ -418,4 +418,74 @@ class CLITest < Minitest::Test
     assert_equal 1, calls.length
     assert_includes calls.first, 'test'
   end
+
+
+  # -- in-container guards ---------------------------------------------------
+
+  def test_build_warns_when_in_container
+    Kyb.stub(:in_container?, true) do
+      out, _ = capture_io do
+        assert_raises(SystemExit) { Kyb::CLI.build }
+      end
+      assert_match(/build 命令不应在容器内运行/, out)
+    end
+  end
+
+  def test_build_runs_normally_outside_container
+    called = false
+    Kyb.stub(:in_container?, false) do
+      Kyb::Config.stub(:load_config, nil) do
+        Kyb::Config.stub(:base_image_path, '/tmp') do
+          File.stub(:exist?, ->(p) { p == '/tmp/Dockerfile' || p == '/.dockerenv' }) do
+            Kyb::Check.stub(:run_checks, nil) do
+              Kyb::Proxy.stub(:detect, nil) do
+                Kyb::Docker.stub(:build, ->(*) { called = true }) do
+                  capture_io { Kyb::CLI.build }
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+    assert called, 'build should proceed when not in container'
+  end
+
+  def test_preflight_warns_when_in_container
+    Kyb.stub(:in_container?, true) do
+      out, _ = capture_io do
+        assert_raises(SystemExit) { Kyb::CLI.preflight }
+      end
+      assert_match(/preflight 命令不应在容器内运行/, out)
+    end
+  end
+
+  def test_preflight_runs_normally_outside_container
+    called = false
+    Kyb.stub(:in_container?, false) do
+      Kyb::Config.stub(:load_config, nil) do
+        Kyb::Check.stub(:run_checks, ->(*) { called = true }) do
+          capture_io { Kyb::CLI.preflight }
+        end
+      end
+    end
+    assert called, 'preflight should proceed when not in container'
+  end
+
+  def test_create_warns_when_in_container
+    m = Kyb::CLI.instance_method(:create).bind(Kyb::CLI)
+    Kyb::CLI.singleton_class.remove_method(:create) if Kyb::CLI.singleton_methods.include?(:create)
+    Kyb::CLI.define_singleton_method(:create, &m)
+    Kyb.stub(:in_container?, true) do
+      out, _ = capture_io do
+        assert_raises(SystemExit) { Kyb::CLI.create('test', 'br') }
+      end
+      assert_match(/create 命令不应在容器内运行/, out)
+    end
+  ensure
+    Kyb::CLI.singleton_class.remove_method(:create) rescue nil
+    Kyb::CLI.define_singleton_method(:create) do |project, branch, port_overrides = nil, **|
+      @__captured = [:create, [project, branch, port_overrides]]
+    end
+  end
 end
