@@ -8,6 +8,16 @@ class ReporterTest < Minitest::Test
       Kyb::Reporter.singleton_class.remove_method(m) rescue nil
       Kyb::Config.singleton_class.remove_method(m) rescue nil
     end
+    # Restore original method if it was removed
+    unless Kyb::Config.respond_to?(:reporting_enabled?)
+      Kyb::Config.define_singleton_method(:reporting_enabled?) do
+        cfg = load_config
+        return true unless cfg.is_a?(Hash)
+        reporting = cfg['reporting']
+        return true unless reporting.is_a?(Hash)
+        reporting['enabled'] != false
+      end
+    end
   end
 
   def test_default_enabled
