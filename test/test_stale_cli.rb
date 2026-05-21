@@ -2,6 +2,7 @@ require_relative 'test_helper'
 
 class StaleCLITest < Minitest::Test
   def setup
+    skip 'Stale CLI tests require Docker (CI)' if ENV['CI']
     @_orig_load = Kyb::Config.method(:load) rescue nil
     Kyb::Config.define_singleton_method(:load) { nil }
     # CLITest.teardown removes singleton methods via remove_method,
