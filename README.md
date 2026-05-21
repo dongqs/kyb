@@ -99,15 +99,40 @@ kyb enter 项目名-功能分支     # 进入沙箱
 ```
 macOS 宿主机
 ├── sing-box (socks5:2080)          ← 分流代理
-├── ~/.kyb/                          ← 本仓库（clone 到 ~/.kyb）
-│   ├── Dockerfile                  ← 沙箱镜像定义
-│   ├── entrypoint.sh               ← 容器启动入口
-│   └── bin/kyb                     ← CLI 工具
+├── ~/.kyb/                          ← 源码
+├── ~/.config/kyb/                   ← 配置
+├── ~/.cache/kyb/                    ← 缓存日志
+├── ~/.local/share/kyb/worktrees/    ← 项目 worktree
 └── Docker 容器
     ├── mise (node, ruby, java...)
     ├── Claude Code (权限全开)
     ├── PostgreSQL 16
     └── ~/projects/                 ← Git 项目 worktree
+```
+
+## 文件布局
+
+```
+~/.kyb/                              ← kyb 源码（git clone 到此）
+  bin/kyb                            ← CLI 入口
+  lib/                               ← Ruby 源码
+  docs/                              ← 文档
+  Dockerfile                         ← 沙箱镜像定义
+  entrypoint.sh                      ← 容器启动脚本
+
+~/.config/kyb/                       ← 用户配置（可 git 版本管理）
+  config.yml                         ← 项目配置
+  .git/
+
+~/.cache/kyb/                        ← 缓存 + 日志
+  logs/                              ← build/run 日志
+  tts.pid                            ← TTS 服务 PID
+
+~/.local/share/kyb/worktrees/        ← Git worktree（运行时数据）
+  <project>/<container>/             ← 每个沙箱一个独立 worktree
+
+~/.local/bin/kyb → ~/.kyb/bin/kyb   ← PATH 中的 CLI（符号链接）
+~/.local/lib/kyb/                    ← lib 副本（bin/install 装入，fallback 路径）
 ```
 
 ## 容器内配置清单
@@ -224,7 +249,7 @@ projects:
 - `~/.claude/settings.json` → 容器内 `/home/dev/.claude-host-settings.json` (只读)
 - `~/.config/kyb` → 容器内 `/home/dev/.config/kyb` (只读) — 容器内可发现其他项目
 - `~/.claude/skills` → 容器内 `/home/dev/.claude-skills-host` (只读)
-- `~/.kyb/worktrees/<project>/<container>/` → 容器内 `/home/dev/projects/<project>` (git worktree 隔离)
+- `~/.local/share/kyb/worktrees/<project>/<container>/` → 容器内 `/home/dev/projects/<project>` (git worktree 隔离)
 - `/var/run/docker.sock` → 容器内 Docker 访问
 
 ## 共享缓存
@@ -254,7 +279,7 @@ curl -X POST http://host.docker.internal:10666/speak \
 
 ## 工作树隔离
 
-每个容器使用独立 git worktree (`~/.kyb/worktrees/<project>/<container>/`)，多实例互不干扰。
+每个容器使用独立 git worktree (`~/.local/share/kyb/worktrees/<project>/<container>/`)，多实例互不干扰。
 
 ## 文档
 
