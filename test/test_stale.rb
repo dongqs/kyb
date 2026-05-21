@@ -24,7 +24,7 @@ class StaleIntegrationTest < Minitest::Test
   end
 
   def docker_available?
-    system('docker', 'info', out: File::NULL, err: File::NULL)
+    system('timeout', '3', 'docker', 'info', out: File::NULL, err: File::NULL)
   end
 
   def build_base
