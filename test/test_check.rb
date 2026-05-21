@@ -214,10 +214,10 @@ class CheckAssertTest < Minitest::Test
       case cmd
       when 'java -version 2>&1'
         CmdResult.new(%(openjdk version "21.0.1" 2023-10-17\n), true)
-      when 'echo $JAVA_HOME'
+      when /\Amise x java -- sh -c/
         CmdResult.new("/usr/lib/jvm/java-21-openjdk\n", true)
       else
-        CmdResult.new(`#{cmd}`, $?.success?)
+        CmdResult.new("", false)
       end
     end
 
@@ -242,12 +242,16 @@ class CheckAssertTest < Minitest::Test
         CmdResult.new("", true)
       when /\Amise use -g java/
         CmdResult.new("", true)
+      when /\Amise x java -- java -version/
+        CmdResult.new(%(openjdk version "21.0.1" 2023-10-17\n), true)
+      when /\Amise x java -- sh -c/
+        CmdResult.new("/usr/lib/jvm/java-21-openjdk\n", true)
       when 'echo $JAVA_HOME'
         CmdResult.new("", true)
       when /\Amise where java/
         CmdResult.new("/home/dev/.local/share/mise/installs/java/21\n", true)
       else
-        CmdResult.new(`#{cmd}`, $?.success?)
+        CmdResult.new("", false)
       end
     end
 
@@ -270,12 +274,16 @@ class CheckAssertTest < Minitest::Test
         end
       when /\Amise use -g java/
         CmdResult.new("", true)
+      when /\Amise x java -- java -version/
+        CmdResult.new(%(openjdk version "21.0.1" 2023-10-17\n), true)
+      when /\Amise x java -- sh -c/
+        CmdResult.new("/usr/lib/jvm/java-21-openjdk\n", true)
       when 'echo $JAVA_HOME'
         CmdResult.new("", true)
       when /\Amise where java/
         CmdResult.new("/home/dev/.local/share/mise/installs/java/21\n", true)
       else
-        CmdResult.new(`#{cmd}`, $?.success?)
+        CmdResult.new("", false)
       end
     end
 
