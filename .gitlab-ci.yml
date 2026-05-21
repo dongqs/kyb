@@ -25,4 +25,4 @@ test:
     - 'echo "base: {}" > ~/.config/kyb/config.yml'
     - bundle install
   script:
-    - ruby -Itest -e 'Dir["test/test_*.rb"].sort.each { |f| require_relative f }'
+    - ruby -Itest -e 'Dir["test/test_*.rb"].sort.reject { |f| f == "test/test_helper.rb" }.each { |f| require_relative f }'
