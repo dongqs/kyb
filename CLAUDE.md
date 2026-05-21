@@ -85,6 +85,16 @@ Each step is a closed loop. No shortcuts:
 6. If yes → boss dispatches someone else to merge
 7. Merger watches master CI after merge
 8. Master CI green → reports back to boss
+**Scaling pattern (proven from yesterday):**
+```
+1 个手把手（4 轮全过）→ 盯他派 subagent 跑 1 轮 → 开 3 个比赛 → 放手
+```
+Never skip to N before the first one converges. Batch onboarding requires:
+1. Tooling verified (script runs, MR creates, CI passes)
+2. One project hand-held through full 4-round cycle
+3. One supervised subagent run
+4. Then scale: 3 → 6 → N
+
 
 **Iron rules:**
 1. **Never wait** — anything that blocks you >1s gets dispatched
