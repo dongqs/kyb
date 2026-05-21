@@ -324,4 +324,3 @@ PID   USER     CPU  MEM      TIME      COMMAND
 2. 检查是否有不需要的 utun 隧道残留（系统设置 → VPN）
 3. 观察 `CLOSE_WAIT` 数量是否持续增长
 4. 测试 IPv6 连通性（`ping6` 或 `curl -6`）确认是否受多路由影响
-
