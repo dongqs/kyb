@@ -70,10 +70,7 @@ module Kyb
 
   def die(msg)
     warn "ERROR: #{msg}"
-    if ENV['CI']
-      warn "  DIE CALLER: #{caller(0).first(5).join(" \n  ")}"
-    end
-    exit 1
+    raise SystemExit, 1
   end
 
   def in_container?
