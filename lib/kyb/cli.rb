@@ -70,8 +70,6 @@ module Kyb::CLI
       rm(project, branch)
     when 'prune'
       prune
-    when 'sandbox'
-      sandbox(args)
     when 'did'
       did(args)
     when 'assert'
@@ -137,9 +135,6 @@ module Kyb::CLI
         start PROJECT-BRANCH             Start stopped container
         rm    PROJECT-BRANCH             Remove container
         prune                            Remove all containers
-        sandbox PROJECT-BRANCH [PROMPT]  Claude Code sandbox mode (no Docker)
-        sandbox ps, ls                   List host sandboxes
-        sandbox rm PROJECT-BRANCH        Remove host sandbox
         assert <type> [args...]          Verify and auto-heal prerequisites
                                          Types: java [v], pg, mise <tool>
         did create <name>               DID: create container (Docker-in-Docker)
@@ -162,7 +157,6 @@ require_relative 'cli/init'
 require_relative 'cli/create'
 require_relative 'cli/enter'
 require_relative 'cli/manage'
-require_relative 'cli/sandbox'
 require_relative 'cli/tts'
 require_relative 'cli/did'
 require_relative 'cli/session'
