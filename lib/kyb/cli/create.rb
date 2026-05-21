@@ -5,7 +5,7 @@ module Kyb::CLI
 
   def create(project, branch, port_overrides = nil, model: nil, repo_root: nil)
     if Kyb.in_container?
-      puts "create 命令不应在容器内运行"
+      puts "⚠️ create 命令不应在容器内运行"
       exit 1
     end
     container, ports = Kyb::Docker.create_container(project, branch, port_overrides, model: model, repo_root: repo_root)

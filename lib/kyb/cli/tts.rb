@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module Kyb::CLI
   DEFAULT_VOICE = 'Zarvox'
   DEFAULT_RATE  = 180
