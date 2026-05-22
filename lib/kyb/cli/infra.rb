@@ -42,12 +42,6 @@ module Kyb::CLI
       return
     end
 
-    tailscale_socket = File.realpath('/var/run/tailscaled.socket')
-    unless File.exist?(tailscale_socket)
-      puts "⚠ tailscale socket not found at #{tailscale_socket}"
-      puts "  Container will start without tailscale control."
-    end
-
     # Ensure shared network for container name DNS resolution
     net = 'kyb-net'
     unless `docker network ls --filter name=^#{net}$ --format '{{.Name}}'`.strip == net
@@ -91,9 +85,8 @@ module Kyb::CLI
     sb_config = File.expand_path('~/.config/sing-box')
     args += ['-v', "#{sb_config}:/home/dev/sing-box-config:ro"] if File.directory?(sb_config)
 
-    # docker.sock + tailscale socket
+    # docker.sock
     args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
-    args += ['-v', "#{tailscale_socket}:/var/run/tailscaled.socket"] if File.exist?(tailscale_socket)
 
     # Shared build caches
     %w[kyb-gradle-cache kyb-maven-cache kyb-mise-cache kyb-pip-cache].each do |vol|
