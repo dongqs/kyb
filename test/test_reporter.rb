@@ -96,7 +96,7 @@ class ReporterTest < Minitest::Test
     Kyb::Config.instance_variable_set(:@config, nil) rescue nil
     refute Kyb::Config.reporting_enabled?
   ensure
-    Kyb::Config.singleton_class.remove_method(:load_config)
+
     Kyb::Config.define_singleton_method(:load_config, orig) if orig
     Kyb::Config.instance_variable_set(:@config, nil) rescue nil
   end
