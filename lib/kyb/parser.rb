@@ -38,7 +38,8 @@ module Kyb::Parser
   def validate_branch!(branch)
     return if branch.match?(VALID_BRANCH_RE)
 
-    Kyb.die("invalid branch name '#{branch}' — must match #{VALID_BRANCH_RE.inspect}")
+    Kyb.die("invalid branch name '#{branch}' — must start with a letter or number" \
+            " and contain only letters, numbers, underscores, dots, and hyphens")
   end
 
   def container(str)
