@@ -63,9 +63,6 @@ module Kyb
 
   CLONE_BASE = File.expand_path('~/.local/share/kyb/clones')
 
-  GRADLE_CACHE_VOLUME = 'kyb-gradle-cache'
-  MAVEN_CACHE_VOLUME = 'kyb-maven-cache'
-
   module_function
 
   def die(msg)
