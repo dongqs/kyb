@@ -46,23 +46,55 @@ module Kyb::CLI
       puts "  Container will start without tailscale control."
     end
 
-    run_args = %w[docker run -d --name]
-    run_args << BOSS_NAME
-    run_args += ['--restart', 'unless-stopped']
-    run_args += ['--label', 'kyb=true']
-    run_args += ['-e', 'ALL_PROXY=socks5://kyb-infra-sing-box:2080']
-    run_args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"] if ENV['GITLAB_TOKEN']
-    run_args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
-    run_args += ['-v', "#{tailscale_socket}:#{tailscale_socket}"] if File.exist?(tailscale_socket)
-    run_args += ['--hostname', BOSS_NAME]
-    run_args << Kyb::Container::BASE_IMAGE
-    run_args += ['tail', '-f', '/dev/null'] # keep alive, agent attaches later
+    args = %w[docker run -d --name]
+    args << BOSS_NAME
+    args += ['--hostname', BOSS_NAME]
+    args += ['--restart', 'unless-stopped']
+    args += ['-e', "HOST_UID=#{Process.uid}"]
+    args += ['-e', "HOST_GID=#{Process.gid}"]
+    args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"] if ENV['GITLAB_TOKEN']
+    args += ['-e', "ALL_PROXY=socks5://kyb-infra-sing-box:2080"]
+
+    # Standard mounts (like kyb create)
+    home = ENV['HOME']
+    ssh_dir = File.expand_path('~/.ssh')
+    args += ['-v', "#{ssh_dir}:/home/dev/.ssh-host:ro"] if File.directory?(ssh_dir)
+    args += ['-v', "#{home}/.gitconfig:/home/dev/.gitconfig:ro"] if File.exist?("#{home}/.gitconfig")
+    args += ['-v', "#{home}/.claude/settings.json:/home/dev/.claude-host-settings.json:ro"] if File.exist?("#{home}/.claude/settings.json")
+    kyb_config = File.expand_path('~/.config/kyb')
+    args += ['-v', "#{kyb_config}:/home/dev/.config/kyb:ro"] if File.directory?(kyb_config)
+    skills = File.expand_path('~/.claude/skills')
+    args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
+
+    # Mount kyb repo so boss can read docs and work on kyb code
+    kyb_repo = File.expand_path('~/.kyb')
+    args += ['-v', "#{kyb_repo}:/home/dev/kyb:ro"]
+    args += ['-v', "#{kyb_repo}:/home/dev/projects/kyb"]
+
+    # Mount the sing-box config repo for network management
+    sb_config = File.expand_path('~/.config/sing-box')
+    args += ['-v', "#{sb_config}:/home/dev/sing-box-config:ro"] if File.directory?(sb_config)
+
+    # docker.sock + tailscale socket
+    args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
+    args += ['-v', "#{tailscale_socket}:#{tailscale_socket}"] if File.exist?(tailscale_socket)
+
+    # Shared build caches
+    %w[kyb-gradle-cache kyb-maven-cache kyb-mise-cache kyb-pip-cache].each do |vol|
+      system('docker', 'volume', 'create', vol, out: File::NULL) unless `docker volume ls -q --filter name=^#{vol}$`.strip == vol
+    end
+    args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
+    args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
+    args += ['-v', 'kyb-mise-cache:/home/dev/.local/share/mise/downloads']
+    args += ['-v', 'kyb-pip-cache:/home/dev/.cache/pip']
+
+    args << Kyb::Container::BASE_IMAGE
 
     puts "==> #{BOSS_NAME}: creating infra-boss container"
-    system(*run_args) || Kyb.die('docker run failed')
+    system(*args) || Kyb.die('docker run failed')
 
     puts "==> #{BOSS_NAME}: container ready"
-    puts "    Enter: docker exec -it #{BOSS_NAME} /bin/bash"
+    puts "    Enter: kyb infra enter"
   end
 
   def infra_enter
