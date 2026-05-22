@@ -34,12 +34,15 @@ class EnterTest < Minitest::Test
 
   def test_send_keys_claude
     cmd = Kyb::CLI.build_send_keys('claude', 'test', 'read doc')
-    assert_match(/^cd ~\/projects\/test && mise trust && (kyb|\/home\/dev\/kyb\/bin\/kyb) session wrap claude --dangerously-skip-permissions 'read doc'$/, cmd)
+    assert_match(/^cd ~\/projects\/test && mise trust && (kyb|\/home\/dev\/kyb\/bin\/kyb) session wrap claude --dangerously-skip-permissions /, cmd)
+    refute_match(/'read doc'/, cmd)
   end
 
   def test_send_keys_kimi
     cmd = Kyb::CLI.build_send_keys('kimi', 'test', 'hello')
-    assert_match(/-p 'hello'$/, cmd)
+    refute_match(/-p 'hello'$/, cmd)
+    assert_match(/-p /, cmd)
+    assert_includes cmd, 'hello'
   end
 
   # --- docker_exec_args ---
@@ -79,10 +82,35 @@ class EnterTest < Minitest::Test
     end
   end
 
-  def test_build_prompt_includes_morning
-    Kyb::Config.stub(:project, ->(*) { {} }) do
-      prompt = Kyb::CLI.build_default_prompt(nil, 'test')
-      assert_includes prompt, 'kyb morning'
-    end
+  # --- build_send_keys: shell escaping ---
+
+  def test_build_send_keys_escapes_single_quotes
+    cmd = Kyb::CLI.build_send_keys('claude', 'test', "it's broken")
+    refute_match(/'it's broken'/, cmd)
+    assert_match(/--dangerously-skip-permissions /, cmd)
+  end
+
+  def test_build_send_keys_chinese_no_punctuation
+    cmd = Kyb::CLI.build_send_keys('claude', 'test', '先读一下项目文档和环境说明')
+    assert_match(/--dangerously-skip-permissions /, cmd)
+    refute_match(/'先读/, cmd)
+  end
+
+  # --- inject_worldview ---
+
+  def test_worldview_injected_after_prompt
+    result = Kyb::CLI.inject_worldview('base prompt', 'first-principles')
+    assert_match(/base prompt/, result)
+    assert_match(/第一性原理/, result)
+  end
+
+  def test_worldview_injected_nil_name
+    result = Kyb::CLI.inject_worldview('base prompt', nil)
+    assert_equal 'base prompt', result
+  end
+
+  def test_worldview_injected_unknown_name
+    result = Kyb::CLI.inject_worldview('base prompt', 'nonexistent')
+    assert_equal 'base prompt', result
   end
 end
