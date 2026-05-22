@@ -23,6 +23,7 @@ test:
   before_script:
     - mkdir -p ~/.config/kyb
     - 'echo "base: {}" > ~/.config/kyb/config.yml'
+    - bundle config set --global mirror.https://rubygems.org/ https://gems.ruby-china.com
     - bundle install
   script:
     - ruby -Itest -e 'Dir["test/test_*.rb"].sort.reject { |f| %w[test/test_helper.rb test/test_stale.rb test/test_stale_cli.rb].include?(f) }.each { |f| require_relative f }'
