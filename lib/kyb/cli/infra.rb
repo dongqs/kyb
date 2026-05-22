@@ -185,5 +185,5 @@ module Kyb::CLI
   module_function :infra,
                   :infra_up, :infra_down, :infra_enter,
                   :infra_ps, :infra_logs, :infra_restart,
-                  :infra_help, :tmux_has_session
+                  :infra_help
 end
