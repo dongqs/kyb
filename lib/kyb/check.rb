@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'open3'
+
 module Kyb::Check
   CmdResult = Struct.new(:output, :success?)
 
@@ -273,8 +275,8 @@ module Kyb::Check
   end
 
   def capture_cmd(cmd)
-    output = `#{cmd}`
-    CmdResult.new(output, $?.success?)
+    output, _stderr, status = Open3.capture3('sh', '-c', cmd)
+    CmdResult.new(output, status.success?)
   end
 
   module_function :run_checks, :print_result, :print_proxy_info, :print_proxy_hint,
