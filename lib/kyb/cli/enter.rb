@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'shellwords'
+
 module Kyb::CLI
   DOCKER = 'docker'
 
@@ -14,13 +16,12 @@ module Kyb::CLI
 
     ensure_container(container, project, branch)
     stale_msg = stale_image_warning
-    stale_msg = stale_image_warning
-    
+
     worldview_name = resolve_worldview(worldview, cname)
-    prompt = inject_worldview(prompt, worldview_name) if worldview_name
 
     title = "kyb:#{cname}"
     prompt = build_default_prompt(stale_msg, project)
+    prompt = inject_worldview(prompt, worldview_name) if worldview_name
     cmd = build_send_keys(cli, project, prompt)
     dexec = docker_exec_args
 
@@ -112,7 +113,7 @@ def resolve_worldview(cli_worldview, container_name)
     prompt += " #{stale_msg}" if stale_msg
     proj = Kyb::Config.project(project)
     prompt += " #{proj[:extra_prompt]}" if proj[:extra_prompt]
-    prompt += " Run `kyb morning` first to see today's status."
+    prompt += " 先运行 kyb morning 查看今日状态"
     prompt
   end
 
@@ -122,9 +123,9 @@ def resolve_worldview(cli_worldview, container_name)
     kyb = Kyb::Config.kyb_repo ? '/home/dev/kyb/bin/kyb' : 'kyb'
     cmd = "cd ~/projects/#{project} && mise trust && #{kyb} session wrap #{cli}"
     if cli == 'claude'
-      cmd += " --dangerously-skip-permissions '#{prompt}'"
+      cmd += " --dangerously-skip-permissions #{Shellwords.escape(prompt)}"
     elsif cli == 'kimi'
-      cmd += " -p '#{prompt}'"
+      cmd += " -p #{Shellwords.escape(prompt)}"
     end
     cmd
   end
