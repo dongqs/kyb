@@ -48,9 +48,23 @@ module Kyb::CLI
       puts "  Container will start without tailscale control."
     end
 
+    # Ensure shared network for container name DNS resolution
+    net = 'kyb-net'
+    unless `docker network ls --filter name=^#{net}$ --format '{{.Name}}'`.strip == net
+      system('docker', 'network', 'create', net) || Kyb.die("failed to create network '#{net}'")
+      puts "==> created network #{net}"
+    end
+    # Connect sing-box to the shared network so 'kyb-infra-sing-box' resolves
+    net_ids = `docker inspect kyb-infra-sing-box --format '{{range \$n, \$v := .NetworkSettings.Networks}}{{\$n}} {{end}}' 2>/dev/null`.strip.split
+    unless net_ids.include?(net)
+      system('docker', 'network', 'connect', net, SING_BOX)
+      puts "==> connected #{SING_BOX} to #{net}"
+    end
+
     args = %w[docker run -d --name]
     args << BOSS_NAME
     args += ['--hostname', BOSS_NAME]
+    args += ['--network', net]
     args += ['--restart', 'unless-stopped']
     args += ['-e', "HOST_UID=#{Process.uid}"]
     args += ['-e', "HOST_GID=#{Process.gid}"]
