@@ -1,13 +1,20 @@
 # frozen_string_literal: true
 
 module Kyb::CLI
+  BOSS_NAME = 'kyb-infra-boss'
+  SING_BOX = 'kyb-infra-sing-box'
+
   def infra(argv)
     cmd = argv.first
     args = argv[1..] || []
 
     case cmd
-    when 'boss'
-      boss(args)
+    when 'up', 'create'
+      infra_up
+    when 'down', 'rm'
+      infra_down
+    when 'enter', 'ssh'
+      infra_enter
     when 'ps', 'ls'
       infra_ps
     when 'logs'
@@ -19,24 +26,7 @@ module Kyb::CLI
     end
   end
 
-  BOSS_NAME = 'kyb-infra-boss'
-  SING_BOX = 'kyb-infra-sing-box'
-
-  def boss(args)
-    cmd = args.first
-    case cmd
-    when 'up', 'create'
-      boss_up
-    when 'down', 'rm'
-      boss_down
-    when 'enter', 'ssh'
-      boss_enter
-    else
-      boss_help
-    end
-  end
-
-  def boss_up
+  def infra_up
     all_names = `docker ps -a --format '{{.Names}}'`.lines.map(&:strip)
     if all_names.include?(BOSS_NAME)
       puts "==> #{BOSS_NAME} already exists"
@@ -75,16 +65,16 @@ module Kyb::CLI
     puts "    Enter: docker exec -it #{BOSS_NAME} /bin/bash"
   end
 
-  def boss_enter
+  def infra_enter
     all_names = `docker ps -a --format '{{.Names}}'`.lines.map(&:strip)
     unless all_names.include?(BOSS_NAME)
-      puts "==> #{BOSS_NAME} not found. Run 'kyb infra boss up' first."
+      puts "==> #{BOSS_NAME} not found. Run 'kyb infra up' first."
       return
     end
     exec('docker', 'exec', '-it', BOSS_NAME, 'bash', '-l')
   end
 
-  def boss_down
+  def infra_down
     all_names = `docker ps -a --format '{{.Names}}'`.lines.map(&:strip)
     unless all_names.include?(BOSS_NAME)
       puts "==> #{BOSS_NAME} does not exist"
@@ -125,28 +115,17 @@ module Kyb::CLI
       Usage: kyb infra COMMAND
 
       Commands:
-        boss up, create       Create and start kyb-infra-boss container
-        boss down, rm         Remove kyb-infra-boss container
-        ps, ls                List all kyb-infra-* containers
-        logs [container]      Show logs (default: kyb-infra-sing-box)
-        restart [container]   Restart container (default: kyb-infra-sing-box)
+        up, create        Create and start kyb-infra-boss container
+        down, rm          Remove kyb-infra-boss container
+        enter, ssh        Enter kyb-infra-boss container (interactive)
+        ps, ls            List all kyb-infra-* containers
+        logs [container]  Show logs (default: kyb-infra-sing-box)
+        restart [c]       Restart container (default: kyb-infra-sing-box)
     HELP
   end
 
-  def boss_help
-    puts <<~HELP
-      kyb infra boss — Infrastructure boss container
-
-      Usage: kyb infra boss COMMAND
-
-      Commands:
-        up, create    Create and start kyb-infra-boss
-        down, rm      Remove kyb-infra-boss
-        enter, ssh    Enter kyb-infra-boss (interactive shell)
-    HELP
-  end
-
-  module_function :infra, :boss, :boss_up, :boss_down, :boss_enter,
+  module_function :infra,
+                  :infra_up, :infra_down, :infra_enter,
                   :infra_ps, :infra_logs, :infra_restart,
-                  :infra_help, :boss_help
+                  :infra_help
 end

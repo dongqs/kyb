@@ -183,9 +183,12 @@ module Kyb::CLI
         prune                            Remove all containers
         assert <type> [args...]          Verify and auto-heal prerequisites
                                          Types: java [v], pg, mise <tool>
-        infra boss up                   Create infrastructure boss container
-        infra boss rm                   Remove infrastructure boss container
-        infra boss enter                Enter infrastructure boss container
+        infra up                        Create infrastructure boss container
+        infra rm / down                 Remove infrastructure boss container
+        infra enter                     Enter infrastructure boss container
+        infra ps                        List kyb-infra-* containers
+        infra logs [c]                  Show logs (default: sing-box)
+        infra restart [c]               Restart container (default: sing-box)
         infra ps, ls                    List infrastructure containers
         infra logs [container]          Show infra container logs
         infra restart [container]       Restart infra container
