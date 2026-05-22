@@ -162,6 +162,20 @@ class DockerTest < Minitest::Test
     FileUtils.rm_rf('/tmp/test-wt-pp')
   end
 
+  def test_run_clone_mode_mounts_host_repo_ro
+    pp = '/tmp/test-project-clone'
+    repo_path = '/tmp/test-wt-clone'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path, project_path: pp, clone: true))
+    ro_target = "/home/dev/ro_mounted_repos_do_not_edit_here/niao"
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == "#{pp}:#{ro_target}:ro" },
+           'expected project_path mounted ro in clone mode'
+    refute args.each_cons(2).any? { |f, v| f == '-v' && v == "#{pp}:#{pp}" },
+           'same-path mount should not appear in clone mode'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-clone')
+  end
+
   def test_run_skips_project_path_when_matches_wt_target
     # When project_path equals the mount target, only the repo_path bind mount
     # (line 115) should appear — NOT a second project_path mount (line 119).

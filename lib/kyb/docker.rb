@@ -197,7 +197,12 @@ module Kyb::Docker
     args += ['-v', "#{container.node_modules_volume}:/home/dev/projects/#{project_name}/node_modules"]
     unless dind
       unless project_path == "/home/dev/projects/#{project_name}"
-        args += ['-v', "#{project_path}:#{project_path}"]
+        if clone
+          ro_target = "/home/dev/ro_mounted_repos_do_not_edit_here/#{project_name}"
+          args += ['-v', "#{project_path}:#{ro_target}:ro"]
+        else
+          args += ['-v', "#{project_path}:#{project_path}"]
+        end
       end
 
       symlinks.to_s.split(',').each do |link|
@@ -345,7 +350,8 @@ module Kyb::Docker
       timezone: proj[:timezone],
       kyb_proxy: proj[:proxy_in_container],
       kyb_no_proxy: proj[:no_proxy],
-      branch: branch
+      branch: branch,
+      clone: is_clone
     )
 
     60.times do
