@@ -109,8 +109,9 @@ module Kyb::Check
   end
 
   def check_docker
-    out = `docker info --format '{{.ServerVersion}}' 2>&1`.strip
-    if $?.success?
+    out, _stderr, status = Open3.capture3('docker', 'info', '--format', '{{.ServerVersion}}')
+    out = out.strip
+    if status.success?
       { name: 'Docker daemon', ok: true, msg: "v#{out}" }
     else
       { name: 'Docker daemon', ok: false, msg: out.lines.first&.strip || 'not running' }
@@ -172,14 +173,15 @@ module Kyb::Check
   end
 
   def check_disk
-    out = `df -BG / 2>/dev/null`.lines[1]
-    if out
-      avail = out.split[3]
+    out, _stderr, status = Open3.capture3('df', '-BG', '/')
+    line = status.success? ? out.lines[1] : nil
+    if line
+      avail = line.split[3]
       { name: 'Disk space (/)', ok: true, msg: "#{avail} available" }
     else
       { name: 'Disk space (/)', ok: true, msg: 'unknown' }
     end
-  rescue => e
+  rescue Errno::ENOENT => e
     { name: 'Disk space (/)', ok: true, msg: e.message }
   end
 
