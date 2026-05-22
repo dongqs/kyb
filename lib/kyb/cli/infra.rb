@@ -42,7 +42,7 @@ module Kyb::CLI
       return
     end
 
-    tailscale_socket = '/var/run/tailscaled.socket'
+    tailscale_socket = File.realpath('/var/run/tailscaled.socket')
     unless File.exist?(tailscale_socket)
       puts "⚠ tailscale socket not found at #{tailscale_socket}"
       puts "  Container will start without tailscale control."
@@ -93,7 +93,7 @@ module Kyb::CLI
 
     # docker.sock + tailscale socket
     args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
-    args += ['-v', "#{tailscale_socket}:#{tailscale_socket}"] if File.exist?(tailscale_socket)
+    args += ['-v', "#{tailscale_socket}:/var/run/tailscaled.socket"] if File.exist?(tailscale_socket)
 
     # Shared build caches
     %w[kyb-gradle-cache kyb-maven-cache kyb-mise-cache kyb-pip-cache].each do |vol|
