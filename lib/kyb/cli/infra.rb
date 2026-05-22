@@ -76,16 +76,13 @@ module Kyb::CLI
     skills = File.expand_path('~/.claude/skills')
     args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
 
-    # Mount kyb repo (ro) for reading docs
-    kyb_repo = File.expand_path('~/.kyb')
-    args += ['-v', "#{kyb_repo}:/home/dev/kyb:ro"]
     # Clone kyb repo (rw) so boss can edit code and submit MRs
+    kyb_repo = File.expand_path('~/.kyb')
     clone_base = Kyb::CLONE_BASE
     clone_target = File.join(clone_base, 'kyb', BOSS_NAME)
     unless File.directory?(clone_target)
       FileUtils.mkdir_p(File.dirname(clone_target))
       system('git', 'clone', kyb_repo, clone_target) || Kyb.die('git clone failed')
-      # Set correct GitLab remote (clone from local path, push to GitLab)
       gitlab_remote = 'git@git.leyantech.com:quick-n-dirty/kyb.git'
       Dir.chdir(clone_target) { system('git', 'remote', 'set-url', 'origin', gitlab_remote) }
       puts "==> cloned kyb repo to #{clone_target}"
@@ -131,7 +128,7 @@ module Kyb::CLI
 
     cname = BOSS_NAME
     dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev', cname]
-    prompt = '@CLAUDE.md @npc/kyb-infra-boss.md 读一下设计文档再开始工作'
+    prompt = '@CLAUDE.md @projects/kyb/npc/kyb-infra-boss.md 读一下设计文档再开始工作'
 
     unless tmux_has_session?(cname)
       system(*dexec, 'tmux',
