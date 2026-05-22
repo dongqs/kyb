@@ -110,7 +110,7 @@ module Kyb::CLI
       system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)
     end
 
-    Kyb::Docker.remove_container(cname)
+    Kyb::Docker.remove_container(c.name)
 
     Kyb::Docker.volume_rm(c.claude_volume)
 
@@ -120,7 +120,7 @@ module Kyb::CLI
       FileUtils.rm_rf(clone_target)
     end
 
-    puts "==> Done: #{cname} removed"
+    puts "==> Done: #{c.name} removed"
     puts "==> 远端分支 #{c.git_branch} 未删除，如需清理请手动 git push origin --delete #{c.git_branch}"
   end
 
