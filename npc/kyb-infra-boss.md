@@ -246,17 +246,33 @@ docker run -d --name kyb-infra-sing-box \
   kyb-sing-box:1.13.11
 ```
 
-### Phase 2-4 ⏳ 待办
+### Phase 2-4 状态
 
-- Phase 2: 删 plist 文件、log 目录（观察稳定后再做）
-- Phase 3: 待 kyb create 支持 --extra-mount 后起 kyb-infra-boss 容器
-- Phase 4: 逐步加 kyb-infra-* 服务（postgresql、clickhouse 等）
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| Phase 1: sing-box 容器化 | ✅ 完成 | kyb-infra-sing-box 运行中 |
+| Phase 2: 清理 native | ⏳ 待做 | 删 plist、log 目录（稳定后做） |
+| Phase 3: infra-boss 上线 | ✅ 完成 | kyb infra up 已就绪 |
+| Phase 4: 更多服务 | ⏳ 待做 | postgresql、clickhouse 等 |
 
 ## 交接清单
 
 读完此文件后需要做的事情：
 
-### 1. 管理 kyb-infra-sing-box
+### 1. kyb infra 命令
+
+```bash
+kyb infra up          # 创建/启动 kyb-infra-boss（完整开发环境挂载）
+kyb infra enter       # 进入 boss 容器（tmux + claude）
+kyb infra down        # 删除 boss 容器
+kyb infra ps          # 查看所有 kyb-infra-* 容器
+kyb infra logs        # 查看 sing-box 日志（默认）
+kyb infra logs kyb-infra-boss  # 查看 boss 日志
+kyb infra restart     # 重启 sing-box
+kyb infra restart kyb-infra-boss  # 重启 boss
+```
+
+### 2. 管理 kyb-infra-sing-box
 
 ```bash
 # 状态检查
@@ -319,12 +335,13 @@ ALL_PROXY=socks5://127.0.0.1:2080 curl -sI https://claude.ai
 docker exec <任意容器> sh -c 'ALL_PROXY=socks5://host.orb.internal:2080 curl -sI https://github.com'
 ```
 
-### 4. 关键配置项
+### 5. 关键配置项
 
 | 项目 | 值 |
 |------|-----|
 | sing-box 配置目录 | `~/.config/sing-box/`（git 仓库） |
-| kyb-infra-boss 容器名 | `kyb-infra-sing-box` |
+| kyb-infra-sing-box 容器 | restart: always，纯服务，无 agent |
+| kyb-infra-boss 容器 | restart: unless-stopped，有 agent + 全挂载 |
 | 宿主机代理地址 | `socks5://127.0.0.1:2080` |
 | 容器代理地址 | `socks5://host.orb.internal:2080` |
 | 内置容器代理地址（同网络下） | `socks5://kyb-infra-sing-box:2080` |
