@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'shellwords'
+
 module Kyb::CLI
   BOSS_NAME = 'kyb-infra-boss'
   SING_BOX = 'kyb-infra-sing-box'
@@ -103,7 +105,31 @@ module Kyb::CLI
       puts "==> #{BOSS_NAME} not found. Run 'kyb infra up' first."
       return
     end
-    exec('docker', 'exec', '-it', '-u', 'dev', BOSS_NAME, 'bash', '-l')
+    status = `docker inspect --format '{{.State.Status}}' #{BOSS_NAME}`.strip
+    if status != 'running'
+      puts "==> #{BOSS_NAME} is #{status}. Starting..."
+      system('docker', 'start', BOSS_NAME)
+    end
+
+    cname = BOSS_NAME
+    dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev', cname]
+    prompt = '@CLAUDE.md @npc/kyb-infra-boss.md 读一下设计文档再开始工作'
+
+    unless tmux_has_session?(cname)
+      system(*dexec, 'tmux',
+             'set', '-g', 'set-titles', 'on', ';',
+             'set', '-g', 'automatic-rename', 'off', ';',
+             'set', '-g', 'set-titles-string', '#{pane_title}', ';',
+             'new-session', '-s', 'dev', '-n', "kyb:#{cname}", ';',
+             'select-pane', '-T', "kyb:#{cname}", ';',
+             'send-keys', "cd /home/dev/kyb && claude --dangerously-skip-permissions #{Shellwords.escape(prompt)}", 'Enter')
+    end
+    system(*dexec, 'tmux', 'attach-session', '-t', 'dev')
+  end
+
+  def tmux_has_session?(cname)
+    system('docker', 'exec', '-u', 'dev', cname, 'tmux', 'has-session', '-t', 'dev',
+           %i[out err] => File::NULL)
   end
 
   def infra_down
@@ -159,5 +185,5 @@ module Kyb::CLI
   module_function :infra,
                   :infra_up, :infra_down, :infra_enter,
                   :infra_ps, :infra_logs, :infra_restart,
-                  :infra_help
+                  :infra_help, :tmux_has_session
 end
