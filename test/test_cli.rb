@@ -495,7 +495,6 @@ class CLITest < Minitest::Test
 
   def test_create_warns_when_in_container
     m = Kyb::CLI.instance_method(:create).bind(Kyb::CLI)
-    Kyb::CLI.singleton_class.remove_method(:create) if Kyb::CLI.singleton_methods.include?(:create)
     Kyb::CLI.define_singleton_method(:create, &m)
     Kyb.stub(:in_container?, true) do
       out, _ = capture_io do

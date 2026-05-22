@@ -11,8 +11,6 @@ class ParserTest < Minitest::Test
   end
 
   def teardown
-    Kyb::Config.singleton_class.remove_method(:load) rescue nil
-    Kyb::Config.singleton_class.remove_method(:project_names) rescue nil
     Kyb::Config.define_singleton_method(:load, @_orig_load) if @_orig_load
     Kyb::Config.define_singleton_method(:project_names, @_orig_names) if @_orig_names
   end
