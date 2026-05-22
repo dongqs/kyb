@@ -137,7 +137,7 @@ module Kyb::CLI
              'set', '-g', 'set-titles-string', '#{pane_title}', ';',
              'new-session', '-s', 'dev', '-n', "kyb:#{cname}", ';',
              'select-pane', '-T', "kyb:#{cname}", ';',
-             'send-keys', "cd /home/dev/kyb && claude --dangerously-skip-permissions #{Shellwords.escape(prompt)}", 'Enter')
+             'send-keys', "cd /home/dev/projects/kyb && claude --dangerously-skip-permissions #{Shellwords.escape(prompt)}", 'Enter')
     end
     system(*dexec, 'tmux', 'attach-session', '-t', 'dev')
   end
