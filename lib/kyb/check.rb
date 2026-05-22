@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'open3'
-require 'shellwords'
 
 module Kyb::Check
   CmdResult = Struct.new(:output, :success?)
@@ -276,8 +275,7 @@ module Kyb::Check
   end
 
   def capture_cmd(cmd)
-    args = Shellwords.split(cmd)
-    output, _stderr, status = Open3.capture3(*args)
+    output, _stderr, status = Open3.capture3('sh', '-c', cmd)
     CmdResult.new(output, status.success?)
   end
 
