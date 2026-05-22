@@ -126,7 +126,8 @@ if [ -n "${GITLAB_TOKEN:-}" ] && [ ! -f /home/dev/.config/glab-cli/config.yml ];
     GL_USER="${GL_USER:-user}"
 
     mkdir -p /home/dev/.config/glab-cli
-    cat > /home/dev/.config/glab-cli/config.yml << YAML
+    # Safe heredoc: quoted delimiter prevents shell injection from env var values.
+    cat > /home/dev/.config/glab-cli/config.yml << 'YAML'
 git_protocol: ssh
 host: git.leyantech.com
 hosts:
@@ -134,9 +135,11 @@ hosts:
         api_host: git.leyantech.com
         git_protocol: ssh
         api_protocol: https
-        user: ${GL_USER}
-        token: ${GITLAB_TOKEN}
+        user: GL_USER_PLACEHOLDER
+        token: GITLAB_TOKEN_PLACEHOLDER
 YAML
+    sed -i "s|GL_USER_PLACEHOLDER|${GL_USER}|g; s|GITLAB_TOKEN_PLACEHOLDER|${GITLAB_TOKEN}|g" \
+      /home/dev/.config/glab-cli/config.yml
     chown -R dev:dev /home/dev/.config/glab-cli
     chmod 600 /home/dev/.config/glab-cli/config.yml
 fi

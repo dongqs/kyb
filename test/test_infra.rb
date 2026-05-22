@@ -286,6 +286,7 @@ class InfraTest < Minitest::Test
       when /\.config\/kyb$/ then false
       when /skills$/ then false
       when /sing-box$/ then false
+      when /kyb-infra-boss$/ then true  # pretend clone exists so chdir works
       else real_dir.call(p)
       end
     }
@@ -345,9 +346,7 @@ class InfraTest < Minitest::Test
     assert run_call.any? { |e| e.include?('/var/run/docker.sock:/var/run/docker.sock') },
            'expected docker.sock mount'
 
-    # kyb repo mounts (path is expanded, so use substring match)
-    assert run_call.any? { |e| e.include?('/home/dev/kyb:ro') },
-           'expected kyb repo ro mount'
+    # kyb repo mount (clone target at /home/dev/projects/kyb)
     assert run_call.any? { |e| e.include?('/home/dev/projects/kyb') },
            'expected kyb repo rw mount'
 

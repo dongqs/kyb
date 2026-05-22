@@ -38,11 +38,13 @@ class StaleCLITest < Minitest::Test
       Kyb::Docker.stub(:image_exists?, true) do
         Kyb::Docker.stub(:stale?, false) do
           Kyb::Config.stub(:base_image_path, '/tmp') do
+            Kyb.stub(:in_container?, false) do
             stub_project do
               out, _ = capture_io do
                 Kyb::CLI.create('niao', 'kyb')
               end
               refute_match(/outdated/, out)
+            end
             end
           end
         end
@@ -55,6 +57,7 @@ class StaleCLITest < Minitest::Test
       Kyb::Docker.stub(:image_exists?, true) do
         Kyb::Docker.stub(:stale?, true) do
           Kyb::Config.stub(:base_image_path, '/tmp') do
+            Kyb.stub(:in_container?, false) do
             # IO.select returns nil → 5s timeout, auto-continue
             IO.stub(:select, nil) do
               stub_project do
@@ -64,6 +67,7 @@ class StaleCLITest < Minitest::Test
                 assert_match(/outdated/, out)
                 assert_match(/Container ready/, out)
               end
+            end
             end
           end
         end
@@ -76,12 +80,14 @@ class StaleCLITest < Minitest::Test
       Kyb::Docker.stub(:image_exists?, true) do
         Kyb::Docker.stub(:stale?, true) do
           Kyb::Config.stub(:base_image_path, '/tmp') do
-            fake_stdin = StringIO.new("n\n")
-            IO.stub(:select, [[fake_stdin]]) do
-              STDIN.stub(:gets, 'n') do
-                stub_project do
-                  assert_raises(SystemExit) do
-                    capture_io { Kyb::CLI.create('niao', 'kyb') }
+            Kyb.stub(:in_container?, false) do
+              fake_stdin = StringIO.new("n\n")
+              IO.stub(:select, [[fake_stdin]]) do
+                STDIN.stub(:gets, 'n') do
+                  stub_project do
+                    assert_raises(SystemExit) do
+                      capture_io { Kyb::CLI.create('niao', 'kyb') }
+                    end
                   end
                 end
               end

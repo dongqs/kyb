@@ -47,9 +47,12 @@ class CheckTest < Minitest::Test
 
   def test_proxy_env_vars_custom_var
     orig = ENV['HTTPS_PROXY']
+    orig_a = ENV['ALL_PROXY']
+    ENV['ALL_PROXY'] = nil
     ENV['HTTPS_PROXY'] = 'http://proxy:3128'
     assert_equal 'http://proxy:3128', Kyb::Proxy.env_proxy
   ensure
+    ENV['ALL_PROXY'] = orig_a
     ENV['HTTPS_PROXY'] = orig
   end
 
