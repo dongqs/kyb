@@ -76,10 +76,21 @@ module Kyb::CLI
     skills = File.expand_path('~/.claude/skills')
     args += ['-v', "#{skills}:/home/dev/.claude-skills-host:ro"] if File.directory?(skills)
 
-    # Mount kyb repo so boss can read docs and work on kyb code
+    # Mount kyb repo (ro) for reading docs
     kyb_repo = File.expand_path('~/.kyb')
     args += ['-v', "#{kyb_repo}:/home/dev/kyb:ro"]
-    args += ['-v', "#{kyb_repo}:/home/dev/projects/kyb"]
+    # Clone kyb repo (rw) so boss can edit code and submit MRs
+    clone_base = File.expand_path('~/.kyb/clone')
+    clone_target = File.join(clone_base, 'kyb', BOSS_NAME)
+    unless File.directory?(clone_target)
+      FileUtils.mkdir_p(File.dirname(clone_target))
+      system('git', 'clone', kyb_repo, clone_target) || Kyb.die('git clone failed')
+      # Set correct GitLab remote (clone from local path, push to GitLab)
+      gitlab_remote = 'git@git.leyantech.com:quick-n-dirty/kyb.git'
+      Dir.chdir(clone_target) { system('git', 'remote', 'set-url', 'origin', gitlab_remote) }
+      puts "==> cloned kyb repo to #{clone_target}"
+    end
+    args += ['-v', "#{clone_target}:/home/dev/projects/kyb"]
 
     # Mount the sing-box config repo for network management
     sb_config = File.expand_path('~/.config/sing-box')
