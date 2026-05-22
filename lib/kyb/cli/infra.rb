@@ -103,7 +103,7 @@ module Kyb::CLI
       puts "==> #{BOSS_NAME} not found. Run 'kyb infra up' first."
       return
     end
-    exec('docker', 'exec', '-it', BOSS_NAME, 'bash', '-l')
+    exec('docker', 'exec', '-it', '-u', 'dev', BOSS_NAME, 'bash', '-l')
   end
 
   def infra_down
