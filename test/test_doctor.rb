@@ -3,6 +3,10 @@ require_relative 'test_helper'
 
 class DoctorTest < Minitest::Test
   def setup
+    @_orig_doctor = {}
+    %i[doctor_ps_raw doctor_container_tmux_alive? doctor_volume_names
+       doctor_container_volumes].each { |m|
+      @_orig_doctor[m] = Kyb::CLI.method(m) rescue nil }
     require_relative '../lib/kyb/cli/doctor'
     Kyb::CLI.define_singleton_method(:doctor_ps_raw) {
       [%w[kyb-niao-dev Up\ 10\ minutes], %w[kyb-rest-version Up\ 4\ hours],
@@ -20,7 +24,7 @@ class DoctorTest < Minitest::Test
   def teardown
     %i[doctor_ps_raw doctor_container_tmux_alive? doctor_volume_names
        doctor_container_volumes].each { |m|
-      Kyb::CLI.singleton_class.remove_method(m) if Kyb::CLI.respond_to?(m) }
+      Kyb::CLI.define_singleton_method(m, @_orig_doctor[m]) if @_orig_doctor[m] }
   end
   def test_scan_containers
     c = Kyb::CLI.doctor_scan_containers
