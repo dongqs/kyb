@@ -124,9 +124,10 @@ module Kyb::CLI
       system('docker', 'exec', '-u', 'dev', BOSS_NAME, node, icjs,
              out: File::NULL, err: File::NULL)
     end
-    claude_bin = `docker exec #{BOSS_NAME} find #{cdir} -name claude -type f -path "*/bin/claude" 2>/dev/null | head -1`.strip
+    # Symlink latest/bin/claude for reliable access
     system('docker', 'exec', '-u', 'root', BOSS_NAME,
-           'ln', '-sf', claude_bin, '/home/dev/.local/bin/claude') unless claude_bin.empty?
+           'ln', '-sf', "/home/dev/.local/share/mise/installs/npm-anthropic-ai-claude-code/latest/bin/claude",
+           '/home/dev/.local/bin/claude')
 
     puts "==> #{BOSS_NAME}: container ready"
     puts "    Enter: kyb infra enter"
@@ -155,7 +156,7 @@ module Kyb::CLI
              'set', '-g', 'set-titles-string', '#{pane_title}', ';',
              'new-session', '-s', 'dev', '-n', "kyb:#{cname}", ';',
              'select-pane', '-T', "kyb:#{cname}", ';',
-             'send-keys', "cd /home/dev/projects/kyb && /home/dev/.local/bin/claude --dangerously-skip-permissions #{Shellwords.escape(prompt)}", 'Enter')
+             'send-keys', "cd /home/dev/projects/kyb && /home/dev/.local/share/mise/installs/npm-anthropic-ai-claude-code/latest/bin/claude --dangerously-skip-permissions #{Shellwords.escape(prompt)}", 'Enter')
     end
     system(*dexec, 'tmux', 'attach-session', '-t', 'dev')
   end
