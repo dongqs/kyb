@@ -385,10 +385,11 @@ class DockerTest < Minitest::Test
       Kyb::Docker.stub(:exists?, false) do
       Kyb::Docker.stub(:running?, false) do
       Kyb::Docker.stub(:setup_clone, nil) do
+      Kyb::Docker.stub(:system, ->(*) { true }) do
       FileUtils.stub(:mkdir_p, nil) do
         # clone mode: cp_files should be called
         Kyb::Docker.create_container('niao', 'test', nil, model: nil, repo_root: 'isolated_local_repo_clone')
-      end; end; end; end; end; end; end; end; end; end; end
+      end; end; end; end; end; end; end; end; end; end; end; end
       end
       refute cp_pairs.empty?, 'expected cp_files in clone mode'
     end
@@ -416,9 +417,10 @@ class DockerTest < Minitest::Test
       Kyb::Docker.stub(:run, nil) do
       Kyb::Docker.stub(:exists?, false) do
       Kyb::Docker.stub(:running?, false) do
+      Kyb::Docker.stub(:system, ->(*) { true }) do
       FileUtils.stub(:mkdir_p, nil) do
         Kyb::Docker.create_container('niao', 'test')
-      end; end; end; end; end; end; end; end; end; end
+      end; end; end; end; end; end; end; end; end; end; end
       end
       refute cp_called, 'FileUtils.cp should not be called when all source files are missing'
     end
