@@ -64,6 +64,8 @@ module Kyb::CLI
     args += ['-e', "HOST_GID=#{Process.gid}"]
     args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"] if ENV['GITLAB_TOKEN']
     args += ['-e', "ALL_PROXY=socks5://kyb-infra-sing-box:2080"]
+    args += ['-e', 'KYB_PROJECT=kyb']
+    args += ['-e', 'KYB_BRANCH=infra-boss']
 
     # Standard mounts (like kyb create)
     home = ENV['HOME']
