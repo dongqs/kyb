@@ -5,6 +5,15 @@
 每个集群一个 kyb-infra-boss，管整个集群的环境。不负责业务开发，只管"有没有网、服
 务跑不跑得动、磁盘够不够"。
 
+**实习期目标：不要把自己搞死。**
+
+铁律：
+1. **改网络先备份** — 改 sing-box 配置前必须 cp config.json config.json.last-good
+2. **语法校验先于重载** — 改配置先 sing-box check -c config.json
+3. **重启后自检** — 改完必须验证代理连通性，失败立即回滚
+4. **不改自己够不着的** — 不碰宿主机 launchd/plist，不碰 Orbstack 配置
+5. **留后路** — 任何操作前确保还有另一条路能进容器 docker exec
+
 与 kyb-*-boss（项目 boss）的区别：
 
 | | kyb-infra-boss | kyb-*-boss |
@@ -255,6 +264,50 @@ docker run -d --name kyb-infra-sing-box \
 | Phase 3: infra-boss 上线 | ✅ 完成 | kyb infra up 已就绪 |
 | Phase 4: 更多服务 | ⏳ 待做 | postgresql、clickhouse 等 |
 
+## Tailscale 现状（2026-05-22）
+
+**宿主机 Tailscale 未运行。**
+
+| 项目 | 状态 |
+|------|------|
+| tailscaled 进程 | ❌ 宿主机未安装/未运行 |
+| socket 文件 | ❌ `/var/run/tailscaled.socket` → 空目录（Orbstack 预创建，无监听） |
+| nuc8 (100.98.29.39) | ❌ ping 超时，所有端口不可达 |
+| 100.x.x.x 网段 | ❌ 全部 unreachable |
+| GitLab (git.leyantech.com) | ✅ 经 sing-box direct 国内路由可达 |
+| 国际网络 | ✅ shadowsocks relay 正常 |
+
+根因：macOS 宿主机没有安装/启动 Tailscale。Orbstack VM 内只有空的 socket 目录
+`/run/tailscaled.socket` 和 `/run/tailscale/tailscaled.sock`，但无进程监听。
+
+修复方法（需宿主机操作）：
+1. macOS 上安装 Tailscale 并登录
+2. `orb config set tailscale true` 启用 Orbstack Tailscale 集成
+3. socket 出现后 kyb-infra-boss 的 bind mount 会自动生效
+
+当前影响：`*.leyantech.com` 走国内直连（sing-box direct）可达，不影响业务。
+nuc8 相关路由（`10.23/16` 等）不可用。
+
+## 未来规划 — Mac → Cloud K8s
+
+**当前：** Orbstack Docker on Mac（单机，资源有限，无 Tailscale）
+**目标：** 迁移到云上 K8s（无限资源，最高权限）
+
+```
+┌── Mac（当前）──────────────────┐        ┌── Cloud K8s（未来）──────────────┐
+│  Orbstack Docker              │  ──→   │  无限 Node                       │
+│  单机 8C/16G                  │        │  全项目最高权限                   │
+│  Tailscale ❌                  │        │  K8s 原生网络                    │
+│  适合调试                      │        │  适合生产                        │
+└───────────────────────────────┘        └─────────────────────────────────┘
+```
+
+过渡策略：
+1. **先在 Mac 稳定** — 当前 setup 跑稳再迁移，不急
+2. **一切配置可移植** — sing-box config、kyb infra 命令都是代码，到 K8s 改下 runtime 就行
+3. **K8s 上不做新的事** — 先照搬现有功能，稳定后再扩展
+4. **权限越大越要怂** — 云上"不要把自己搞死"加倍执行
+
 ## 交接清单
 
 读完此文件后需要做的事情：
@@ -345,10 +398,10 @@ docker exec <任意容器> sh -c 'ALL_PROXY=socks5://host.orb.internal:2080 curl
 | 宿主机代理地址 | `socks5://127.0.0.1:2080` |
 | 容器代理地址 | `socks5://host.orb.internal:2080` |
 | 内置容器代理地址（同网络下） | `socks5://kyb-infra-sing-box:2080` |
-| nuc8 代理 | Tailscale `100.98.29.39:2080`（用于 *.leyantech.com） |
-| 宿主机 nuc8 连通 | `ping 100.98.29.39` |
-| 容器内 nuc8 连通 | `docker exec <容器> ping 100.98.29.39`（Orbstack 自动透传） |
-| Tailscale socket | `/var/run/tailscaled.socket`（后续 kyb-infra-boss 挂载用） |
+| nuc8 代理 | ❌ Tailscale `100.98.29.39:2080`（失效，见 Tailscale 现状） |
+| nuc8 ping | ❌ `100.98.29.39` unreachable（宿主机 Tailscale 未运行） |
+| Tailscale socket | ❌ `/var/run/tailscaled.socket` → 空目录（Orbstack 预创建，无 tailscaled 进程） |
+| *.leyantech.com 路由 | 走 kyb-infra-sing-box direct 出站（国内 IP 直连） |
 
 ### 5. 避坑
 
@@ -357,5 +410,5 @@ docker exec <任意容器> sh -c 'ALL_PROXY=socks5://host.orb.internal:2080 curl
 - **sing-box native 已停** — `launchctl bootout gui/$(id -u)/local.sing-box`，不要试图重开
 - **如果 sing-box 崩溃了** — `restart: always` 会自动拉起，等 5 秒就行
 - **如果完全死了** — 直接 `docker rm -f kyb-infra-sing-box` 再 `docker run ...` 重建
-- **nuc8 关机** — `*.leyantech.com` 和 `10.23/16` 的路由不可用，其他正常
-- **Tailscale 保持 native** — Orbstack 自动透传 Tailscale 路由，容器内直接访问 100.x.x.x
+- **nuc8 关机或 Tailscale 断开** — `*.leyantech.com` 和 `10.23/16` 的路由不可用，其他正常。当前 Tailscale 宿主机未运行，预计上云后解决
+- **Tailscale** — 宿主机未安装/运行 tailscaled。Orbstack VM 内有空 socket 目录 `/run/tailscaled.socket` 但无进程监听。解决：宿主机装 Tailscale + `orb config set tailscale true`
