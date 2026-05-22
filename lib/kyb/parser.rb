@@ -3,6 +3,8 @@
 module Kyb::Parser
   module_function
 
+  VALID_BRANCH_RE = /\A[a-zA-Z0-9][a-zA-Z0-9_.-]*\z/
+
   def parse(str)
     Kyb::Config.load
     projects = Kyb::Config.project_names
@@ -28,7 +30,16 @@ module Kyb::Parser
                str[(project.length + 1)..]
              end
 
+    validate_branch!(branch)
+
     [project, branch]
+  end
+
+  def validate_branch!(branch)
+    return if branch.match?(VALID_BRANCH_RE)
+
+    Kyb.die("invalid branch name '#{branch}' — must start with a letter or number" \
+            " and contain only letters, numbers, underscores, dots, and hyphens")
   end
 
   def container(str)

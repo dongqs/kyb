@@ -68,6 +68,30 @@ class ParserTest < Minitest::Test
     assert_equal 'kyb-tts-server-test', Kyb::Parser.container('tts-server-test')
   end
 
+  # --- branch validation ---
+
+  def test_parse_rejects_slash
+    assert_raises(SystemExit) { Kyb::Parser.parse('myproject-feature/x') }
+  end
+
+  def test_parse_rejects_at_sign
+    assert_raises(SystemExit) { Kyb::Parser.parse('myproject-branch@foo') }
+  end
+
+  def test_parse_rejects_leading_dot
+    assert_raises(SystemExit) { Kyb::Parser.parse('myproject-.hidden') }
+  end
+
+  def test_parse_rejects_empty
+    assert_raises(SystemExit) { Kyb::Parser.parse('myproject-') }
+  end
+
+  def test_parse_accepts_normal_branch
+    project, branch = Kyb::Parser.parse('myproject-feature-add-login')
+    assert_equal 'myproject', project
+    assert_equal 'feature-add-login', branch
+  end
+
   # --- unknown project ---
 
   def test_unknown_project_dies
