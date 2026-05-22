@@ -388,7 +388,16 @@ ALL_PROXY=socks5://127.0.0.1:2080 curl -sI https://claude.ai
 docker exec <任意容器> sh -c 'ALL_PROXY=socks5://host.orb.internal:2080 curl -sI https://github.com'
 ```
 
-### 5. 关键配置项
+### 5. Tailscale 控制（已知限制）
+
+当前无法从容器的 socket 挂载控制宿主机 Tailscale。根因：Docker/Orbstack 不支持
+宿主 Unix socket 挂载到容器内使用（文件可见，连接失败）。
+
+替代方案：
+- 开 macOS SSH（`sudo systemsetup -setremotelogin on`）后容器内 SSH 回宿主机执行
+- 或直接接受现状：Tailscale native 运行正常，nuc8 连通，不影响业务
+
+### 6. 关键配置项
 
 | 项目 | 值 |
 |------|-----|
