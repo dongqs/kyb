@@ -185,6 +185,7 @@ module Kyb::CLI
                                          Types: java [v], pg, mise <tool>
         infra boss up                   Create infrastructure boss container
         infra boss rm                   Remove infrastructure boss container
+        infra boss enter                Enter infrastructure boss container
         infra ps, ls                    List infrastructure containers
         infra logs [container]          Show infra container logs
         infra restart [container]       Restart infra container

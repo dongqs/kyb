@@ -29,6 +29,8 @@ module Kyb::CLI
       boss_up
     when 'down', 'rm'
       boss_down
+    when 'enter', 'ssh'
+      boss_enter
     else
       boss_help
     end
@@ -71,6 +73,15 @@ module Kyb::CLI
 
     puts "==> #{BOSS_NAME}: container ready"
     puts "    Enter: docker exec -it #{BOSS_NAME} /bin/bash"
+  end
+
+  def boss_enter
+    all_names = `docker ps -a --format '{{.Names}}'`.lines.map(&:strip)
+    unless all_names.include?(BOSS_NAME)
+      puts "==> #{BOSS_NAME} not found. Run 'kyb infra boss up' first."
+      return
+    end
+    exec('docker', 'exec', '-it', BOSS_NAME, 'bash', '-l')
   end
 
   def boss_down
@@ -131,10 +142,11 @@ module Kyb::CLI
       Commands:
         up, create    Create and start kyb-infra-boss
         down, rm      Remove kyb-infra-boss
+        enter, ssh    Enter kyb-infra-boss (interactive shell)
     HELP
   end
 
-  module_function :infra, :boss, :boss_up, :boss_down,
+  module_function :infra, :boss, :boss_up, :boss_down, :boss_enter,
                   :infra_ps, :infra_logs, :infra_restart,
                   :infra_help, :boss_help
 end
