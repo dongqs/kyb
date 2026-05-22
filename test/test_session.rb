@@ -1,48 +1,40 @@
 require_relative 'test_helper'
 
 class SessionTest < Minitest::Test
-  def setup
-    Kyb::CLI.define_singleton_method(:session_wrap) do |cli, cli_args|
-      @__captured = [:session_wrap, cli, cli_args]
-    end
-  end
-
-  def teardown
-    Kyb::CLI.singleton_class.remove_method(:session_wrap)
-  end
-
-  def dispatch(*argv)
-    Kyb::CLI.instance_variable_set(:@__captured, nil)
-    Kyb::CLI.dispatch(argv)
-    Kyb::CLI.instance_variable_get(:@__captured)
-  end
-
   # --- dispatch ---
 
   def test_session_wrap_dispatch
-    Kyb::Config.stub(:load, nil) do
-      cmd, cli, cli_args = dispatch('session', 'wrap', 'claude', 'read doc')
-      assert_equal :session_wrap, cmd
-      assert_equal 'claude', cli
-      assert_equal ['read doc'], cli_args
+    captured = nil
+    Kyb::CLI.stub(:session_wrap, ->(cli, cli_args) { captured = [:session_wrap, cli, cli_args] }) do
+      Kyb::Config.stub(:load, nil) do
+        Kyb::CLI.dispatch(['session', 'wrap', 'claude', 'read doc'])
+      end
     end
+    cmd, cli, cli_args = captured
+    assert_equal :session_wrap, cmd
+    assert_equal 'claude', cli
+    assert_equal ['read doc'], cli_args
   end
 
   def test_session_wrap_dispatch_kimi
-    Kyb::Config.stub(:load, nil) do
-      cmd, cli, cli_args = dispatch('session', 'wrap', 'kimi', '-p', 'hello')
-      assert_equal :session_wrap, cmd
-      assert_equal 'kimi', cli
-      assert_equal ['-p', 'hello'], cli_args
+    captured = nil
+    Kyb::CLI.stub(:session_wrap, ->(cli, cli_args) { captured = [:session_wrap, cli, cli_args] }) do
+      Kyb::Config.stub(:load, nil) do
+        Kyb::CLI.dispatch(['session', 'wrap', 'kimi', '-p', 'hello'])
+      end
     end
+    cmd, cli, cli_args = captured
+    assert_equal :session_wrap, cmd
+    assert_equal 'kimi', cli
+    assert_equal ['-p', 'hello'], cli_args
   end
 
   def test_session_wrap_no_args_dies
-    assert_raises(SystemExit) { Kyb::Config.stub(:load, nil) { dispatch('session') } }
+    assert_raises(SystemExit) { Kyb::Config.stub(:load, nil) { Kyb::CLI.dispatch(['session']) } }
   end
 
   def test_session_wrap_no_command_dies
-    assert_raises(SystemExit) { Kyb::Config.stub(:load, nil) { dispatch('session', 'wrap') } }
+    assert_raises(SystemExit) { Kyb::Config.stub(:load, nil) { Kyb::CLI.dispatch(['session', 'wrap']) } }
   end
 
   # --- formatting ---
