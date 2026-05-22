@@ -40,7 +40,7 @@ module Kyb::ExitFlow
       begin
         proj = Kyb::Config.project(project)
         repo_path = proj[:path]
-      rescue Exception
+      rescue StandardError
       end
     end
 
