@@ -105,6 +105,8 @@ module Kyb::CLI
       infra(args)
     when 'assert'
       assert_cmd(args)
+    when 'doctor'
+      doctor(args)
     when 'worldview'
       worldview(args)
     when 'tts'
@@ -181,6 +183,9 @@ module Kyb::CLI
         start PROJECT-BRANCH             Start stopped container
         rm    PROJECT-BRANCH [--force]   Remove container (--force skips confirmation)
         prune                            Remove all containers
+        doctor [--prune]                 Scan containers, volumes, and tmux sessions
+                                         Diagnose stale containers and orphan volumes
+                                         --prune: remove stale containers and orphan volumes
         assert <type> [args...]          Verify and auto-heal prerequisites
                                          Types: java [v], pg, mise <tool>
         infra up                        Create infrastructure boss container
@@ -217,6 +222,7 @@ require_relative 'cli/tts'
 require_relative 'cli/did'
 require_relative 'cli/session'
 require_relative 'cli/assert'
+require_relative 'cli/doctor'
 require_relative 'cli/onboard'
 
 require_relative 'cli/worldview'
