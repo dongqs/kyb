@@ -85,6 +85,7 @@ class CheckTest < Minitest::Test
   # --- Proxy server reachability ---
 
   def test_check_proxy_reachable
+    skip 'proxy test requires network (CI)' if ENV['CI']
     proxy = Kyb::Proxy.detect
     skip 'no proxy to test' unless proxy
     uri = URI.parse(proxy)
@@ -117,6 +118,7 @@ class CheckTest < Minitest::Test
   end
 
   def test_check_endpoint_fallback_to_proxy
+    skip 'proxy test requires network (CI)' if ENV['CI']
     proxy = Kyb::Proxy.detect
     skip 'no proxy for fallback test' unless proxy
     result = Kyb::Check.check_endpoint('test', 'https://www.python.org', proxy)
@@ -149,6 +151,7 @@ class CheckTest < Minitest::Test
   # --- try_http_via_proxy ---
 
   def test_try_http_via_proxy
+    skip 'proxy test requires network (CI)' if ENV['CI']
     proxy = Kyb::Proxy.detect
     skip 'no proxy for via-proxy test' unless proxy
     uri = URI.parse(proxy)
