@@ -212,6 +212,7 @@ if [ ! -f /home/dev/.claude/CLAUDE.md ]; then
 
         if [ -n "${KYB_PROXY:-}" ]; then
             echo "- **Proxy**: ${KYB_PROXY}"
+            echo "  Go programs (glab etc.): use \`HTTPS_PROXY=${KYB_PROXY}\` (not ALL_PROXY)"
             if [ -n "${KYB_NO_PROXY:-}" ]; then
                 echo "  (bypass: ${KYB_NO_PROXY})"
             fi

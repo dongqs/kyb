@@ -48,6 +48,8 @@ kyb notify <level> <msg>  # TTS: done/blocked/urgent
 
 - **PostgreSQL 16** runs inside containers (trust auth, Asia/Shanghai)
 - **ClickHouse** on host: `host.orb.internal:9000`
+- **Proxy**: use `HTTPS_PROXY=socks5://host.docker.internal:2080` for Go tools (glab etc.)
+  Ruby/Python tools use `ALL_PROXY`; Go tools need `HTTPS_PROXY` for SOCKS5
 - **mig25** for DB migrations (DSN in project `.env`)
 - **mise** manages Node/Ruby/Java runtimes
 - **Claude Code** installed globally via npm
