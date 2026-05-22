@@ -80,7 +80,7 @@ module Kyb::CLI
     kyb_repo = File.expand_path('~/.kyb')
     args += ['-v', "#{kyb_repo}:/home/dev/kyb:ro"]
     # Clone kyb repo (rw) so boss can edit code and submit MRs
-    clone_base = File.expand_path('~/.kyb/clone')
+    clone_base = Kyb::CLONE_BASE
     clone_target = File.join(clone_base, 'kyb', BOSS_NAME)
     unless File.directory?(clone_target)
       FileUtils.mkdir_p(File.dirname(clone_target))
