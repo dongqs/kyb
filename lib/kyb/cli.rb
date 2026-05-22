@@ -101,6 +101,8 @@ module Kyb::CLI
       prune
     when 'did'
       did(args)
+    when 'infra'
+      infra(args)
     when 'assert'
       assert_cmd(args)
     when 'worldview'
@@ -181,6 +183,15 @@ module Kyb::CLI
         prune                            Remove all containers
         assert <type> [args...]          Verify and auto-heal prerequisites
                                          Types: java [v], pg, mise <tool>
+        infra up                        Create infrastructure boss container
+        infra rm / down                 Remove infrastructure boss container
+        infra enter                     Enter infrastructure boss container
+        infra ps                        List kyb-infra-* containers
+        infra logs [c]                  Show logs (default: sing-box)
+        infra restart [c]               Restart container (default: sing-box)
+        infra ps, ls                    List infrastructure containers
+        infra logs [container]          Show infra container logs
+        infra restart [container]       Restart infra container
         did create <name>               DID: create container (Docker-in-Docker)
         did rm <name>                   DID: remove container
         did ps, ls                      DID: list containers
@@ -210,3 +221,4 @@ require_relative 'cli/onboard'
 
 require_relative 'cli/worldview'
 require_relative 'cli/event'
+require_relative 'cli/infra'
