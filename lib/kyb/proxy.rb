@@ -37,7 +37,7 @@ module Kyb::Proxy
     else
       proxy
     end
-  rescue
+  rescue URI::InvalidURIError
     nil
   end
 
@@ -58,7 +58,7 @@ module Kyb::Proxy
       uri = URI.parse(proxy)
       Socket.tcp(uri.host, uri.port, connect_timeout: 1) { |s| s.close }
       return proxy
-    rescue
+    rescue Errno::ECONNREFUSED, Errno::EINVAL, SocketError
       next
     end
     nil
