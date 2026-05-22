@@ -110,6 +110,17 @@ module Kyb::CLI
     puts "==> #{BOSS_NAME}: creating infra-boss container"
     system(*args) || Kyb.die('docker run failed')
 
+    # Post-create: wait for entrypoint + link claude
+    10.times do
+      break if system('docker', 'exec', '-u', 'dev', BOSS_NAME, 'test', '-f', '/tmp/kyb-ready',
+                       out: File::NULL, err: File::NULL)
+      sleep 1
+    end
+    claude_dir = '/home/dev/.local/share/mise/installs/npm-anthropic-ai-claude-code'
+    claude_bin = `docker exec #{BOSS_NAME} find #{claude_dir} -name claude -type f -path "*/bin/claude" 2>/dev/null | head -1`.strip
+    system('docker', 'exec', '-u', 'root', BOSS_NAME,
+           'ln', '-sf', claude_bin, '/home/dev/.local/bin/claude') unless claude_bin.empty?
+
     puts "==> #{BOSS_NAME}: container ready"
     puts "    Enter: kyb infra enter"
   end
