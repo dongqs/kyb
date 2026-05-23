@@ -115,15 +115,7 @@ entrypoint.sh 在容器首次启动时执行以下网络操作。**这些失败�
 
 ~~默认容器没有设置 `ALL_PROXY`（Dockerfile 末尾清除了），agent 需根据 CLAUDE.md 自行配置代理。~~
 
-> **现已自动配置**：entrypoint.sh 从 `KYB_PROXY`（由 `kyb create` 传入）导出 `ALL_PROXY`、`HTTPS_PROXY`、`HTTP_PROXY`，容器内工具开箱即用走代理。
->
-> 如果手动测试代理连通性，参考值：
-> ```bash
-> export ALL_PROXY=socks5://host.docker.internal:2080
-> export NO_PROXY=.deepseek.com,localhost,127.0.0.1,host.orb.internal,.local,.internal,192.168.0.0/16,100.64.0.0/10
-> ```
->
-> `NO_PROXY` 排除了 `.deepseek.com`，确保重启 sing-box 时不中断 agent（Claude Code）与 deepseek API 的通信。
+> **现已自动配置**：entrypoint.sh 从 `KYB_PROXY`（由 `kyb create` 传入）导出 `ALL_PROXY`、`HTTPS_PROXY`、`HTTP_PROXY`，容器内工具开箱即用走代理。具体配置见 [`proxy.md`](proxy.md)。
 
 **apt-get/npm/pip 走不了国内镜像**
 

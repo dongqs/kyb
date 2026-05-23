@@ -59,20 +59,6 @@ if [ -n "${KYB_PROXY:-}" ]; then
 fi
 ```
 
-## 容器间通信
-
-sandbox 容器现加入 `kyb-net`（`192.168.97.0/24`），可通过 Docker DNS 按名字访问 infra 容器：
-
-```bash
-# 容器内直接访问 infra 服务
-ping kyb-infra-postgresql-16     # → PG 16
-ping kyb-infra-redis             # → Redis
-ping kyb-infra-sing-box          # → sing-box 代理
-curl http://kyb-infra-clickhouse:8123
-```
-
-外部流量仍走 `host.docker.internal:2080`（proxy），内部流量直连（`192.168.0.0/16` 在 NO_PROXY 中）。
-
 ## 已知问题
 
 | # | 场景 | 问题 |
