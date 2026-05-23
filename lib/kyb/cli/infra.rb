@@ -55,7 +55,7 @@ module Kyb::CLI
       puts "==> connected #{SING_BOX} to #{net}"
     end
 
-    args = %w[docker run -d --name]
+    args = %w[docker run -d --init --name]
     args << BOSS_NAME
     args += ['--hostname', BOSS_NAME]
     args += ['--network', net]
