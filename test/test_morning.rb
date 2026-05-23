@@ -1,24 +1,17 @@
 require_relative 'test_helper'
 
 class MorningTest < Minitest::Test
+  MORNING_METHODS = %i[
+    morning_hostname morning_project morning_branch morning_user
+    morning_git_status_text morning_docker_running morning_docker_images_size
+    morning_disk_pct morning_pg_ready? morning_ck_table_info
+    morning_proxy_url morning_proxy_check morning_recent_events morning_batch_tasks
+  ].freeze
+
   def setup
-    @_orig_morning = {}
-    %i[
-      morning_hostname morning_project morning_branch morning_user
-      morning_git_status_text morning_docker_running morning_docker_images_size
-      morning_disk_pct morning_pg_ready? morning_ck_table_info
-      morning_proxy_url morning_proxy_check morning_recent_events morning_batch_tasks
-    ].each { |m|
-      @_orig_morning[m] = Kyb::CLI.method(m) rescue nil }
     require_relative '../lib/kyb/cli/morning'
     @_orig_morning = {}
-    %i[
-      morning_hostname morning_project morning_branch morning_user
-      morning_git_status_text morning_docker_running morning_docker_images_size
-      morning_disk_pct morning_pg_ready? morning_ck_table_info
-      morning_proxy_url morning_proxy_check morning_recent_events morning_batch_tasks
-    ].each { |m|
-      @_orig_morning[m] = Kyb::CLI.method(m) rescue nil }
+    MORNING_METHODS.each { |m| @_orig_morning[m] = Kyb::CLI.method(m) rescue nil }
     Kyb::CLI.define_singleton_method(:morning_hostname) { 'kyb-test-box' }
     Kyb::CLI.define_singleton_method(:morning_project) { 'test' }
     Kyb::CLI.define_singleton_method(:morning_branch) { 'dev' }
@@ -36,14 +29,7 @@ class MorningTest < Minitest::Test
   end
 
   def teardown
-    %i[
-      morning_hostname morning_project morning_branch morning_user
-      morning_git_status_text morning_docker_running morning_docker_images_size
-      morning_disk_pct morning_pg_ready? morning_ck_table_info
-      morning_proxy_url morning_proxy_check morning_recent_events morning_batch_tasks
-    ].each { |m|
-      Kyb::CLI.define_singleton_method(m, @_orig_morning[m]) if @_orig_morning[m]
-    }
+    @_orig_morning&.each { |m, orig| Kyb::CLI.define_singleton_method(m, orig) if orig }
   end
 
   def test_header

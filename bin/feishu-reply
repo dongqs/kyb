@@ -1,0 +1,13 @@
+#!/bin/bash
+# Feishu event handler
+EVENT=$(cat)
+CHAT_ID=$(echo "$EVENT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('event',{}).get('chat_id',''))" 2>/dev/null)
+
+if [ -n "$CHAT_ID" ]; then
+  LARK_CLI_NO_PROXY=1 lark-cli im +messages-send \
+    --chat-id "$CHAT_ID" --as bot \
+    --text "✅ 收到
+我在线。说"命令: xxx"让我干活
+
+／人◕ ‿‿ ◕人＼" >/dev/null 2>&1
+fi
