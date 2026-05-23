@@ -1,0 +1,170 @@
+{
+  "title": "cc-connect Health",
+  "uid": "cc-connect-health",
+  "description": "cc-connect container and bridge health. Tracks container state, turn latency, Claude response success rate, token refresh status, and active sessions. Cross-reference with reviews: docs/infra/reviews/bridge-hooks-C2.md, docs/infra/reviews/bridge-ck-ingestion-A2.md",
+  "tags": ["kyb", "infra", "cc-connect", "bridge"],
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "refresh": "60s",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "title": "Messages Over Time",
+      "type": "timeseries",
+      "datasource": "ClickHouse",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "description": "CC-connect messages by event_type over time. Sources: cc.message_log table (review A1-A3).",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  $__timeGroup(event_time, '$__interval') AS time,\n  event_type,\n  count() AS count\nFROM cc.message_log\nWHERE $__timeFilter(event_time)\nGROUP BY time, event_type\nORDER BY time"
+      }]
+    },
+    {
+      "title": "Turn Duration (P50/P90/P99)",
+      "type": "timeseries",
+      "datasource": "ClickHouse",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "description": "Response latency percentiles for turn_complete events. High P99 (>30s sustained) indicates Claude processing issues.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        }
+      },
+      "targets": [{
+        "refId": "p50",
+        "query": "SELECT\n  $__timeGroup(event_time, '$__interval') AS time,\n  quantile(0.50)(turn_duration) AS p50\nFROM cc.message_log\nWHERE event_type = 'message_sent'\n  AND $__timeFilter(event_time)\nGROUP BY time\nORDER BY time"
+      }, {
+        "refId": "p90",
+        "query": "SELECT\n  $__timeGroup(event_time, '$__interval') AS time,\n  quantile(0.90)(turn_duration) AS p90\nFROM cc.message_log\nWHERE event_type = 'message_sent'\n  AND $__timeFilter(event_time)\nGROUP BY time\nORDER BY time"
+      }, {
+        "refId": "p99",
+        "query": "SELECT\n  $__timeGroup(event_time, '$__interval') AS time,\n  quantile(0.99)(turn_duration) AS p99\nFROM cc.message_log\nWHERE event_type = 'message_sent'\n  AND $__timeFilter(event_time)\nGROUP BY time\nORDER BY time"
+      }]
+    },
+    {
+      "title": "User Activity (Top-N)",
+      "type": "barchart",
+      "datasource": "ClickHouse",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "description": "Most active users by message count. Helps identify heavy users and potential abuse patterns.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  sender_id,\n  count() AS msg_count\nFROM cc.message_log\nWHERE $__timeFilter(event_time)\nGROUP BY sender_id\nORDER BY msg_count DESC\nLIMIT 20"
+      }]
+    },
+    {
+      "title": "Token Consumption",
+      "type": "timeseries",
+      "datasource": "ClickHouse",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "description": "Input and output token consumption over time. Only message_sent events carry token data.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "refId": "input",
+        "query": "SELECT\n  toStartOfHour(event_time) AS time,\n  'input' AS direction,\n  sum(input_tokens) AS tokens\nFROM cc.message_log\nWHERE event_type = 'message_sent'\n  AND $__timeFilter(event_time)\nGROUP BY time\nORDER BY time"
+      }, {
+        "refId": "output",
+        "query": "SELECT\n  toStartOfHour(event_time) AS time,\n  'output' AS direction,\n  sum(output_tokens) AS tokens\nFROM cc.message_log\nWHERE event_type = 'message_sent'\n  AND $__timeFilter(event_time)\nGROUP BY time\nORDER BY time"
+      }]
+    },
+    {
+      "title": "Recent Messages",
+      "type": "table",
+      "datasource": "ClickHouse",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "description": "Most recent 50 messages. Shows content_text truncated for readability.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left" },
+          "displayName": "",
+          "links": []
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "content_text" },
+            "properties": [
+              { "id": "custom.trim", "value": true },
+              { "id": "custom.maxWidth", "value": 300 }
+            ]
+          }
+        ]
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  event_time,\n  event_type,\n  sender_id,\n  content_len,\n  content_text,\n  has_images,\n  input_tokens,\n  output_tokens\nFROM cc.message_log\nWHERE $__timeFilter(event_time)\nORDER BY event_time DESC\nLIMIT 50"
+      }]
+    },
+    {
+      "title": "Bridge Error Rate",
+      "type": "timeseries",
+      "datasource": "ClickHouse",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 26 },
+      "description": "Error rate from bridge message processing. High rates suggest cc-connect or Claude issues.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  $__timeGroup(event_time, '$__interval') AS time,\n  countIf(event_type = 'message_error') * 100.0 / count() AS error_pct\nFROM cc.message_log\nWHERE $__timeFilter(event_time)\nGROUP BY time\nORDER BY time"
+      }]
+    },
+    {
+      "title": "Active Sessions",
+      "type": "stat",
+      "datasource": "ClickHouse",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 26 },
+      "description": "Sessions active in the last 30 minutes",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT count(DISTINCT session) FROM cc.message_log WHERE event_time > now() - 1800"
+      }]
+    },
+    {
+      "title": "Messages Today",
+      "type": "stat",
+      "datasource": "ClickHouse",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 26 },
+      "description": "Total messages processed today",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT count() FROM cc.message_log WHERE event_time > today()"
+      }]
+    }
+  ]
+}

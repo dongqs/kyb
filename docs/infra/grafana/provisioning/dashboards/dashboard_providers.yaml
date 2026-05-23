@@ -1,0 +1,17 @@
+# docs/infra/grafana/provisioning/dashboards/dashboard_providers.yaml
+# Scans /etc/grafana/provisioning/dashboards/json/ for all *.json files.
+# Every JSON file in that directory becomes a Grafana dashboard in the "kyb Infra" folder.
+# After adding/modifying a JSON, trigger hot-reload: POST /api/admin/provisioning/dashboards/reload
+apiVersion: 1
+
+providers:
+  - name: 'kyb-infra'
+    orgId: 1
+    folder: 'kyb Infra'
+    folderUid: 'kyb-infra'
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards/json
