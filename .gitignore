@@ -3,3 +3,5 @@ cloud-init.generated.yaml
 *.swp
 .env
 .env.kyb
+.lark-events/
+feishu-events

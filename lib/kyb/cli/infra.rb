@@ -55,7 +55,7 @@ module Kyb::CLI
       puts "==> connected #{SING_BOX} to #{net}"
     end
 
-    args = %w[docker run -d --name]
+    args = %w[docker run -d --init --name]
     args << BOSS_NAME
     args += ['--hostname', BOSS_NAME]
     args += ['--network', net]
@@ -66,6 +66,7 @@ module Kyb::CLI
     args += ['-e', "ALL_PROXY=socks5://kyb-infra-sing-box:2080"]
     args += ['-e', 'KYB_PROJECT=kyb']
     args += ['-e', 'KYB_BRANCH=infra-boss']
+    args += ['-e', 'TZ=Asia/Shanghai']
 
     # Standard mounts (like kyb create)
     home = ENV['HOME']

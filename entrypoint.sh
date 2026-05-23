@@ -313,4 +313,7 @@ ROOT_EOF
     fi
 fi
 
+# Start cron daemon (for heartbeat and periodic tasks)
+crond -b 2>/dev/null || true
+
 exec runuser -u dev -- "$@"

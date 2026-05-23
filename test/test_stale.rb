@@ -6,6 +6,7 @@ class StaleIntegrationTest < Minitest::Test
   TEST_TAG = 'kyb-test-stale'
 
   def setup
+    skip 'Docker integration tests only run in CI' unless ENV['CI']
     unless docker_available?
       skip 'Docker not available in this environment'
     end

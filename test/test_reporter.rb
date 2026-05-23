@@ -5,18 +5,16 @@ require_relative 'test_helper'
 class ReporterTest < Minitest::Test
   def setup
     @_orig_reporter = {}
-    %i[http_post reporting_enabled?].each { |m| @_orig_reporter[m] = Kyb::Reporter.method(m) rescue nil }
-    @_orig_config_reporting = Kyb::Config.method(:reporting_enabled?) rescue nil
+    @_orig_config = {}
+    %i[http_post reporting_enabled?].each do |m|
+      @_orig_reporter[m] = Kyb::Reporter.method(m) rescue nil
+      @_orig_config[m] = Kyb::Config.method(m) rescue nil
+    end
   end
 
   def teardown
-    %i[http_post reporting_enabled?].each do |m|
-      next unless @_orig_reporter[m]
-      Kyb::Reporter.define_singleton_method(m, @_orig_reporter[m])
-    end
-    if @_orig_config_reporting
-      Kyb::Config.define_singleton_method(:reporting_enabled?, @_orig_config_reporting)
-    end
+    @_orig_reporter&.each { |m, orig| Kyb::Reporter.define_singleton_method(m, orig) if orig }
+    @_orig_config&.each   { |m, orig| Kyb::Config.define_singleton_method(m, orig) if orig }
   end
 
   def test_default_enabled
@@ -96,7 +94,6 @@ class ReporterTest < Minitest::Test
     Kyb::Config.instance_variable_set(:@config, nil) rescue nil
     refute Kyb::Config.reporting_enabled?
   ensure
-
     Kyb::Config.define_singleton_method(:load_config, orig) if orig
     Kyb::Config.instance_variable_set(:@config, nil) rescue nil
   end
