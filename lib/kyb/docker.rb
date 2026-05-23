@@ -149,6 +149,9 @@ module Kyb::Docker
     args = %w[docker run -d]
     args += ['--name', container.name]
     args += ['--hostname', container.hostname]
+    args += ['--network', 'kyb-net']
+    # Ensure kyb-net exists for container-to-container DNS resolution
+    system('docker', 'network', 'create', 'kyb-net', out: File::NULL, err: File::NULL) || true
     args += ['-e', "HOST_UID=#{Process.uid}"]
     args += ['-e', "HOST_GID=#{Process.gid}"]
     args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"]

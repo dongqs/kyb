@@ -1,5 +1,7 @@
 # 网络问题排查
 
+> **网络拓扑**：[`sing-box.md`](sing-box.md) | **Proxy 配置**：[`proxy.md`](proxy.md)
+
 kyb 在构建和运行时涉及大量网络操作。本文按阶段列出所有依赖网络的步骤、失败原因和解决方法。
 
 ## 构建阶段（`kyb build`）
@@ -109,14 +111,11 @@ entrypoint.sh 在容器首次启动时执行以下网络操作。**这些失败�
 
 ### 运行时网络问题
 
-**容器内无法访问外网**
+**~~容器内无法访问外网~~（2026-05-23 已修复）**
 
-默认容器没有设置 `ALL_PROXY`（Dockerfile 末尾清除了）。agent 需根据 CLAUDE.md 自行配置代理：
+~~默认容器没有设置 `ALL_PROXY`（Dockerfile 末尾清除了），agent 需根据 CLAUDE.md 自行配置代理。~~
 
-```bash
-export ALL_PROXY=socks5://host.orb.internal:2080
-export NO_PROXY=.leyantech.com,localhost,127.0.0.1
-```
+> **现已自动配置**：entrypoint.sh 从 `KYB_PROXY`（由 `kyb create` 传入）导出 `ALL_PROXY`、`HTTPS_PROXY`、`HTTP_PROXY`，容器内工具开箱即用走代理。具体配置见 [`proxy.md`](proxy.md)。
 
 **apt-get/npm/pip 走不了国内镜像**
 
