@@ -91,11 +91,11 @@ macOS Host (Orbstack)
 
 | Credential | Location | Notes |
 |------------|----------|-------|
-| Feishu app_id / app_secret | `/home/dev/projects/kyb/.env.kyb` | `cli_aa9be3a17d3adbeb` (app_id is in cc-connect config; secret in .env.kyb) |
+| Feishu app_id / app_secret | `/home/dev/projects/kyb/.env.kyb` | `cli_aa9be3a17d3adbeb` (secret in .env.kyb) |
 | ACR registry | `/home/dev/projects/kyb/.env.kyb` | `crpi-55lo9e6aeed00e4a.cn-shanghai.personal.cr.aliyuncs.com`, user/pass in .env |
-| OSS keys | `/home/dev/projects/kyb/.env.kyb` | LTAI5t92ApkqbyH4uv6z41KB + secret |
-| Feishu Webhook | `/home/dev/projects/kyb/bin/notify-im` (also .env.kyb) | `5b657d80-c050-4965-8e46-9a127a219cf9` |
-| DingTalk Webhook | `/home/dev/projects/kyb/bin/notify-im` (also .env.kyb) | `e044c117b1bd5ab5943606d72ea9ef350c72621073b96a983af384e97eb87ec1` |
+| OSS keys | `/home/dev/projects/kyb/.env.kyb` | AccessKey ID + secret (see .env.kyb) |
+| Feishu Webhook | `/home/dev/projects/kyb/.env.kyb` | `FEISHU_BOT_WEBHOOK` env var |
+| DingTalk Webhook | `/home/dev/projects/kyb/.env.kyb` | `DINGTALK_BOT_WEBHOOK` env var |
 | Anthropic API key | `~/.claude/settings.json` | For Claude Code |
 | GitLab access | via nuc8 tunnel (sing-box -> sim -> nuc8) | No direct access; proxied through nuc8 |
 | GitHub PAT | Not stored in repo | Needed for ghcr.io auth (PeerDB etc.) |
@@ -283,9 +283,11 @@ open http://localhost:3000
 ```
 Registry:   crpi-55lo9e6aeed00e4a.cn-shanghai.personal.cr.aliyuncs.com
 Username:   dongqs@gmail.com
-Password:   Arc12345          (rotate if needed via Aliyun console)
+Password:   (see .env.kyb — ACR_PASSWORD)
 Local name: acr-reg
 ```
+
+> ⚠️ Do NOT write passwords or tokens in handoff docs. All credentials in `.env.kyb` only.
 
 To pull from ACR:
 ```bash
