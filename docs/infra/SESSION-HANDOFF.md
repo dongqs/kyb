@@ -29,6 +29,23 @@
 | kyb-ubuntu-test | -- | Up | 1h | 网络验证用 |
 | bold_almeida | -- | Up (unhealthy) | 3h | 孤儿容器, 待清理 |
 
+### 后续更新（2026-05-23 10:50）
+
+**kyb-infra-boss 已重建**（旧容器重命名为 kyb-infra-boss-old）。当前同时存在 3 个 boss 容器：
+
+| 容器 | 状态 | --init | 内存 | 镜像 | 项目代码 |
+|------|------|--------|------|------|---------|
+| **kyb-infra-boss**（新） | Up | ❌ | 无限制 | kyb-base:latest | ✅ 已挂载 |
+| kyb-infra-boss-old | Up | ❌ | 无限制 | dangling | ✅ |
+| kyb-infra-boss2 | Up | ✅ | 4GiB | 快照 13.8G | ❌ 空 |
+
+**新 boss 工具状态：**
+- claude 2.1.150 ✅, kimi 1.44.0 ✅, python3 ✅, uv ✅, mise (已 trust) ✅
+- mise runtimes 全 missing（需 `mise install`）❌
+- lark-cli ❌, pip ❌, NO_PROXY 未设置 ❌
+- glab 安装失败（gitlab.com 401）❌
+- 无 --init ❌ 无内存限制 ❌
+
 **System resources:**
 - RAM: 5.2G used / 15G total (10G available)
 - Swap: 2.5G used / 16G (zram)
@@ -68,6 +85,15 @@
    - 3 survey reports (base-service, oversea-digismart, remaining)
    - Master report, rollout plan, network analysis, cc-connect research
    - Chat integration troubleshooting guide (`chat.md`)
+
+### 2.4 Follow-up Session (2026-05-23 10:00-10:50)
+
+1. **nuc8 隧道修复** — SSH 隧道（→ sim → nuc8 → GitLab）因 boss 重启断线，已重建
+2. **Session handoff 更新** — 加入孤儿容器评估、双 boss 分析、凭证清理
+3. **MR !140 审查** — 13 路代理审查，9 条 coment 已发；复查发现明文密码已清除
+4. **交接模板创建** — `docs/infra/SESSION-HANDOFF-TEMPLATE.md`
+5. **Issue #107 创建** — nuc8 隧道持久化（不应依赖 boss 存活）
+6. **kyb build 执行中** — 未完成
 
 ### 2.3 Network Topology
 
