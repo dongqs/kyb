@@ -53,7 +53,7 @@ kyb create kyb-hello
 kyb enter kyb-hello
 ```
 
-> ⚠️ **构建失败？** 常见原因和解决方案见 [docs/network-issues.md](./docs/network-issues.md)
+> ⚠️ **构建失败？** 常见原因和解决方案见 [docs/network/issues.md](./docs/network/issues.md)
 >
 > **后续更新：** `git -C ~/.kyb pull && kyb preflight && kyb build`
 >
@@ -290,7 +290,7 @@ kyb create --clone project-branch # git clone 独立副本（隔离模式，适�
 
 ## 文档
 
-- [网络问题排查](./docs/network-issues.md) — 构建和运行时所有网络依赖、失败原因和解决方法
+- [网络问题排查](./docs/network/issues.md) — 构建和运行时所有网络依赖、失败原因和解决方法
 - [方案对比](./docs/comparison.md) — kyb vs 其他 AI 沙箱方案
 - [kyb did 设计](./docs/docker-in-docker.md) — Docker-in-Docker 场景下的容器管理子系统设计
 - [容器环境参考](./docs/container.md) — 容器内服务、网络、缓存等详细说明（面向 AI agent）
