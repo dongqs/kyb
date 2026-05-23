@@ -126,6 +126,21 @@ module Kyb::CLI
 
   def prune
     Kyb::Config.load
+
+    puts "⚠  This will remove ALL containers and volumes for ALL projects!"
+    print "  Continue? [y/N] (10s auto: abort) "
+    STDOUT.flush
+
+    input = nil
+    begin
+      if IO.select([STDIN], nil, nil, 10)
+        input = $stdin.gets.to_s.strip.downcase
+      end
+    rescue Interrupt
+    end
+
+    Kyb.die("Prune aborted.") unless input == 'y'
+
     Kyb::Config.project_names.each do |proj_name|
       proj = Kyb::Config.project(proj_name)
       path = proj[:path]
