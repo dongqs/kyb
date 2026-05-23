@@ -17,6 +17,7 @@
 
 ```bash
 docker volume create grafana-storage
+mkdir -p /home/dev/kyb/provisioning/datasources
 ```
 
 ### Start container
@@ -24,7 +25,7 @@ docker volume create grafana-storage
 ```bash
 docker run -d \
   --name kyb-infra-grafana \
-  --network kyb-net \
+  --network kyb-net --restart unless-stopped \
   -p 3000:3000 \
   -v grafana-storage:/var/lib/grafana \
   -v /home/dev/kyb/provisioning:/etc/grafana/provisioning:ro \
@@ -229,3 +230,35 @@ docker volume rm grafana-storage  # WARNING: deletes all data and config
 - [Grafana Docker Docs](https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/)
 - [Provisioning Datasources](https://grafana.com/docs/grafana/latest/administration/provisioning/#datasources)
 - [ClickHouse Grafana Plugin](https://grafana.com/grafana/plugins/grafana-clickhouse-datasource/)
+## 附錄 (中文版概要)
+
+### 容器信息
+
+| 字段 | 值 |
+|------|-----|
+| 容器名 | kyb-infra-grafana |
+| 镜像 | grafana/grafana-oss:latest |
+| 端口 | 3000 |
+| 网络 | kyb-net |
+
+### 登录
+
+默认 admin/admin，首次登录要求改密码。
+
+### 创建大盘 (API)
+
+```bash
+curl -s -X POST -u admin:admin http://127.0.0.1:3000/api/dashboards/db \
+  -H "Content-Type: application/json" \
+  -d '{"dashboard":{"title":"My Dashboard","panels":[...]}, "overwrite":true}'
+```
+
+### 踩坑
+
+| 现象 | 原因 | 修复 |
+|------|------|------|
+| 镜像拉不动 | docker.xuanyuan.me 429 | `docker pull docker.1ms.run/grafana/grafana:11.5.2` |
+| 面板空白 "invalid format" | `format: "time_series"` 不对 | 改为 `"timeseries"` |
+| 面板空白 "server not set" | CK v4 插件缺 `jsonData.server` | provisioning 加 `jsonData: { server: host.orb.internal }` |
+| provisioning 配置没生效 | bind mount 没传播 | `docker cp` 替代 volume mount |
+| 改密码后数据源没了 | 密码和 provisioning 无关 | 重新 provisioning 或手动加 |
