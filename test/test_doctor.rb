@@ -8,6 +8,10 @@ class DoctorTest < Minitest::Test
        doctor_container_volumes].each { |m|
       @_orig_doctor[m] = Kyb::CLI.method(m) rescue nil }
     require_relative '../lib/kyb/cli/doctor'
+    @_orig_doctor = {}
+    %i[doctor_ps_raw doctor_container_tmux_alive? doctor_volume_names
+       doctor_container_volumes].each { |m|
+      @_orig_doctor[m] = Kyb::CLI.method(m) rescue nil }
     Kyb::CLI.define_singleton_method(:doctor_ps_raw) {
       [%w[kyb-niao-dev Up\ 10\ minutes], %w[kyb-rest-version Up\ 4\ hours],
        %w[kyb-rest-debug Up\ 5\ hours], %w[kyb-tts-test Exited\ 2\ hours\ ago]] }

@@ -354,11 +354,25 @@ module Kyb::Docker
       clone: is_clone
     )
 
+    ready = false
     60.times do
-      break if system('docker', 'exec', '-u', 'dev', container.name,
-                      'test', '-f', '/tmp/kyb-ready',
-                      out: File::NULL, err: File::NULL)
+      if system('docker', 'exec', '-u', 'dev', container.name,
+                'test', '-f', '/tmp/kyb-ready',
+                out: File::NULL, err: File::NULL)
+        ready = true
+        break
+      end
       sleep 0.5
+    end
+
+    unless ready
+      unless running?(container.name)
+        logs = `docker logs #{container.name} --tail 30 2>/dev/null`.strip
+        msg = "container '#{container.name}' exited immediately.\n" \
+              "  Check the entrypoint for errors:\n"
+        msg += logs.empty? ? "  (no logs)\n" : logs.lines.map { |l| "  | #{l}" }.join
+        Kyb.die(msg)
+      end
     end
 
     # Conflict detection: warn about shared-repo containers

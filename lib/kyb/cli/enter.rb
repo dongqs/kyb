@@ -62,7 +62,19 @@ def resolve_worldview(cli_worldview, container_name)
   def ensure_container(container, project, branch)
     cname = container.name
     return if container.running?
-    return Kyb::Docker.start_existing(cname) if container.exists?
+
+    if container.exists?
+      Kyb::Docker.start_existing(cname)
+      sleep 1
+      unless container.running?
+        logs = `docker logs #{cname} --tail 30 2>/dev/null`.strip
+        msg = "container '#{cname}' exited immediately after start.\n" \
+              "  The entrypoint may be crashing. Container logs:\n"
+        msg += logs.empty? ? "  (no logs)\n" : logs.lines.map { |l| "  | #{l}" }.join
+        Kyb.die(msg)
+      end
+      return
+    end
 
     id = "#{project}-#{branch}"
     print "==> #{cname}: container not found. Create it? [Y/n] (10s) "
