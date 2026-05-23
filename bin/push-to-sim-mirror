@@ -1,0 +1,44 @@
+#!/bin/bash
+# Push Docker images to sim's local registry mirror
+# Usage: push-to-sim-mirror <image>[:tag]
+# Example: push-to-sim-mirror alpine:latest
+# Example: push-to-sim-mirror clickhouse/clickhouse-server:head-alpine
+
+set -e
+
+SIM="ecs-user@47.100.71.220"
+SIM_REGISTRY="127.0.0.1:5000"
+
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <image>[:tag]"
+  exit 1
+fi
+
+IMAGE="$1"
+NAME="${IMAGE%%:*}"
+TAG="${IMAGE#*:}"
+[ "$TAG" = "$NAME" ] && TAG="latest"
+
+echo "=== Processing $NAME:$TAG ==="
+
+# Pull if not already cached
+docker pull "$NAME:$TAG"
+
+# Create temp file
+TMPFILE=$(mktemp /tmp/docker-push-XXXXXX.tar.gz)
+trap "rm -f $TMPFILE" EXIT
+
+# Save and transfer
+docker save "$NAME:$TAG" | gzip > "$TMPFILE"
+echo "Transferring $(ls -lh "$TMPFILE" | awk '{print $5}') to sim..."
+scp "$TMPFILE" "$SIM:/tmp/img.tar.gz"
+
+# Load and push on sim
+ssh "$SIM" bash -c "'
+docker load < /tmp/img.tar.gz
+docker tag \"$NAME:$TAG\" \"$SIM_REGISTRY/library/$NAME:$TAG\" 2>/dev/null
+docker push \"$SIM_REGISTRY/library/$NAME:$TAG\"
+echo \"Done: $NAME:$TAG pushed to mirror\"
+'"
+
+echo "=== $NAME:$TAG complete ==="
