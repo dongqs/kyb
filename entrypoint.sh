@@ -4,6 +4,15 @@ set -e
 HOST_UID="${HOST_UID:-1000}"
 HOST_GID="${HOST_GID:-1000}"
 
+# Export proxy env vars from KYB_PROXY if not already set
+# Dockerfile clears proxy env vars in the final image.
+# Go tools (glab etc.) need HTTPS_PROXY for SOCKS5; Ruby/Python use ALL_PROXY.
+if [ -n "${KYB_PROXY:-}" ]; then
+  [ -z "${ALL_PROXY:-}" ]    && export ALL_PROXY="${KYB_PROXY}"   && export all_proxy="${KYB_PROXY}"
+  [ -z "${HTTPS_PROXY:-}" ]  && export HTTPS_PROXY="${KYB_PROXY}" && export https_proxy="${KYB_PROXY}"
+  [ -z "${HTTP_PROXY:-}" ]   && export HTTP_PROXY="${KYB_PROXY}"  && export http_proxy="${KYB_PROXY}"
+fi
+
 uid_changed=false; gid_changed=false
 
 # Adjust UID (remove conflicting user first, e.g. ubuntu from base image)
@@ -120,9 +129,9 @@ git config --system url."git@git.leyantech.com:".insteadOf "https://git.leyantec
 
 # Configure glab on first run
 if [ -n "${GITLAB_TOKEN:-}" ] && [ ! -f /home/dev/.config/glab-cli/config.yml ]; then
-    # Resolve GitLab username from token
+    # Resolve GitLab username from token (network may fail → fallback to "user")
     GL_USER=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-        "https://git.leyantech.com/api/v4/user" | jq -r '.username // empty')
+        "https://git.leyantech.com/api/v4/user" | jq -r '.username // empty') || true
     GL_USER="${GL_USER:-user}"
 
     mkdir -p /home/dev/.config/glab-cli
