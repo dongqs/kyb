@@ -17,6 +17,8 @@ docker run -d --name kyb-infra-redis \
   --network kyb-net --restart unless-stopped \
   -p 6379:6379 \
   -v redis-data:/data \
+  -e ALL_PROXY=socks5://kyb-infra-sing-box:2080 \
+  -e NO_PROXY=localhost,127.0.0.1,kyb-infra-* \
   redis:7-alpine \
   redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
 ```

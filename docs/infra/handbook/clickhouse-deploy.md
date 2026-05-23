@@ -87,7 +87,7 @@ CREATE TABLE kyb.kafka_queue (
     offset UInt64
 ) ENGINE = Kafka
 SETTINGS
-    kafka_broker_list = 'kafka-host:9092',
+    kafka_broker_list = 'kyb-infra-kafka:9092',
     kafka_topic_list = 'your-topic',
     kafka_group_name = 'ck-consumer-group',
     kafka_format = 'JSONEachRow',
@@ -123,7 +123,7 @@ docker exec kyb-infra-clickhouse clickhouse-client --query "
 
 # Check consumer lag (if the topic has a consumer group offset tool)
 # If no data flows, verify broker reachability:
-docker exec kyb-infra-clickhouse ping kafka-host
+docker exec kyb-infra-clickhouse ping kyb-infra-kafka
 ```
 
 ## PostgreSQL Table Function
@@ -135,7 +135,7 @@ ClickHouse can query PostgreSQL tables live via the `postgresql` table function.
 ```sql
 SELECT *
 FROM postgresql(
-    'postgres-host.orb.internal:5432',
+    'host.orb.internal:5432',
     'mydb',
     'my_table',
     'postgres',
@@ -152,7 +152,7 @@ For frequent queries, it is better to periodically dump PG data into CK:
 ```sql
 CREATE TABLE kyb.pg_users AS
 SELECT * FROM postgresql(
-    'postgres-host:5432',
+    'host.orb.internal:5432',
     'mydb',
     'users',
     'postgres',
@@ -161,7 +161,7 @@ SELECT * FROM postgresql(
 
 INSERT INTO kyb.pg_users
 SELECT * FROM postgresql(
-    'postgres-host:5432',
+    'host.orb.internal:5432',
     'mydb',
     'users',
     'postgres',
