@@ -1,0 +1,219 @@
+{
+  "title": "PostgreSQL Replication Monitor",
+  "uid": "pg-replication",
+  "description": "PostgreSQL streaming replication monitoring. Tracks replay lag, replication slot health, WAL accumulation, and conflicts. Requires postgres_exporter (see docs/infra/reviews/review-pg-replication.md).",
+  "tags": ["kyb", "infra", "postgresql", "replication"],
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "refresh": "60s",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "title": "Replay Lag (All Standbys)",
+      "type": "timeseries",
+      "datasource": "PostgreSQL",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "description": "Replay lag per standby in seconds. WARN > 30s, CRITICAL > 60s.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 30 },
+              { "color": "red", "value": 60 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  $__timeGroup(now() - write_lag, '$__interval') AS time,\n  application_name,\n  EXTRACT(EPOCH FROM replay_lag)::float AS replay_lag_seconds\nFROM pg_stat_replication\nWHERE state = 'streaming'\n  AND $__timeFilter(now() - write_lag)\nORDER BY time"
+      }]
+    },
+    {
+      "title": "Write/Flush/Replay Lag",
+      "type": "timeseries",
+      "datasource": "PostgreSQL",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "description": "Detailed lag breakdown for the primary standby. Shows write, flush, and replay lag components.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        }
+      },
+      "targets": [{
+        "refId": "write",
+        "query": "SELECT\n  application_name,\n  EXTRACT(EPOCH FROM write_lag)::float AS write_lag_seconds\nFROM pg_stat_replication\nWHERE state = 'streaming'"
+      }, {
+        "refId": "flush",
+        "query": "SELECT\n  application_name,\n  EXTRACT(EPOCH FROM flush_lag)::float AS flush_lag_seconds\nFROM pg_stat_replication\nWHERE state = 'streaming'"
+      }, {
+        "refId": "replay",
+        "query": "SELECT\n  application_name,\n  EXTRACT(EPOCH FROM replay_lag)::float AS replay_lag_seconds\nFROM pg_stat_replication\nWHERE state = 'streaming'"
+      }]
+    },
+    {
+      "title": "Standby State",
+      "type": "table",
+      "datasource": "PostgreSQL",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 8 },
+      "description": "Current state of all connected standbys. Non-streaming state needs investigation.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": null },
+              { "color": "red", "value": null }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "value": "streaming",
+              "text": "STREAMING",
+              "color": "green"
+            },
+            {
+              "type": "value",
+              "value": "catchup",
+              "text": "CATCHING UP",
+              "color": "orange"
+            },
+            {
+              "type": "value",
+              "value": "startup",
+              "text": "STARTING",
+              "color": "orange"
+            },
+            {
+              "type": "value",
+              "value": "stopped",
+              "text": "DISCONNECTED",
+              "color": "red"
+            }
+          ]
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  application_name,\n  client_addr::text,\n  state,\n  sync_state,\n  EXTRACT(EPOCH FROM replay_lag)::int AS lag_seconds\nFROM pg_stat_replication\nWHERE state IS NOT NULL"
+      }]
+    },
+    {
+      "title": "Replication Slot Health",
+      "type": "table",
+      "datasource": "PostgreSQL",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 8 },
+      "description": "Replication slot status. Lost/unreserved slots require immediate rebuild.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "left" },
+          "mappings": [
+            {
+              "type": "value",
+              "value": "reserved",
+              "text": "RESERVED",
+              "color": "green"
+            },
+            {
+              "type": "value",
+              "value": "extended",
+              "text": "EXTENDED",
+              "color": "orange"
+            },
+            {
+              "type": "value",
+              "value": "unreserved",
+              "text": "UNRESERVED",
+              "color": "red"
+            },
+            {
+              "type": "value",
+              "value": "lost",
+              "text": "LOST",
+              "color": "red"
+            }
+          ]
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  slot_name,\n  slot_type,\n  active,\n  coalesce(wal_status, 'unknown') AS wal_status,\n  pg_size_pretty(pg_wal_lsn_diff(\n    pg_current_wal_lsn(),\n    coalesce(restart_lsn, pg_current_wal_lsn())\n  )::text::bigint) AS retained_wal\nFROM pg_replication_slots"
+      }]
+    },
+    {
+      "title": "Total WAL Size",
+      "type": "timeseries",
+      "datasource": "PostgreSQL",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 14 },
+      "description": "Total WAL size on primary disk. Steady growth may indicate a replication slot issue.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 10737418240 },
+              { "color": "red", "value": 21474836480 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  now() AS time,\n  sum(size) AS wal_bytes\nFROM pg_ls_waldir()"
+      }]
+    },
+    {
+      "title": "Replication Conflicts",
+      "type": "timeseries",
+      "datasource": "PostgreSQL",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 14 },
+      "description": "Rate of snapshot conflicts. High rate (>10/sec) indicates vacuum conflicts with standby queries.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "min": 0
+        }
+      },
+      "targets": [{
+        "refId": "snapshot",
+        "query": "SELECT\n  datname,\n  confl_snapshot AS snapshot_conflicts\nFROM pg_stat_database_conflicts\nWHERE datname NOT IN ('template0', 'template1')"
+      }]
+    },
+    {
+      "title": "WAL Retention per Slot",
+      "type": "barchart",
+      "datasource": "PostgreSQL",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 14 },
+      "description": "WAL retained per replication slot. Slots retaining >10GB need investigation.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 10737418240 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT\n  slot_name,\n  pg_wal_lsn_diff(pg_current_wal_lsn(), coalesce(restart_lsn, pg_current_wal_lsn())) AS retained_bytes\nFROM pg_replication_slots"
+      }]
+    }
+  ]
+}

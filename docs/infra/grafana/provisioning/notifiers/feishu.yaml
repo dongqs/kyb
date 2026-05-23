@@ -1,0 +1,20 @@
+# docs/infra/grafana/provisioning/notifiers/feishu.yaml
+# Feishu (Lark) webhook notifier for all infra alerts.
+# The webhook URL is injected via ${FEISHU_WEBHOOK_URL} environment variable.
+# Do NOT commit the actual webhook URL to Git.
+# See: docs/infra/reviews/grafana-provisioning.md (Section 7)
+apiVersion: 1
+notifiers:
+  - name: Feishu Infra Alerts
+    type: webhook
+    uid: feishu
+    orgId: 1
+    isDefault: true
+    settings:
+      url: "${FEISHU_WEBHOOK_URL}"
+      httpMethod: POST
+      autoResolve: true
+      sendReminder: true
+      frequency: "30m"
+    secureSettings:
+      url: "${FEISHU_WEBHOOK_URL}"

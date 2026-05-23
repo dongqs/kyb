@@ -1,0 +1,775 @@
+---
+decision: 稍后做
+---
+
+# Feishu Message Classification Monitoring
+
+**Date:** 2026-05-23
+**Status:** Design proposal
+**Prerequisite reading:** `docs/infra/chat.md` (feishu bot operations),
+`docs/infra/observability-design.md` (metrics stack),
+`docs/infra/reviews/feishu-delivery.md` (delivery tracking),
+`docs/infra/reviews/review-bridge-ck-ingestion-A1.md` (message log schema).
+
+---
+
+## 1. Problem
+
+The feishu bot infrastructure currently captures all messages via `cc-connect` and persists them to ClickHouse (`cc.message_log`), but there is **no intent classification**. Every message looks the same in the observability pipeline -- a blob of text with a sender and a timestamp.
+
+Without intent classification, the following questions cannot be answered:
+
+| Question | Impact |
+|----------|--------|
+| How many questions vs. commands vs. alerts per day? | Cannot measure product-market fit: do users actually ask questions, or just fire commands? |
+| Is the bot being used as a Q&A system or a control panel? | Drives feature prioritization (RAG pipelines vs. action framework). |
+| Are alert volumes spiking? | A sustained surge in alert-class messages may indicate an upstream incident going unreported. |
+| Which chat groups generate the most commands? | Identifies power users and potential automation candidates. |
+| Is the question/command ratio shifting over time? | Leading indicator of user behaviour change (e.g., users discovering CLI commands). |
+| Are there messages that don't match any known intent? | Unknown intents may indicate new use cases or noise (spam, misconfigurations). |
+
+### 1.1 Current Blind Spots
+
+| Gap | Impact |
+|-----|--------|
+| No intent label on any stored message | Every message is equally "important" in queries -- cannot filter or aggregate by purpose. |
+| No volume baselines per intent class | Cannot detect anomalies (e.g., "command volume dropped 90% -- is the CLI broken?"). |
+| No trend tracking over time | Cannot answer "are users shifting from questions to commands?" without manual log grepping. |
+| No per-intent latency tracking | Question-type messages may tolerate 30s response, but command-type messages should be <5s. |
+| No alert-class detection upstream | Alert messages arriving via feishu groups are mixed with human chatter -- no way to separate signal from noise. |
+
+---
+
+## 2. Intent Taxonomy
+
+### 2.1 Four-Class Model
+
+Messages are classified into exactly one of four intents:
+
+```
+                    ┌─────────────────┐
+                    │   Raw Message    │
+                    │  (user → bot)   │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │  Classifier      │
+                    │  (rule + ML)    │
+                    └───┬──────┬──────┘
+                        │      │
+          ┌─────────────┼──────┼──────────────┐
+          │             │      │              │
+    ┌─────▼────┐ ┌─────▼──┐ ┌─▼──────┐ ┌─────▼──────┐
+    │ Question  │ │Command │ │ Report  │ │  Alert     │
+    │ (user     │ │(user   │ │(user or │ │ (system or │
+    │  asks)    │ │ orders)│ │ bot)    │ │  user)     │
+    └───────────┘ └────────┘ └─────────┘ └────────────┘
+```
+
+### 2.2 Class Definitions
+
+#### Question
+
+A message that seeks information, clarification, or analysis. The user expects an answer, not an action.
+
+| Signal | Examples |
+|--------|----------|
+| Interrogative syntax | "what is the current deploy status?", "why did the pod crash?" |
+| Question marks | "is the database healthy?", "can you check disk usage?" |
+| Exploratory language | "tell me about the error rate", "show me recent alerts" |
+| "How to" / "What is" | "how do I restart the service?", "what's our backup policy?" |
+
+**Typical response:** Claude provides an answer or analysis. No side effects beyond the conversation.
+
+#### Command
+
+A message that requests a specific action or state change. The user expects the bot to *do* something.
+
+| Signal | Examples |
+|--------|----------|
+| Imperative verbs | "restart nginx", "deploy staging", "scale up to 3 replicas" |
+| Short action phrases | "run migration", "checkout that branch", "prune old containers" |
+| Known action patterns | "kyb create sandbox", "glab mr create", "kubectl rollout" |
+| Confirmation expectations | "are you sure?" is asked back to the user, who must confirm |
+
+**Typical response:** Claude executes a tool call, produces a side effect, and reports the result.
+
+**Critical distinction:** A message like "check disk usage" could be question or command:
+- If the user wants *information* about disk usage -> Question.
+- If the user wants Claude to *run `df -h` and report back* -> Command.
+
+For our purposes, the distinction is: **does the response produce a side effect?** If yes, it is a Command. This is observable from the response metadata (tool calls vs. plain text answer).
+
+#### Report
+
+A message that delivers a status update, summary, or periodic information. Usually generated by automated processes (patrol, cron) or a user sharing context.
+
+| Signal | Examples |
+|--------|----------|
+| Structured data | "CPU: 45%, Memory: 62%, Disk: 78%" |
+| Periodic patterns | "5-minute patrol report", "daily summary", "weekly digest" |
+| Forwarded/relayed info | "Jenkins build #123 passed", "GitLab pipeline finished" |
+| No explicit request | The message is informational; no response is strictly required |
+
+**Typical response:** Claude may acknowledge or ask clarifying questions, but the primary purpose is information delivery.
+
+#### Alert
+
+A message that signals an anomaly, error, or urgent condition. Requires immediate attention or escalation.
+
+| Signal | Examples |
+|--------|----------|
+| Urgency markers | "CRITICAL", "P1", "down", "crash", "outage" |
+| Error indicators | "disk full", "OOM", "connection refused", "HTTP 5xx" |
+| Automated alert patterns | "Prometheus alert: ...", "PagerDuty: ...", "Node exporter: ..." |
+| Repetition | Same message type arriving rapidly (alert storm) |
+
+**Typical response:** Claude should escalate, investigate root cause, or trigger remediation.
+
+### 2.3 Classification Ambiguity
+
+Some messages may legitimately span multiple classes. The classifier uses **priority-based resolution**:
+
+```
+                    ┌─────────────────┐
+                    │   Raw Message    │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+         ┌────▼────┐   ┌────▼────┐   ┌─────▼─────┐
+         │ Matches │   │ Matches │   │ Matches   │
+         │ Alert?  │   │ Cmd?    │   │ Question? │
+         │ ──→ YES │   │ ──→ YES │   │ ──→ YES   │
+         └────┬────┘   └────┬────┘   └─────┬─────┘
+              │ YES         │ NO           │ NO
+              ▼              │              │
+         ┌────────┐          ▼              │
+         │ ALERT  │     ┌────────┐          │
+         └────────┘     │ COMMAND│          │
+                        └───┬────┘          │
+                            │ NO            │
+                                            ▼
+                                       ┌──────────┐
+                                       │ QUESTION │
+                                       └──────────┘
+```
+
+If no class matches with high confidence:
+- Rule-based: fall through to **Question** (conservative default).
+- ML-based: assign `unknown` and flag for manual labelling.
+
+---
+
+## 3. Architecture
+
+```
+             ┌──────────────────────────────────────────┐
+             │              cc-connect                    │
+             │  ┌────────────────────────────────────┐   │
+             │  │  Message received (WebSocket event)  │   │
+             │  └────────────┬───────────────────────┘   │
+             │               │                            │
+             │  ┌────────────▼───────────────────────┐   │
+             │  │  Classification Hook                 │   │
+             │  │  (native hook: message.received)     │   │
+             │  │  → Rule-based pre-classify           │   │
+             │  │  → Emit intent label                 │   │
+             │  └────────────┬───────────────────────┘   │
+             │               │                            │
+             │  ┌────────────▼───────────────────────┐   │
+             │  │  Hook Event + Intent Label           │   │
+             │  │  → POST to Kafka REST Proxy          │   │
+             │  └────────────┬───────────────────────┘   │
+             └───────────────┼───────────────────────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+       ┌────────────┐ ┌──────────┐ ┌──────────────┐
+       │  Kafka     │ │ClickHouse│ │  Prometheus  │
+       │  cc.hooks  │ │message   │ │  counters    │
+       │  topic     │ │log table │ │  per intent  │
+       └────────────┘ └──────────┘ └──────────────┘
+              │              │
+              ▼              ▼
+       ┌────────────┐ ┌──────────────┐
+       │ Grafana    │ │  Alerter     │
+       │ Dashboard  │ │  (volume     │
+       │ (intent    │ │  anomalies,  │
+       │  volume,   │ │  trend       │
+       │  trends)   │ │  shifts)     │
+       └────────────┘ └──────────────┘
+```
+
+### 3.1 Data Flow
+
+```
+Step 1: User sends message → feishu WebSocket event (im.message.receive_v1)
+Step 2: cc-connect receives event, fires message.received hook
+Step 3: Classification hook enriches event with intent label
+Step 4: Enriched event → Kafka topic cc.hooks (via REST Proxy)
+Step 5: ClickHouse Kafka Engine ingests into cc.hook_events
+Step 6: Materialized views aggregate volume per intent per time window
+Step 7: Prometheus counters exposed for real-time dashboarding
+```
+
+### 3.2 Classification Hook
+
+Attached to cc-connect's `message.received` native hook. Runs synchronously (sub-ms classification to avoid adding latency).
+
+**Input:** Raw message text + metadata (sender_id, chat_id, chat_type).
+
+**Output:** Structured event with added `intent` field:
+
+```json
+{
+  "event_type": "message.received",
+  "timestamp": "2026-05-23T10:00:00Z",
+  "message_id": "om_xxxxxxxxxx",
+  "chat_id": "oc_xxxxxx",
+  "sender_id": "ou_xxxxxx",
+  "chat_type": "group",
+  "text": "what's the current CPU usage?",
+  "classification": {
+    "intent": "question",
+    "confidence": 0.95,
+    "method": "rule",
+    "signals": ["interrogative", "question_mark", "information_seeking"]
+  }
+}
+```
+
+---
+
+## 4. Classifier Implementation
+
+### 4.1 Phase 1: Rule-Based Classifier (Immediate)
+
+A deterministic classifier using pattern matching. No ML dependencies, no training data required. Deployable within hours.
+
+**Implementation as a shell/Python script invoked by cc-connect hook:**
+
+```python
+# ~/.kyb/bin/classify-message
+# stdin: JSON message
+# stdout: JSON message + classification envelope
+# Exit code: 0 (classified) or 1 (error)
+
+import json, sys, re
+
+def classify(text: str, metadata: dict) -> dict:
+    text_lower = text.lower().strip()
+
+    signals = []
+
+    # Alert detection (highest priority)
+    alert_patterns = [
+        r'\b(critical|p1|p0|outage|down|crash|on.fire|紧急|告警)\b',
+        r'\b(disk full|oom|killed|panic|segfault)\b',
+        r'\b(alert|alerting):.*',
+        r'^\[alert\]',
+        r'(error rate|failure rate).*(\d+%|\d+\.\d+)',
+    ]
+    if any(re.search(p, text_lower) for p in alert_patterns):
+        signals.append("alert_pattern")
+
+    # Command detection
+    command_patterns = [
+        r'\b(restart|deploy|rollback|scale|exec|run|create|delete|rm|prune)\b',
+        r'\b(start|stop|reboot|reload|migrate|checkout|merge|push)\b',
+        r'^kyb\s+',
+        r'^kubectl\s+',
+        r'^glab\s+',
+        r'^docker\s+',
+    ]
+    if any(re.search(p, text_lower) for p in command_patterns):
+        signals.append("imperative_verb")
+
+    # Question detection
+    question_patterns = [
+        r'\?$',
+        r'^(what|why|how|when|where|who|which|is|are|can|could|would|does|do)',
+        r'\b(tell me|show me|list|check|find|lookup)\b',
+    ]
+    if any(re.search(p, text_lower) for p in question_patterns):
+        signals.append("interrogative")
+
+    # Report detection
+    report_patterns = [
+        r'^\d{2}:\d{2}.*(cpu|memory|disk|load)',
+        r'(patrol report|daily summary|weekly digest)',
+        r'(build|pipeline|deployment).*(passed|failed|succeeded)',
+        r'(running|completed).*(minutes|hours)',
+    ]
+    if any(re.search(p, text_lower) for p in report_patterns):
+        signals.append("structured_report")
+
+    # Resolve by priority: alert > command > report > question > unknown
+    if "alert_pattern" in signals:
+        intent = "alert"
+    elif "imperative_verb" in signals:
+        intent = "command"
+    elif "structured_report" in signals:
+        intent = "report"
+    elif "interrogative" in signals:
+        intent = "question"
+    else:
+        intent = "question"      # conservative default
+        signals.append("fallback_default")
+
+    return {
+        "intent": intent,
+        "confidence": _estimate_confidence(signals),
+        "method": "rule",
+        "signals": signals
+    }
+
+def _estimate_confidence(signals: list) -> float:
+    """Heuristic confidence based on signal strength."""
+    if len(signals) >= 3:
+        return 0.95
+    elif len(signals) == 2:
+        return 0.80
+    elif len(signals) == 1:
+        return 0.60
+    return 0.40
+
+# --- main ---
+if __name__ == "__main__":
+    msg = json.load(sys.stdin)
+    text = msg.get("text", "")
+    meta = {"chat_type": msg.get("chat_type", "")}
+    result = classify(text, meta)
+    msg["classification"] = result
+    json.dump(msg, sys.stdout)
+```
+
+**Pattern source:** `~/.kyb/etc/classification-patterns.json` (editable without code changes):
+
+```json
+{
+  "alert": [
+    {"pattern": "\\b(critical|p1|p0|outage)\\b", "weight": 2},
+    {"pattern": "\\b(disk full|oom|killed)\\b", "weight": 3}
+  ],
+  "command": [
+    {"pattern": "\\b(restart|deploy|rollback|scale)\\b", "weight": 2},
+    {"pattern": "^kyb\\s+", "weight": 3}
+  ],
+  "question": [
+    {"pattern": "\\?$", "weight": 2},
+    {"pattern": "^(what|why|how)", "weight": 1}
+  ],
+  "report": [
+    {"pattern": "(patrol report|daily summary)", "weight": 3},
+    {"pattern": "^\\d{2}:\\d{2}\\s+(cpu|memory|disk)", "weight": 2}
+  ]
+}
+```
+
+### 4.2 Phase 2: ML-Assisted Classifier (After Baseline)
+
+Once sufficient labelled data exists (target: 5,000 classified messages), introduce an ML layer:
+
+**Approach:** Lightweight ONNX model or scikit-learn classifier, run as a sidecar.
+
+| Component | Choice | Rationale |
+|-----------|--------|-----------|
+| Model | Logistic Regression or FastText | Small footprint, fast inference (<1ms), interpretable |
+| Features | TF-IDF unigrams + bigrams + signal flags | Captures both surface patterns and learned semantics |
+| Training data | Rule-classified messages + manual corrections | Start with weak labels, iteratively improve |
+| Inference | Sidecar HTTP server (FastAPI + ONNX) | No dependency changes to cc-connect |
+| Fallback | Rule-based classifier runs alongside | ML model returns `confidence`; if < 0.7, fall back to rule output |
+
+**Semi-supervised bootstrap loop:**
+
+```
+     Rule Classifier
+          │
+          ▼
+     ClickHouse (label: rule_class)
+          │
+          ▼
+     Sample 100 messages/week for manual review
+          │
+          ▼
+     Correct labels → train ML model
+          │
+          ▼
+     Compare ML vs. rule on held-out set
+          │
+     ┌────┴────┐
+     │ ML wins │  (improvement > 5% F1) → promote ML to primary
+     │ Rule    │  (no improvement) → stick with rule
+     └─────────┘
+```
+
+### 4.3 Classification Quality Metrics
+
+| Metric | How Measured | Target |
+|--------|-------------|--------|
+| Accuracy | Manual review of 100 samples/week | > 90% |
+| Precision per class | TP / (TP + FP) per class | Alert: > 95%, Command: > 85%, Question: > 90%, Report: > 80% |
+| Recall per class | TP / (TP + FN) per class | Alert: > 90%, Command: > 80%, Question: > 90%, Report: > 75% |
+| Latency | Time from message receipt to classification | < 5ms (rule), < 20ms (ML) |
+| Unknown rate | % of messages classified as unknown | < 5% |
+
+---
+
+## 5. Storage Schema
+
+### 5.1 ClickHouse: Extend `cc.hook_events`
+
+Add classification fields to the existing hooks ingestion table (defined in `hooks-kafka.md`):
+
+```sql
+ALTER TABLE cc.hook_events
+ADD COLUMN IF NOT EXISTS intent            LowCardinality(String) AFTER text,
+ADD COLUMN IF NOT EXISTS intent_confidence Float32                 AFTER intent,
+ADD COLUMN IF NOT EXISTS intent_method     LowCardinality(String)  AFTER intent_confidence,
+ADD COLUMN IF NOT EXISTS intent_signals    Array(String)           AFTER intent_method;
+```
+
+### 5.2 ClickHouse: Intent Aggregation Table
+
+```sql
+CREATE TABLE cc.intent_metrics (
+    timestamp   DateTime64(3),
+    intent      LowCardinality(String),
+    chat_id     String,
+    sender_id   String,
+    chat_type   LowCardinality(String),   -- group / p2p
+    count       UInt32 DEFAULT 1,
+    method      LowCardinality(String)    -- rule / ml / fallback
+) ENGINE = MergeTree
+ORDER BY (toStartOfHour(timestamp), intent, chat_id)
+TTL toDate(timestamp) + INTERVAL 90 DAY;
+```
+
+### 5.3 ClickHouse: Materialized Views
+
+**Hourly volume per intent:**
+
+```sql
+CREATE MATERIALIZED VIEW cc.intent_volume_hourly_mv
+ENGINE = SummingMergeTree
+ORDER BY (hour, intent)
+POPULATE AS
+SELECT
+    toStartOfHour(timestamp) AS hour,
+    intent,
+    count() AS message_count,
+    countDistinct(chat_id) AS chat_count,
+    countDistinct(sender_id) AS sender_count
+FROM cc.intent_metrics
+GROUP BY hour, intent;
+```
+
+**Daily volume per intent:**
+
+```sql
+CREATE MATERIALIZED VIEW cc.intent_volume_daily_mv
+ENGINE = SummingMergeTree
+ORDER BY (day, intent)
+POPULATE AS
+SELECT
+    toDate(timestamp) AS day,
+    intent,
+    count() AS message_count,
+    countDistinct(chat_id) AS chat_count,
+    countDistinct(sender_id) AS sender_count
+FROM cc.intent_metrics
+GROUP BY day, intent;
+```
+
+**Intent shift detection (7d vs 1d comparison):**
+
+```sql
+CREATE MATERIALIZED VIEW cc.intent_trend_mv
+ENGINE = AggregatingMergeTree
+ORDER BY (day, intent)
+POPULATE AS
+SELECT
+    toDate(timestamp) AS day,
+    intent,
+    count() AS today_count,
+    lagInFrame(count()) OVER (
+        PARTITION BY intent
+        ORDER BY toDate(timestamp)
+        ROWS BETWEEN 7 PRECEDING AND 1 PRECEDING
+    ) AS trailing_7d_avg
+FROM cc.intent_metrics
+GROUP BY day, intent;
+```
+
+---
+
+## 6. Metrics
+
+### 6.1 Prometheus Counters
+
+Exposed via a small metrics endpoint (node_exporter textfile collector or dedicated sidecar):
+
+```prometheus
+# HELP feishu_messages_total Messages classified by intent
+# TYPE feishu_messages_total counter
+feishu_messages_total{intent="question",chat_type="group"} 1280
+feishu_messages_total{intent="command",chat_type="group"} 450
+feishu_messages_total{intent="report",chat_type="group"} 320
+feishu_messages_total{intent="alert",chat_type="group"} 15
+feishu_messages_total{intent="question",chat_type="p2p"} 200
+feishu_messages_total{intent="command",chat_type="p2p"} 80
+feishu_messages_total{intent="unknown",chat_type="group"} 5
+
+# HELP feishu_intent_classification_latency_ms Time to classify a message
+# TYPE feishu_intent_classification_latency_ms histogram
+feishu_intent_classification_latency_ms_bucket{method="rule",le="1"} 2200
+feishu_intent_classification_latency_ms_bucket{method="rule",le="5"} 300
+feishu_intent_classification_latency_ms_bucket{method="rule",le="10"} 10
+feishu_intent_classification_latency_ms_bucket{method="rule",le="+Inf"} 0
+feishu_intent_classification_latency_ms_count{method="rule"} 2510
+
+# HELP feishu_classification_confidence Distribution of confidence scores
+# TYPE feishu_classification_confidence histogram
+feishu_classification_confidence_bucket{intent="question",le="0.5"} 10
+feishu_classification_confidence_bucket{intent="question",le="0.7"} 45
+feishu_classification_confidence_bucket{intent="question",le="0.9"} 320
+feishu_classification_confidence_bucket{intent="question",le="1.0"} 1280
+
+# HELP feishu_classification_fallback_count Classifier fell back to default
+# TYPE feishu_classification_fallback_count counter
+feishu_classification_fallback_count{reason="no_pattern_match"} 25
+feishu_classification_fallback_count{reason="ml_confidence_low"} 8
+```
+
+### 6.2 Derived Metrics (Grafana)
+
+| Metric | Formula | Source |
+|--------|---------|--------|
+| Question/Command ratio | `question_total / command_total` | PromQL |
+| Alert rate | `rate(alert_total[1h])` | PromQL |
+| Intent diversity | `count(intent) per chat` per day | ClickHouse |
+| Unknown rate | `unknown_total / total` | PromQL |
+| Command adoption | `command_total / (question_total + command_total)` | PromQL |
+| Chat-type breakdown | % group vs p2p per intent | ClickHouse |
+
+---
+
+## 7. Dashboards
+
+### 7.1 Grafana: Intent Overview
+
+```
+Row: "Intent Volume"
+  ├── Stat: Total Messages (24h)
+  ├── Stat: Question/Command Ratio
+  ├── Stat: Alert Count (24h)  - red if > 0
+  └── Stat: Unknown Count (24h) - yellow if > 10
+
+Row: "Volume by Intent"
+  ├── Time Series: Messages per hour, stacked by intent (24h)
+  ├── Time Series: Messages per day, stacked by intent (7d)
+  └── Bar Chart: Intent distribution (current day vs yesterday)
+
+Row: "Intent Breakdown"
+  ├── Pie: Question vs Command vs Report vs Alert (current day)
+  ├── Table: Top 10 chat groups by command volume
+  ├── Table: Top 10 chat groups by alert volume
+  └── Table: Top 10 senders by question volume
+
+Row: "Trends"
+  ├── Time Series: Question/Command ratio over 30d
+  ├── Time Series: Alert rate per day over 30d
+  ├── Time Series: Unknown rate over 7d
+  └── Stat: Intent direction (rising/falling per class, week-over-week)
+```
+
+### 7.2 Grafana: Alert Detail
+
+```
+Row: "Alert Messages"
+  ├── Table: Recent alert-class messages (timestamp, chat, sender, text preview)
+  ├── Time Series: Alert count per chat (24h)
+  └── Stat: Time since last alert
+
+Row: "Anomalies"
+  ├── Time Series: Current volume vs trailing 7d average per intent
+  └── Stat: Volume deviation % per intent (highlight > 2 sigma)
+```
+
+---
+
+## 8. Alert Rules
+
+| Rule | Condition | Severity | Channel | Cooldown |
+|------|-----------|----------|---------|----------|
+| **AlertVolumeSpike** | Alert-class messages > 50/h (sustained 5min) | P1 | PagerDuty + Feishu | 10min |
+| **CommandVolumeDrop** | Command rate drops > 80% vs same hour yesterday | P2 | Feishu alert group | 30min |
+| **QuestionVolumeSpike** | Question rate > 3x trailing 7d average (sustained 1h) | P3 | Dashboard warning | 1h |
+| **UnknownRateHigh** | Unknown classification rate > 10% over 1h | P3 | Dashboard warning | 1h |
+| **IntentShiftDetected** | Question/Command ratio shifts > 50% week-over-week | P3 | Weekly digest | 24h |
+| **ClassifierDown** | No classification metrics received for 15min | P2 | PagerDuty | 15min |
+
+### Alert Rationale
+
+- **AlertVolumeSpike (P1):** A sudden surge in alert-class messages likely means a real incident is unfolding and messages are pouring in via feishu notification groups. This is the most actionable alert because it correlates with actual service degradation.
+- **CommandVolumeDrop (P2):** A drop in commands may indicate a broken integration (users can't execute commands) or a UI change on the feishu side. Less urgent than P1 because breakage is typically reported by users quickly.
+- **QuestionVolumeSpike (P3):** Could indicate a new feature driving engagement, or confusion about a recent change. Worth investigating but not urgent.
+- **UnknownRateHigh (P3):** The classifier is encountering unfamiliar patterns. Could mean new use cases emerging, or classifier drift.
+
+---
+
+## 9. Implementation Plan
+
+### Phase 1: Rule Classifier + Counter (Day 1)
+
+| Step | Deliverable | Depends On |
+|------|-------------|------------|
+| 1.1 | Write `~/.kyb/bin/classify-message` (rule-based Python script) | -- |
+| 1.2 | Define `~/.kyb/etc/classification-patterns.json` | 1.1 |
+| 1.3 | Wire script into cc-connect `message.received` hook | 1.1 |
+| 1.4 | Emit classification as enriched hook event to Kafka | 1.3 |
+| 1.5 | Extend `cc.hook_events` table with classification columns | -- |
+| 1.6 | Verify classification appears in ClickHouse | 1.4, 1.5 |
+
+**Verification:** Send a test question and a test command via feishu. Confirm `cc.hook_events` contains `intent="question"` and `intent="command"` respectively.
+
+### Phase 2: Metrics + Dashboard (Day 2)
+
+| Step | Deliverable | Depends On |
+|------|-------------|------------|
+| 2.1 | Create Prometheus counters for per-intent message volume | 1.4 |
+| 2.2 | Create `cc.intent_metrics` table in ClickHouse | 1.5 |
+| 2.3 | Create materialized views (`cc.intent_volume_hourly_mv`, `cc.intent_volume_daily_mv`) | 2.2 |
+| 2.4 | Build Grafana dashboard: Intent Overview (Section 7.1) | 2.1, 2.3 |
+| 2.5 | Configure Grafana alert: AlertVolumeSpike | 2.4 |
+
+**Verification:** Dashboard shows intents populating as messages arrive. AlertVolumeSpike can be triggered by sending 10 alert-class messages in rapid succession.
+
+### Phase 3: Trend Baseline + Alerts (Week 1)
+
+| Step | Deliverable | Depends On |
+|------|-------------|------------|
+| 3.1 | Establish 7-day volume baseline per intent | 2.3 |
+| 3.2 | Configure Grafana alerts: CommandVolumeDrop, QuestionVolumeSpike, UnknownRateHigh | 3.1 |
+| 3.3 | Build Alert Detail dashboard (Section 7.2) | 2.4 |
+| 3.4 | Add intent metrics to patrol report | 2.1 |
+
+**Verification:** After 7 days, alerts have appropriate baselines. Patrol report includes "Messages: 42 questions, 15 commands, 3 alerts today."
+
+### Phase 4: ML Classifier + Refinement (Week 2-3)
+
+| Step | Deliverable | Depends On |
+|------|-------------|------------|
+| 4.1 | Export 5,000 labelled messages from ClickHouse as training set | 2.3 |
+| 4.2 | Train FastText/RF classifier | 4.1 |
+| 4.3 | Deploy ML sidecar with ONNX runtime | 4.2 |
+| 4.4 | A/B test ML vs rule classifier (1 week shadow mode) | 4.3 |
+| 4.5 | Promote ML to primary if F1 improves > 5%; else keep rules | 4.4 |
+
+**Verification:** ML classifier achieves > 90% accuracy on held-out test set. Classification confidence histograms show shift toward higher confidence.
+
+### Phase 5: Intent-Aware Routing (Week 3+)
+
+| Step | Deliverable | Depends On |
+|------|-------------|------------|
+| 5.1 | Route alert-class messages to dedicated escalation channel | 1.4 |
+| 5.2 | Auto-prioritize command-class messages (faster Claude model, shorter timeout) | 1.4 |
+| 5.3 | Implement per-intent response latency SLO tracking | 2.1 |
+| 5.4 | Detect and deduplicate alert storms (same message from multiple sources) | 2.3 |
+
+**Verification:** Alert messages bypass normal queue and go directly to urgent processing. Dashboard shows per-intent latency SLO compliance.
+
+---
+
+## 10. Operational Considerations
+
+### 10.1 Classification Accuracy Over Time
+
+Pattern drift is the primary risk. Language use evolves:
+
+| Risk | Detection | Mitigation |
+|------|-----------|------------|
+| New command patterns (e.g., new kyb subcommands) | Unknown rate increases | Update `classification-patterns.json` (no code change) |
+| Alert format changes (e.g., Prometheus alert format update) | Alert volume appears to drop | Alert on volume drop triggers review |
+| User behaviour shifts (e.g., more commands, fewer questions) | Intent shift alert fires | Review dashboard, possibly rebalance classifier |
+
+### 10.2 Cost
+
+| Resource | Estimate | At Scale (10x) |
+|----------|----------|----------------|
+| Rule classifier execution | ~1ms per message, negligible CPU | ~2ms per message, still negligible |
+| ML inference sidecar | ~10ms per message, ~50MB RAM | ~100MB RAM, scalable horizontally |
+| ClickHouse storage (intent metrics) | ~50 bytes per message | ~5GB/year at 100k messages/day |
+| Prometheus metrics | ~5 time series per intent, 15s scrape | ~20 time series, still trivial |
+
+### 10.3 Failure Mode: Classifier Offline
+
+If the classification hook fails (script error, pattern file corrupt, ML sidecar down):
+
+1. **Messages still flow** through cc-connect -- classification is non-blocking enrichment, not a gateway.
+2. **Messages are stored** in `cc.hook_events` with `intent = NULL`.
+3. **Missing intent alert** fires after 15 minutes of no classification metrics.
+4. **Backfill** is possible by re-running the classifier on unclassified messages (ClickHouse query filters `WHERE intent IS NULL`).
+
+### 10.4 Privacy Considerations
+
+Classification runs on message text. Since this is an internal infrastructure bot and messages are already stored in ClickHouse, no additional privacy risk is introduced. However:
+
+- Classification script runs in-process; message text is not sent to any external service.
+- ML model is trained on internal data only; no cloud ML APIs.
+- If message text contains secrets (passwords, tokens), the classification patterns should not log matched text. Use `re.search` for matching but log only the pattern name, not the matched substring.
+
+### 10.5 Multi-Language Support
+
+Current patterns are Chinese + English. The bot serves both languages. Pattern lists must include equivalents in both languages:
+
+```json
+{
+  "command": [
+    {"pattern": "\\b(restart|重启)\\b", "weight": 2},
+    {"pattern": "\\b(deploy|部署)\\b", "weight": 2},
+    {"pattern": "\\b(rollback|回滚)\\b", "weight": 2}
+  ]
+}
+```
+
+Consider migrating to FastText for language-agnostic classification in Phase 4.
+
+---
+
+## 11. Summary
+
+| Aspect | Design Decision |
+|--------|----------------|
+| Taxonomy | 4 classes: Question, Command, Report, Alert (priority: Alert > Command > Report > Question) |
+| Classifier Phase 1 | Rule-based (pattern matching + regex), no ML dependencies |
+| Classifier Phase 2 | ML sidecar (FastText/ONNX), deployed after 5k labelled messages |
+| Resolution priority | Alert wins over Command wins over Report wins over Question |
+| Incremental improvement | Semi-supervised bootstrap: rule labels → human corrections → ML training |
+| Storage | Extend `cc.hook_events` + new `cc.intent_metrics` table + materialized views |
+| Metrics | Prometheus counters per intent/chat_type |
+| Dashboards | Intent Overview + Alert Detail in Grafana |
+| Key alerts | AlertVolumeSpike (P1), CommandVolumeDrop (P2), UnknownRateHigh (P3) |
+| Fault tolerance | Non-blocking: messages flow even when classifier is down; backfillable |
+| Fallback | Conservative default: unclassifiable messages become `question` |
+| Cost | Negligible at current scale (~1ms rule, ~10ms ML, ~50 bytes/message in CK) |
+
+This classification system turns unstructured feishu message streams into actionable observability data. Without it, the team operates on anecdotal impressions ("feels like there are more commands lately") rather than data. With it, every usage trend, anomaly, and shift is surfaced automatically through dashboards and alerts.
+
+---
+
+## 12. References
+
+- Feishu delivery monitoring: `docs/infra/reviews/feishu-delivery.md`
+- Hook to Kafka pipeline: `docs/infra/reviews/hooks-kafka.md`
+- Message log schema: `docs/infra/reviews/review-bridge-ck-ingestion-A1.md`
+- Session monitoring: `docs/infra/reviews/session-monitor.md`
+- Observability design: `docs/infra/observability-design.md`
+- cc-connect hook events: `docs/infra/handbook/hooks-ck-pipeline.md`
+- Patrol guide: `docs/infra/5min-patrol-guide.md`
+
+---
+
+/人◕ ‿‿ ◕人＼

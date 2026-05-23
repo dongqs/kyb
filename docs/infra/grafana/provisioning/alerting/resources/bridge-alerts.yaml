@@ -1,0 +1,110 @@
+# docs/infra/grafana/provisioning/alerting/resources/bridge-alerts.yaml
+# Alerting rules for cc-connect bridge health.
+# Data source: ClickHouse, table: cc.message_log
+# Cross-reference: docs/infra/reviews/bridge-hooks-C2.md, docs/infra/reviews/bridge-hooks-C3.md
+apiVersion: 1
+groups:
+  - name: bridge-alerts
+    folder: kyb-infra-alerts
+    interval: 30s
+    rules:
+      - uid: cc_connect_down
+        title: "CC-Connect Container Down"
+        condition: "A"
+        data:
+          - refId: A
+            queryType: sql
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              rawSql: |-
+                SELECT 1
+                FROM cc.message_log
+                WHERE event_time > now() - 60
+                LIMIT 1
+        noDataState: Alerting
+        for: 2m
+        annotations:
+          summary: "CC-Connect appears down — no message_log entries in 2 min"
+          runbook_url: "docs/infra/disaster-recovery.md"
+        labels:
+          severity: critical
+          p: "0"
+
+      - uid: high_turn_latency
+        title: "High Turn Latency (>30s for 5min)"
+        condition: "A"
+        data:
+          - refId: A
+            queryType: sql
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              rawSql: |-
+                SELECT
+                  quantile(0.95)(turn_duration) AS p95_latency
+                FROM cc.message_log
+                WHERE event_type = 'message_sent'
+                  AND event_time > now() - 300
+              format: table
+        for: 5m
+        annotations:
+          summary: "P95 turn latency >30s sustained for 5 minutes — Claude may be degraded"
+        labels:
+          severity: warning
+          p: "1"
+
+      - uid: claude_no_response
+        title: "Claude No Response Detected"
+        condition: "A"
+        data:
+          - refId: A
+            queryType: sql
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              rawSql: |-
+                SELECT
+                  countIf(event_type = 'message_received') AS received,
+                  countIf(event_type = 'message_sent') AS sent,
+                  countIf(event_type = 'message_received') - countIf(event_type = 'message_sent') AS unresponded
+                FROM cc.message_log
+                WHERE event_time > now() - 600
+              format: table
+        for: 2m
+        annotations:
+          summary: "Received messages without corresponding responses — Claude may be stuck"
+        labels:
+          severity: critical
+          p: "1"
+
+      - uid: message_silence_15min
+        title: "Bridge Message Silence >15min"
+        condition: "A"
+        data:
+          - refId: A
+            queryType: sql
+            relativeTimeRange:
+              from: 1200
+              to: 0
+            datasourceUid: clickhouse
+            model:
+              rawSql: |-
+                SELECT count() AS msg_count
+                FROM cc.message_log
+                WHERE event_time > now() - 900
+              format: table
+        noDataState: Alerting
+        for: 15m
+        annotations:
+          summary: "No bridge messages for 15 minutes — hook pipeline may be silent"
+          runbook_url: "docs/infra/patrol-guide.md"
+        labels:
+          severity: warning
+          p: "2"
