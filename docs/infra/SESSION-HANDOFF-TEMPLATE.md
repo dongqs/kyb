@@ -223,6 +223,12 @@ chat.md                        ← Feishu/DingTalk troubleshooting
 - **File conflict groups** -- don't let agents touch same files simultaneously
 - **Context limits** -- batch agents per wave
 - **Parallel by default** -- dispatch, monitor, collect
+- **🔴 容器替换铁律：永远不要 docker rm 当前容器** -- 你在容器里，rm 掉就是自杀。正确流程：
+  1. `docker rename kyb-infra-boss kyb-infra-boss-old`（改名腾出名字，你还在里面）
+  2. 让人起新的 `kyb-infra-boss`（新的容器启动后会关掉 old）
+  3. 你手动 `exit` 结束会话
+- **🔴 改网络先备份** -- 改 sing-box 配置前必须 `cp config.json config.json.last-good`
+- **🔴 语法校验先于重载** -- 改完先 `sing-box check -c config.json` 再 `docker kill -s HUP`
 
 ---
 
