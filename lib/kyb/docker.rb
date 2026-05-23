@@ -164,6 +164,17 @@ module Kyb::Docker
     if kyb_proxy
       kyb_proxy_translated = host_to_docker_proxy(kyb_proxy)
       args += ['-e', "KYB_PROXY=#{kyb_proxy_translated}"]
+      # Also export as ALL_PROXY/HTTPS_PROXY/HTTP_PROXY so docker exec inherits them
+      # (entrypoint.sh export only affects pid 1, not docker exec processes)
+      args += ['-e', "ALL_PROXY=#{kyb_proxy_translated}"]
+      args += ['-e', "all_proxy=#{kyb_proxy_translated}"]
+      args += ['-e', "HTTPS_PROXY=#{kyb_proxy_translated}"]
+      args += ['-e', "https_proxy=#{kyb_proxy_translated}"]
+      args += ['-e', "HTTP_PROXY=#{kyb_proxy_translated}"]
+      args += ['-e', "http_proxy=#{kyb_proxy_translated}"]
+      no_proxy_val = '.deepseek.com,localhost,127.0.0.1,host.orb.internal,.local,.internal,192.168.0.0/16,100.64.0.0/10'
+      args += ['-e', "NO_PROXY=#{no_proxy_val}"]
+      args += ['-e', "no_proxy=#{no_proxy_val}"]
     end
     args += ['-e', "KYB_NO_PROXY=#{kyb_no_proxy}"] if kyb_no_proxy
     args += ['-e', "KYB_BRANCH=#{branch}"] if branch
