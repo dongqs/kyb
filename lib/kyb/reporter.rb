@@ -2,6 +2,7 @@
 
 require 'net/http'
 require 'json'
+require 'socket'
 
 module Kyb::Reporter
   CLICKHOUSE_HOST = ENV.fetch('CLICKHOUSE_HOST', 'host.orb.internal')
@@ -9,6 +10,9 @@ module Kyb::Reporter
   CLICKHOUSE_DB = ENV.fetch('CLICKHOUSE_DB', 'kyb')
   METRICS_TABLE = 'metrics'
   SESSIONS_TABLE = 'sessions'
+
+  # Cache: nil = unchecked, true = resolvable, false = not resolvable
+  @host_reachable = nil
 
   module_function
 
@@ -117,6 +121,8 @@ module Kyb::Reporter
   end
 
   def http_post(path, body)
+    return unless host_resolvable?
+
     http = Net::HTTP.new(CLICKHOUSE_HOST, CLICKHOUSE_PORT)
     http.open_timeout = 3
     http.read_timeout = 3
@@ -129,5 +135,18 @@ module Kyb::Reporter
     end
   rescue => e
     warn "kyb/reporter: HTTP error: #{e.class.name}: #{e.message}"
+  end
+
+  # Checks whether the ClickHouse host is resolvable. Caches the result so we
+  # only perform DNS lookup once per process. Returns false when running on the
+  # macOS host where host.orb.internal does not resolve (only available inside
+  # Orbstack Docker containers).
+  def host_resolvable?
+    return true if @host_reachable
+
+    Socket.getaddrinfo(CLICKHOUSE_HOST, nil, Socket::AF_INET, Socket::SOCK_STREAM)
+    @host_reachable = true
+  rescue Socket::ResolutionError, SocketError
+    @host_reachable = false
   end
 end

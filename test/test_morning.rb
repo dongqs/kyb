@@ -11,6 +11,14 @@ class MorningTest < Minitest::Test
     ].each { |m|
       @_orig_morning[m] = Kyb::CLI.method(m) rescue nil }
     require_relative '../lib/kyb/cli/morning'
+    @_orig_morning = {}
+    %i[
+      morning_hostname morning_project morning_branch morning_user
+      morning_git_status_text morning_docker_running morning_docker_images_size
+      morning_disk_pct morning_pg_ready? morning_ck_table_info
+      morning_proxy_url morning_proxy_check morning_recent_events morning_batch_tasks
+    ].each { |m|
+      @_orig_morning[m] = Kyb::CLI.method(m) rescue nil }
     Kyb::CLI.define_singleton_method(:morning_hostname) { 'kyb-test-box' }
     Kyb::CLI.define_singleton_method(:morning_project) { 'test' }
     Kyb::CLI.define_singleton_method(:morning_branch) { 'dev' }
