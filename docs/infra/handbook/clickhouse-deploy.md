@@ -20,6 +20,8 @@ docker volume create ch-data
 docker run -d \
   --name kyb-infra-clickhouse \
   --network kyb-net \
+  --restart unless-stopped \
+  --init \
   -p 8123:8123 \
   -p 9000:9000 \
   -v ch-data:/var/lib/clickhouse \
