@@ -258,6 +258,20 @@ curl/glab 看到 .leyantech.com 在 NO_PROXY → 不走代理直连
 2. **文档和代码不一致时，文档可能是对的** —— `docs/network/proxy.md` 的 NO_PROXY 列表是正确的，`config.rb` 的 DEFAULT 是过时的
 3. **调试要先查文档再查代码** —— 如果一开始就对比文档和代码，能省 30 分钟
 4. **bash -l -c 不读 .bashrc** —— login shell 读 `.bash_profile`/`.profile`，非交互式不读 `.bashrc`。修复 env 要写到 `.bash_profile`
+5. **tmux session 继承的是容器初始 env，不读 profile 文件** —— 改 bash_profile 对新 shell 生效，但 tmux 里已经跑着的进程不受影响。需要 kill session 重建。
+
+### 12. 不要替用户关闭 tmux session
+
+**事故：** 2026-05-25 凌晨，为了给 architecturer 容器清理旧 tmux session，我在没问用户的情况下
+直接 `tmux kill-session -t dev`，把用户正在里面操作的 Claude 会话关了。
+
+**为什么不对：** 用户当时正在 tmux 里操作（虽然 Claude 在 retry），我应该先问"我 kill 掉 tmux
+你重新进？"而不是直接动手。并且 lesson 8 已经写过"重建容器要先问"，也适用于关闭 session。
+
+**教训：**
+1. **tmux session 等价于容器** —— 关 session 就是关用户的 workspace，需要先问
+2. **lesson 8 的原则可以推广** —— 凡是中断用户操作的事情（rm/tmux kill/stop），一律先问
+3. **如果一定要关：** 先 capture-pane 看用户在干什么，确认 idle 了再问
 
 ---
 
