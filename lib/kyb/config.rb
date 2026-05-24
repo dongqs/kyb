@@ -13,6 +13,9 @@ module Kyb::Config
     'localhost', '127.0.0.1'
   ].freeze
 
+  DEFAULT_NO_PROXY = '.leyantech.com,git.leyantech.com,nexus.leyantech.com,.deepseek.com,localhost,127.0.0.1,host.orb.internal,192.168.0.0/16,100.64.0.0/10,.kyb-net,.internal,.local,kyb-infra-sing-box,kyb-infra-boss,kyb-infra-*'.freeze
+  DEFAULT_MEMORY = '8g'.freeze
+
   module_function
 
   def load_config
@@ -58,7 +61,11 @@ module Kyb::Config
   end
 
   def no_proxy
-    load_config.dig('base', 'no_proxy')
+    load_config.dig('base', 'no_proxy') || DEFAULT_NO_PROXY
+  end
+
+  def default_memory
+    load_config.dig('base', 'memory') || DEFAULT_MEMORY
   end
 
   def project(name)
@@ -85,6 +92,7 @@ module Kyb::Config
       proxy: p['proxy'] || proxy,
       proxy_in_container: p['proxy_in_container'] || proxy_in_container || proxy,
       no_proxy: p['no_proxy'] || no_proxy,
+      memory: p['memory'] || default_memory,
       sandbox_allowed_domains: DEFAULT_SANDBOX_DOMAINS + Array(p['sandbox_allowed_domains']).map(&:to_s).reject(&:empty?),
       extra_prompt: extra.empty? ? nil : extra
     }
