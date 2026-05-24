@@ -11,7 +11,7 @@
 **症状：** `git.leyantech.com` 不可达，nuc8-proxy 路由到死 IP。
 
 **修复：**
-- `entrypoint.sh` 新增 infra-boss 启动逻辑：安装 autossh、建隧道 boss → sim → nuc8
+- `entrypoint.sh` 新增 infra-boss 启动逻辑：安装 autossh、建隧道 boss → nuc8（Tailscale 直连，不再经 sim）
 - 容器活着时 autossh 自动保活，断线重连
 - 容器重建后 entrypoint 自动重建隧道
 

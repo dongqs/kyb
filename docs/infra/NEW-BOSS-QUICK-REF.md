@@ -18,10 +18,10 @@
 **⚠️ 红线：`kyb-infra-boss-old` 不能删。** 它的 PID 1 里跑着 SSH 隧道：
 
 ```
-boss-old:2081 → SSH → sim(47.100.71.220) → Tailscale → nuc8(100.98.29.39):2080
+boss-old:2081 → SSH → nuc8(100.98.29.39):2081
 ```
 
-GitLab（git.leyantech.com）的流量走这条路。这个隧道**没有持久化**——boss-old 一死 GitLab 就断。
+GitLab（git.leyantech.com）的流量走这条路。SSH 隧道经 Tailscale 直连 nuc8（不再经 sim 跳转），`entrypoint.sh` 已集成 autossh 保活。
 
 ## 2. Registry Cache — 文档写的全是错的
 
@@ -101,10 +101,9 @@ Docker 有 ~37GB 可回收，但：
 ---
 
 > 如果需要迁走 nuc8 隧道再清 boss-old，流程是：
-> 1. 在 boss-old 上找到 SSH 进程（`ps aux | grep ssh.*nuc8`）
-> 2. 在你身上重建同样的隧道
-> 3. 确认 GitLab 走通新隧道
-> 4. 再杀 boss-old 里的旧进程
-> 5. 确认 GitLab 仍然通
+> 1. 新 boss 重建后 `entrypoint.sh` 已自动建立新隧道（autossh + Tailscale 直连 nuc8，无需 sim）
+> 2. 确认新隧道 GitLab 通：`docker exec kyb-infra-boss curl -sx socks5://127.0.0.1:2081 https://git.leyantech.com`
+> 3. 再停 boss-old 里的旧隧道进程
+> 4. 确认 GitLab 仍然通
 
 ／人◕ ‿‿ ◕人＼

@@ -6,19 +6,22 @@
 用户 → sing-box:2080 → nuc8-proxy 出站
   ↓
 kyb-infra-boss:2081 (SSH 隧道监听)
-  ↓ SSH -L
-sim (47.100.71.220, 阿里云 ECS)
-  ↓ Tailscale (100.113.24.32)
-nuc8 (100.98.29.39:2080, SOCKS5)
+  ↓ SSH -L (autossh 保活，经 Tailscale 直连)
+nuc8 (100.98.29.39:2081, SOCKS5)
   ↓
 办公室网络 → GitLab (120.132.11.237)
 ```
 
 ## SSH 隧道
 
+隧道由 `entrypoint.sh` 自动管理（kyb-infra-boss 容器启动时建立）。使用 autossh 保活，SSH 经 Tailscale 直连 nuc8（不再经 sim 跳转）。
+
+等效手动命令：
+
 ```bash
 ssh -o ExitOnForwardFailure=yes -f -N \
-  -L 0.0.0.0:2081:100.98.29.39:2080 sim
+  -L 0.0.0.0:2081:localhost:2081 \
+  dongqs@100.98.29.39
 ```
 
 ## 隧道管理
@@ -49,5 +52,5 @@ HTTPS_PROXY=socks5://kyb-infra-sing-box:2080 curl -sI https://git.leyantech.com
 | GitLab 连不上 | SSH 隧道断了 | 检查 `ps aux | grep 2081`，重建隧道 |
 | Docker 拉取极慢 | sim 只有 3Mbps 小水管 | 走 relay 而非 nuc8 路径，或提前缓存镜像 |
 | 端口占用 | 隧道进程残留 | `kill $(lsof -ti :2081)` |
-| nuc8 不可达 | Tailscale 断开（宿主机未运行） | 上 sim 检查 `tailscale status` |
+| nuc8 不可达 | Tailscale 断开（宿主机未运行） | 上 nuc8 或 sim 检查 `tailscale status` |
 | glab 403 | API 层限制 | Web 界面能进就行，API 需 HTTP/1.1 |
