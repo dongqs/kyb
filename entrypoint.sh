@@ -346,7 +346,6 @@ if echo "$HOSTNAME" | grep -q "kyb-infra-boss"; then
 Host nuc8-tunnel
   HostName 100.98.29.39
   User dongqs
-  ProxyJump sim
   IdentityFile /root/.ssh/id_rsa
   StrictHostKeyChecking no
   ConnectTimeout 10
