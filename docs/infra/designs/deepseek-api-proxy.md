@@ -40,7 +40,7 @@ Issue #169 经过 4 轮审查（集成审查、全栈审查、基础设施架构
 
 1. **关键路径上需要确定性延迟** — Go 的 goroutine 提供可预测的并发性能，不会出现 Ruby GIL 下的请求排队。对于 meta-infra 级别的代理，延迟稳定性优于一切。
 2. **单二进制部署** — 无需 Ruby runtime、无需 bundle install、无需管理 gem 版本。一个 `go build` 产出的二进制文件复制到容器即可运行。减少部署的故障点。
-3. **内置连接池** — `http.Transport` 默认启用 keep-alive 和连接池，对 DeepSeek 的 TLS 连接会自动复用。Ruby 的 `net/http` 默认不启用 persistent——忘记配就是性能灾难。
+3. **内置连接池** — `http.Transport` 默认启用 keep-alive 和连接池，对 DeepSeek 的 TLS 连接会自动复用。Ruby 的 `net/http` 默认不启用 persistent——忘记配就是性能灾难。生产环境显式配置 `MaxIdleConns=100`、`MaxIdleConnsPerHost=50` 以应对高并发场景。
 4. **goroutine + channel 的异步模式** — CK 写入天然适合异步 buffer 模式：`goroutine` 负责接收 CK 写入请求，`channel` 做 buffer，`batch insert` 每 100ms 刷一次。Ruby 的 `Thread` + `Queue` 也能做到，但 Go 的 goroutine 在此场景下更安全（goroutine panic 只杀死自身不杀进程）。
 5. **Streaming 处理的成熟度** — Go 的 `bufio.Scanner` 处理 SSE 的 `Scan()` + `Bytes()` 模式是标准做法，大量生产验证。Ruby 的 `rack.hijack` API 使用少，边缘场景多。
 
@@ -439,7 +439,7 @@ Claude Code 和 Anthropic SDK 期望的 API 错误响应格式与 DeepSeek 的�
 
 | 错误类型 | 行为 |
 |----------|------|
-| CK 连接失败 | 跳过写入，不阻塞响应。尝试写入本地 buffer（最多保留 1000 条），后续成功时补写 |
+| CK 连接失败 | 跳过写入，不阻塞响应。尝试写入本地 buffer（最多保留 1000 条或 64MB，任一达到即截断），后续成功时补写 |
 | CK 写入超时（2s） | 跳过写入。buffer 中的下批次继续尝试 |
 | CK schema 不匹配 | 跳过写入，log error（不 crash） |
 | CK 批量写入部分失败 | 重试 1 次失败的部分，重试失败则丢弃（不阻塞） |
@@ -725,6 +725,61 @@ Watch 进程巡检 (每 3s)
         4. 后续请求重新走代理
 ```
 
+### 2.5 Per-API-Key 速率限制
+
+代理提供基于 API key 维度的速率限制，防止单个用户的突发流量影响其他用户或打满 upstream 配额。
+
+#### 限流策略
+
+基于 **Token Bucket 算法**，每个 API key 拥有独立的令牌桶：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `RATE_LIMIT_REQUESTS_PER_MIN` | 60 | 每 API key 每分钟允许的最大请求数 |
+| 桶容量 | `RATE_LIMIT_REQUESTS_PER_MIN` | 令牌桶容量，允许短时突发到该值 |
+| 填充速率 | `RATE_LIMIT_REQUESTS_PER_MIN / 60` req/s | 每秒恢复的令牌数 |
+
+#### Key 提取方式
+
+从请求的 `Authorization` header 中提取 API key 的前 8 位作为限流 key：
+
+```
+Authorization: Bearer sk-abc123def456ghi7
+                           ↓
+限流 key: "sk-abc12"（前 8 位，含 "sk-" 前缀）
+```
+
+- 提取逻辑与 CK 日志 `api_key_prefix` 字段完全一致
+- 无 `Authorization` header 的请求使用 `"anonymous"` 作为限流 key
+- 限流 key 仅存内存，不落盘、不记录日志
+
+#### 超出后的响应行为
+
+当 API key 超出速率限制时，代理返回 Anthropic 兼容格式的 429 响应：
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "rate_limit_error",
+    "message": "Rate limit exceeded: 60 requests per minute per API key"
+  }
+}
+```
+
+- HTTP 状态码: **429**
+- 响应 Header: `Retry-After: 1`（建议退避 1 秒）
+- 错误按正常 429 路径记录到 CK（`infra.api_logs`，`status_code=429`）
+- **不计入熔断器失败计数**（429 是客户端限流，非代理/Upstream 故障）
+- Claude Code 收到 429 后自动退避重试，无需代理侧特殊处理
+
+#### 实施细节
+
+- 限流状态存储在代理内存中，重启后重置（不持久化）
+- 每个 API key 的令牌桶独立，互不影响
+- 使用 `sync.Map` 存储 key → token bucket 映射，读多写少场景下性能最优
+- 后台 goroutine 每分钟清理超过 5 分钟无活动的 key 条目，防止内存泄漏
+
 ---
 
 ## 3. 测试方案
@@ -894,7 +949,7 @@ Chaos Scenario: "星期五下午"
 |------|------|
 | 镜像 | `kyb-infra-api-proxy:latest`（基于 `scratch` 或 `alpine:3.19`） |
 | 端口 | `:2082`（HTTP 代理端口）, `:2083`（健康检查端口 / 可与 2082 复用） |
-| 资源限制 | `--memory=128m --cpus=0.5` |
+| 资源限制 | `--memory=256m --cpus=0.5` |
 | 网络 | `kyb-net`（Docker 内部网络） |
 | 重启策略 | `restart: always` |
 | 依赖 | ClickHouse（CK 不可用时 degrade，不 crash） |
@@ -931,7 +986,13 @@ services:
       # PII 脱敏
       - PII_MASK_ENABLED=true
       - PII_KEYWORDS=token,password,secret,key,credential,authorization
+      # 连接池
+      - MAX_IDLE_CONNS=100          # 全局最大空闲连接数
+      - MAX_IDLE_CONNS_PER_HOST=50  # 每主机最大空闲连接数
+      # 速率限制
+      - RATE_LIMIT_REQUESTS_PER_MIN=60  # 每 API key 每分钟最大请求数
       # 其他
+      - MAX_RETRY_BUFFER_BYTES=64MB # CK 重试 buffer 上限（双重限制：64MB / 1000 条）
       - LOG_LEVEL=info
       - MAX_BUFFER_SIZE=2MB      # SSE buffer 上限
       - SCANNER_BUFFER_SIZE=1MB  # bufio.Scanner 最大行长度
@@ -940,7 +1001,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 256M
           cpus: '0.5'
 ```
 
@@ -950,8 +1011,9 @@ services:
 |------|------|------|
 | 单请求内存 | ~50KB | 含 request/response buffer |
 | 100 并发 | ~5MB | 请求本体 |
-| SSE buffer | ~2MB | 单 streaming 响应 buffer 上限 |
-| 总内存 | < 50MB | 高峰期 |
+| SSE buffer | ~2MB per request, budget 64MB total | 单 streaming 响应 buffer 上限，所有并发请求共享 |
+| CK retry buffer | ~64MB max | CK 写入失败缓冲，双重限制（64MB / 1000 条） |
+| 总内存 | < 128MB | 高峰期（SSE buffer + CK retry buffer < 128MB，容器 limit 256MB 含 headroom） |
 | 网络带宽 | 与 DeepSeek 调用频率相关 | 当前每日 ~1000 次调用，约 50MB 流量 |
 | CPU | < 0.1 core | 主要开销在 JSON 解析（轻量） |
 
@@ -1267,7 +1329,7 @@ func main() {
 | 最大并发请求 | >= 200 | 200 个 goroutine 同时转发到 Mock DeepSeek |
 | 最大吞吐 | >= 1000 req/s | 非 streaming，每个响应 ~1KB |
 | 最大 streaming 连接数 | >= 50 | 50 个 concurrent SSE 流，各持续 30s |
-| 内存上限 | < 128MB | 上述所有并发条件下 |
+| 内存上限 | < 256MB | 上述所有并发条件下 |
 
 ### 5.4 验收测试工具
 
@@ -1303,7 +1365,7 @@ time curl -s -o /dev/null -w "via proxy: %{time_total}s\n" \
 
 - 代理 P50 引入延迟 > 50ms（持续 5 分钟）
 - 代理 P99 引入延迟 > 200ms（持续 5 分钟）
-- 代理内存 > 100MB
+- 代理内存 > 192MB（容器 limit 256MB 的 75%）
 - 代理 goroutine 数 > 5000（可能泄漏）
 
 ---
@@ -1495,6 +1557,10 @@ Grafana         ← 新增 data source：infra.api_logs
 | 2026-05-25 | 优雅关闭 SIGTERM handler | 避免关闭过程中丢弃进行中的请求 |
 | 2026-05-25 | SSRF 保护：UPSTREAM_URL 白名单校验 | 防止容器被用于 SSRF 攻击 |
 | 2026-05-25 | Watch 进程独立于代理部署（宿主机 systemd） | 代理自身故障时 watch 仍能工作 |
+| 2026-05-25 | Per-API-Key 速率限制（Token Bucket，60 req/min） | 防止单用户突发流量影响其他用户或打满 upstream 配额 |
+| 2026-05-25 | Go 连接池显式配置 MaxIdleConns=100, MaxIdleConnsPerHost=50 | 高并发场景下确保连接复用效率，避免 TCP 连接频繁建立/拆除 |
+| 2026-05-25 | 容器内存限制统一设为 256MB | 性能审查要求：容器限制、健康检查阈值、内存预算需一致 |
+| 2026-05-25 | CK retry buffer 加 MAX_RETRY_BUFFER_BYTES=64MB 双重限制 | 同时约束条数（1000）和字节数（64MB），防止异常场景下 buffer 撑爆内存 |
 
 ### D. 未解决问题（待 Phase 1 设计）
 
