@@ -143,17 +143,57 @@ module Kyb::Docker
     out.lines.map(&:strip).reject(&:empty?)
   end
 
+  # ── run ──────────────────────────────────────────────────────────────
+
   def run(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false, memory: nil)
     puts "==> #{container.name}: starting (#{repo_path} -> /home/dev/projects/#{project_name})"
 
+    args = build_run_args(
+      container: container, image: image, repo_path: repo_path,
+      project_name: project_name, project_path: project_path,
+      ports: ports, symlinks: symlinks, mounts_rw: mounts_rw, mounts_ro: mounts_ro,
+      model: model, timezone: timezone,
+      kyb_proxy: kyb_proxy, kyb_no_proxy: kyb_no_proxy,
+      branch: branch, clone: clone, memory: memory
+    )
+
+    system(*args) || Kyb.die('docker run failed')
+  end
+
+  def build_run_args(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false, memory: nil)
     args = %w[docker run -d --init --restart on-failure:5]
     args += ['--name', container.name]
     args += ['--hostname', container.hostname]
-    args += ['--network', 'kyb-net']
-    # Ensure kyb-net exists for container-to-container DNS resolution
-    system('docker', 'network', 'create', 'kyb-net', out: File::NULL, err: File::NULL) || true
+    args += build_network_args
     memory_value = memory || Kyb::Config.default_memory
     args += ['--memory', memory_value, '--memory-swap', memory_value]
+    args += build_env_args(
+      project_name: project_name, model: model, timezone: timezone,
+      kyb_proxy: kyb_proxy, kyb_no_proxy: kyb_no_proxy, branch: branch
+    )
+    args += ['-l', Kyb::Container::LABEL]
+    args += build_volume_args(
+      container: container, repo_path: repo_path,
+      project_name: project_name, project_path: project_path,
+      symlinks: symlinks, mounts_rw: mounts_rw, mounts_ro: mounts_ro, clone: clone
+    )
+
+    ports.to_s.split(',').each do |p|
+      next if p.empty?
+      args += ['-p', p]
+    end
+
+    args << image
+    args
+  end
+
+  def build_network_args
+    system('docker', 'network', 'create', 'kyb-net', out: File::NULL, err: File::NULL) || true
+    ['--network', 'kyb-net']
+  end
+
+  def build_env_args(project_name:, model:, timezone:, kyb_proxy:, kyb_no_proxy:, branch:)
+    args = []
     args += ['-e', "HOST_UID=#{Process.uid}"]
     args += ['-e', "HOST_GID=#{Process.gid}"]
     args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"]
@@ -180,8 +220,11 @@ module Kyb::Docker
     end
     args += ['-e', "KYB_NO_PROXY=#{kyb_no_proxy}"] if kyb_no_proxy
     args += ['-e', "KYB_BRANCH=#{branch}"] if branch
-    args += ['-l', Kyb::Container::LABEL]
+    args
+  end
 
+  def build_volume_args(container:, repo_path:, project_name:, project_path:, symlinks:, mounts_rw:, mounts_ro:, clone:)
+    args = []
     dind = Kyb.in_container?
     ssh_dir = File.expand_path('~/.ssh')
     # In DinD mode, host paths are invisible to the Docker daemon running inside
@@ -266,31 +309,10 @@ module Kyb::Docker
       args += ['-v', "#{kyb_repo}:/home/dev/kyb:ro"] if kyb_repo
     end
 
-    ports.to_s.split(',').each do |p|
-      next if p.empty?
-      args += ['-p', p]
-    end
-
-    args << image
-
-    system(*args) || Kyb.die('docker run failed')
+    args
   end
 
-  def stop(container)
-    puts "==> Stopping #{container}"
-    system('docker', 'stop', container)
-    puts "==> Done: #{container} stopped"
-  end
-
-  def start_existing(container)
-    if running?(container)
-      puts "==> #{container} is already running"
-      return
-    end
-    puts "==> Starting #{container}"
-    system('docker', 'start', container)
-    puts "==> Done: #{container} started"
-  end
+  # ── create_container ─────────────────────────────────────────────────
 
   def create_container(project, branch, port_overrides = nil, model: nil, repo_root: nil)
     Kyb::Config.load
@@ -301,7 +323,6 @@ module Kyb::Docker
 
     proj = Kyb::Config.project(project)
     path = proj[:path]
-    base = Kyb::Config.base_image_path
 
     container = Kyb::Container.new(project, branch)
 
@@ -318,36 +339,13 @@ module Kyb::Docker
     image = Kyb::Container::BASE_IMAGE
 
     # Determine clone vs mount based on repo_root (CLI overrides config)
-    root_mode = repo_root || proj[:repo_root]
-    is_clone = root_mode == 'isolated_local_repo_clone'
+    is_clone = determine_clone_mode(repo_root, proj)
 
     # Set up repo: clone independent copy or sync host repo
-    clone_target = nil
-    if is_clone
-      clone_target = clone_path(project, container)
-      setup_clone(path, clone_target, project, container)
-    else
-      ensure_master_synced(path, proj[:base_branch])
-    end
+    clone_target = setup_project_repo(project, branch, is_clone, container, path, proj)
 
-    # cp_files only in clone mode (default mount means host already has these files)
-    if is_clone && proj[:cp_files]
-      base_keys = proj[:cp_files_base_keys] || [].freeze
-      proj[:cp_files].each do |dst, src|
-        src_path = File.join(path, src)
-        if File.exist?(src_path)
-          puts "     cp #{src} -> #{dst}"
-          FileUtils.cp(src_path, File.join(clone_target, dst))
-        elsif !base_keys.include?(dst)
-          puts "     warn: #{src} not found, skipped"
-        end
-      end
-    end
-
-    if proj[:dockerfile]
-      df_path = File.join(path, proj[:dockerfile])
-      image = project_image(project, df_path, path)
-    end
+    # Build project-specific image if a Dockerfile is configured
+    image = build_or_pull_image(project, path, proj) || image
 
     FileUtils.mkdir_p(File.expand_path('~/.kimi'))
 
@@ -371,6 +369,51 @@ module Kyb::Docker
       clone: is_clone
     )
 
+    wait_ready(container)
+    post_start_setup(container, project, is_clone)
+
+    [container.name, ports]
+  end
+
+  def determine_clone_mode(repo_root, proj)
+    root_mode = repo_root || proj[:repo_root]
+    root_mode == 'isolated_local_repo_clone'
+  end
+
+  def setup_project_repo(project, branch, is_clone, container, path, proj)
+    clone_target = nil
+    if is_clone
+      clone_target = clone_path(project, container)
+      setup_clone(path, clone_target, project, container)
+    else
+      ensure_master_synced(path, proj[:base_branch])
+    end
+
+    # cp_files only in clone mode (default mount means host already has these files)
+    if is_clone && proj[:cp_files]
+      base_keys = proj[:cp_files_base_keys] || [].freeze
+      proj[:cp_files].each do |dst, src|
+        src_path = File.join(path, src)
+        if File.exist?(src_path)
+          puts "     cp #{src} -> #{dst}"
+          FileUtils.cp(src_path, File.join(clone_target, dst))
+        elsif !base_keys.include?(dst)
+          puts "     warn: #{src} not found, skipped"
+        end
+      end
+    end
+
+    clone_target
+  end
+
+  def build_or_pull_image(project, path, proj)
+    return nil unless proj[:dockerfile]
+
+    df_path = File.join(path, proj[:dockerfile])
+    project_image(project, df_path, path)
+  end
+
+  def wait_ready(container)
     ready = false
     60.times do
       if system('docker', 'exec', '-u', 'dev', container.name,
@@ -382,16 +425,18 @@ module Kyb::Docker
       sleep 0.5
     end
 
-    unless ready
-      unless running?(container.name)
-        logs = `docker logs #{container.name} --tail 30 2>/dev/null`.strip
-        msg = "container '#{container.name}' exited immediately.\n" \
-              "  Check the entrypoint for errors:\n"
-        msg += logs.empty? ? "  (no logs)\n" : logs.lines.map { |l| "  | #{l}" }.join
-        Kyb.die(msg)
-      end
-    end
+    return if ready
 
+    unless running?(container.name)
+      logs = `docker logs #{container.name} --tail 30 2>/dev/null`.strip
+      msg = "container '#{container.name}' exited immediately.\n" \
+            "  Check the entrypoint for errors:\n"
+      msg += logs.empty? ? "  (no logs)\n" : logs.lines.map { |l| "  | #{l}" }.join
+      Kyb.die(msg)
+    end
+  end
+
+  def post_start_setup(container, project, is_clone)
     # Conflict detection: warn about shared-repo containers
     unless is_clone
       same_project = check_shared_project_conflict(project) - [container.name]
@@ -403,23 +448,20 @@ module Kyb::Docker
       end
     end
 
-    if Kyb.in_container?
-      home = Dir.home
-      tar_sources = []
-      tar_sources << '.ssh' if File.directory?("#{home}/.ssh")
-      tar_sources << '.gitconfig' if File.exist?("#{home}/.gitconfig")
-      tar_sources << '.config/kyb' if File.directory?("#{home}/.config/kyb")
+    return unless Kyb.in_container?
 
-      if tar_sources.any?
-        system('bash', '-c',
-          "tar -C #{home} --exclude='.ssh/agent/*' -c #{tar_sources.join(' ')} 2>/dev/null | " \
-          "docker exec -i #{container.name} bash -c '" \
-          "tar -C /home/dev -x " \
-          "&& chown -R dev:dev #{tar_sources.map { |s| "/home/dev/#{s}" }.join(' ')} 2>/dev/null || true'")
-      end
+    home = Dir.home
+    tar_sources = []
+    tar_sources << '.ssh' if File.directory?("#{home}/.ssh")
+    tar_sources << '.gitconfig' if File.exist?("#{home}/.gitconfig")
+    tar_sources << '.config/kyb' if File.directory?("#{home}/.config/kyb")
 
-    end
+    return unless tar_sources.any?
 
-    [container.name, ports]
+    system('bash', '-c',
+      "tar -C #{home} --exclude='.ssh/agent/*' -c #{tar_sources.join(' ')} 2>/dev/null | " \
+      "docker exec -i #{container.name} bash -c '" \
+      "tar -C /home/dev -x " \
+      "&& chown -R dev:dev #{tar_sources.map { |s| "/home/dev/#{s}" }.join(' ')} 2>/dev/null || true'")
   end
 end
