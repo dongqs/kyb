@@ -126,7 +126,7 @@ POST /__admin/reset
 | `http_500` | 服务器内部错误 | 返回 500 + DeepSeek 格式错误 body |
 | `http_502` | Bad Gateway | 返回 502 + DeepSeek 格式错误 body |
 | `http_503` | Service Unavailable | 返回 503 + DeepSeek 格式错误 body |
-| `connect_timeout` | TCP 连接超时 | 监听端口但不 accept（或 accept 后不响应），直到 dial 超时 |
+| `connect_timeout` | TCP 连接超时 | 通过 blackhole 容器实现（目标端口无服务监听，内核返回 RST；或 iptables DROP 入站 SYN 使无响应），代理 dial 超时后返回 504 |
 | `dns_failure` | DNS 解析失败 | Mock server 不可用，测试用无效 hostname 配置代理 |
 | `tls_error` | TLS 握手失败 | Mock 返回非 TLS 响应（纯文本）到 TLS 端口 |
 | `connection_reset` | 接收请求后立即 RST | 读取请求后关闭 TCP 连接（不返回任何响应） |
@@ -147,6 +147,11 @@ POST /__admin/reset
 | `rate_limited_burst` | 短时大量限流 | 连续 10 个请求返回 429，之后再恢复正常 |
 | `http_401` | 认证失败（关联 TC-A15） | 返回 401 + DeepSeek 格式 auth error body |
 | `mid_stream_error` | Streaming 中途 HTTP 错误（关联 TC-A24） | 发送几个 chunk 后，在 streaming 中途返回 5xx 错误码 |
+| `long_stream` | 可变长度 streaming | 根据 `chunk_count` 参数决定发送 chunk 数，支持动态长度 |
+| `stream_with_ping` | Streaming 中插入 ping event | Streaming 过程中定期插入 `event: ping` 和 `data: {"t": timestamp}` |
+| `unknown_error_type` | 未知错误类型 | 返回 `{"error": {"message": "unknown cause", "type": "unknown_error_type"}}`（非标准 error.type） |
+| `http_302_redirect` | HTTP 302 重定向 | 返回 302 + `Location: https://evil.com`，无响应 body |
+| `pattern_errors` | 确定性失败模式 | 按预设模式精确返回成功/失败，用于替代概率测试的 flake |
 
 #### 1.4.3 响应模板
 
@@ -224,6 +229,7 @@ DeepSeek 原生错误格式：
 // Scenario 定义一个测试场景
 type Scenario struct {
     ID              string            // 场景标识
+    Headers         map[string]string // 自定义响应 header
     ResponseDelay   time.Duration     // 响应前延迟
     StatusCode      int               // HTTP 状态码
     Body            json.RawMessage   // 静态响应 body（非 streaming 模式）
@@ -232,6 +238,9 @@ type Scenario struct {
     ResetAfter      bool              // 发送后是否 reset 连接
     InjectError     string            // 注入错误类型（"reset", "stall", "partial", "wrong_order"）
     ErrorBody       json.RawMessage   // 错误响应的 body
+    ErrorRate       float64           // 随机错误率（0.0 ~ 1.0）
+    ResponseSize    int               // 响应大小（bytes, 0=默认）
+    ChunkCount      int               // Streaming chunk 数量（0=默认）
 }
 
 // Chunk 定义一个 SSE chunk
@@ -293,6 +302,7 @@ Mock Server 启动
 | TC-N05 | system prompt + user message | Mock `happy_path_non_stream` | body 含 system 和 messages | 200，正常转发 |
 | TC-N06 | 请求含自定义 anthropic-version | Mock `happy_path_non_stream` | header `anthropic-version: 2023-06-01` | 200，header 透传到上游 |
 | TC-N06b | x-api-key header 转发 | Mock `happy_path_non_stream` | header `x-api-key: sk-test-key-001`（Claude SDK 默认行为） | 200，x-api-key 正确透传到 Mock（通过 Mock /__admin/requests 验证 header 值） |
+| TC-N06c | 仅 x-api-key 的完整路径 | Mock `happy_path_non_stream`，header `x-api-key: sk-test-key-001`（无 Authorization header） | POST `/v1/messages` | 200，x-api-key 正确透传到 Mock，Mock /__admin/requests 验证 header |
 | TC-N07 | GET /v1/models | Mock 返回模型列表 | GET `/v1/models` | 200，返回模型列表 JSON |
 | TC-N07b | POST /v1/complete 兼容路径 | Mock `happy_path_non_stream` | POST `/v1/complete` | 200，路径正确映射到 /anthropic/v1/complete，返回 Anthropic 格式 JSON |
 
@@ -332,10 +342,10 @@ Mock Server 启动
 
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
-| TC-A01 | 连接超时（加速模式: CONNECT_TIMEOUT=2s） | Mock `connect_timeout`（不响应 SYN） | POST `/v1/messages` | 2s 后代理返回 504，error="connect_timeout" |
+| TC-A01 | 连接超时（加速模式: CONNECT_TIMEOUT=3s） | blackhole 容器（无服务监听，或 iptables DROP 入站 SYN） | POST `/v1/messages` | 3s 后代理返回 504，error="connect_timeout" |
 | TC-A02 | Streaming 空闲超时（加速模式: IDLE_TIMEOUT=10s） | Mock `stall_after_first_chunk` | POST streaming 请求，首 chunk 后无数据 | 10s 后代理返回 504，error="idle_timeout" |
-| TC-A03 | 非 streaming 总超时（加速模式: TOTAL_TIMEOUT=5s） | Mock `slow_response`，配置 `response_delay_ms: 7000`（超过 5s） | POST `/v1/messages` | 5s 后代理返回 504，error="total_timeout" |
-| TC-A04 | Streaming 总超时（加速模式: TOTAL_TIMEOUT=30s） | Mock 配置 streaming 持续 35s | 持续接收并验证 | 30s 后代理停止转发，返回 504，已收 chunks 写入 CK |
+| TC-A03 | 非 streaming 总超时（加速模式: TOTAL_TIMEOUT_NON_STREAMING=5s） | Mock `slow_response`，配置 `response_delay_ms: 7000`（超过 5s） | POST `/v1/messages`（非 streaming） | 5s 后代理返回 504，error="total_timeout" |
+| TC-A04 | Streaming 总超时（加速模式: TOTAL_TIMEOUT_STREAMING=30s） | Mock 配置 streaming 持续 35s | 持续接收并验证 | 30s 后代理停止转发，返回 504，已收 chunks 写入 CK |
 | TC-A05 | DNS 解析失败 | 代理配置 `UPSTREAM_URL=https://invalid.example.com` | POST `/v1/messages` | 代理返回 502，error="dns_resolution_failed" |
 | TC-A06 | TLS 握手失败 | Mock 端口返回纯文本而非 TLS | POST 并通过代理转发 | 代理返回 502，error="tls_handshake_failed" |
 
@@ -368,7 +378,7 @@ Mock Server 启动
 | TC-A19 | Streaming stall 后恢复 | Mock `stall_mid_stream`（停 30s 后恢复） | POST streaming，等 30s | 代理在 idle_timeout（60s）内等待，30s 后恢复传输，请求完整完成 |
 | TC-A20 | 非法 SSE 格式 | Mock `invalid_sse_format` | POST streaming | 代理返回 502，error="sse_parse_error" |
 | TC-A21 | SSE data 非 JSON | Mock `invalid_sse_data` | POST streaming | 代理返回 502，error="sse_parse_error" |
-| TC-A22 | SSE 乱序 event — 容忍并按时间戳排序 | Mock `wrong_event_order`（先 message_stop 再 delta） | POST streaming | 代理容忍乱序，按 event 原始 timestamp 排序后写入 CK，CK 中 completion 为排序后的完整文本 |
+| TC-A22 | SSE 乱序 event — 状态机转换检测 | Mock `wrong_event_order`（先 message_stop 再 delta） | POST streaming | 代理按 event type 序列顺序检测非法状态机转换（例如 message_start 后不能又来一个 message_start），乱序则 CK 记录 `out_of_order=1`，按收到顺序写入 completion |
 | TC-A23 | 非 SSE Content-Type | Mock `wrong_content_type`（声明 SSE 但返回 JSON） | POST streaming | 代理按非 streaming path 处理，等待完整 body 后返回 |
 | TC-A24 | Streaming 中返回错误 | Mock 在 streaming 中途返回 HTTP 错误码 | POST streaming | 代理检测到错误，停止转发，写入 CK（标记 error） |
 | TC-A25 | 超大 delta chunk（> 64KB） | Mock `huge_delta_chunk`（500KB text） | POST streaming | bufio.Scanner 正常读取，转发成功，不截断 |
@@ -381,8 +391,8 @@ Mock Server 启动
 
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
-| TC-CB01 | 20% 失败率触发 OPEN | Mock `random_errors`（error_rate: 0.25）。5 分钟内发 40 个请求，预期 ~10 个失败（25% > 20%） | 连续发 40 个请求 | 总请求 >= 10，失败率 > 20%，熔断器进入 OPEN |
-| TC-CB02 | 低于阈值不触发 | Mock `random_errors`（error_rate: 0.1）。5 分钟内发 50 个请求，预期 ~5 个失败（10% < 20%） | 连续发 50 个请求 | 熔断器保持 CLOSED |
+| TC-CB01 | 20% 失败率触发 OPEN（确定性） | Mock `pattern_errors`，预设模式：每 4 个请求返回 1 个 500（25% 失败率），连续 40 个请求 | 连续发 40 个请求 | 正好 10 个失败，失败率 25% > 20%，熔断器进入 OPEN |
+| TC-CB02 | 低于阈值不触发（确定性） | Mock `pattern_errors`，预设模式：每 10 个请求返回 1 个 500（10% 失败率），连续 50 个请求 | 连续发 50 个请求 | 正好 5 个失败，失败率 10% < 20%，熔断器保持 CLOSED |
 | TC-CB03 | 样本不足不触发 | 只发 5 个请求，3 个失败（60% > 20% 但 total < 10） | 发 5 个请求 | 熔断器保持 CLOSED（min_request_count=10） |
 | TC-CB04 | 滑动窗口过期重置 | 窗口内积累 8 个失败，等待 5 分钟后失败计数归零 | 等待 5 分钟后再发请求 | 失败率重新计算，熔断器不触发 |
 | TC-CB05 | 429 不计入失败率 | Mock 返回 10 次 429 + 10 次 200 | 连续发 20 个请求 | 熔断器不 OPEN（429 不计入失败计数） |
@@ -416,6 +426,8 @@ Mock Server 启动
 | TC-CK02 | Streaming 正常写入 CK | Mock `happy_path_stream` | POST streaming，等 message_stop | CK 有 1 条记录，streaming=1，response_body 完整 |
 | TC-CK03 | CK 写入含所有字段 | Mock `happy_path_non_stream` | 同上 | CK 记录含 timestamp, request_id, model, prompt_tokens, completion_tokens, latency_ms, status_code, request_body, response_body, streaming, truncated, error |
 | TC-CK04 | api_key_prefix 正确提取 | Authorization: Bearer sk-abc123def456 | POST 请求 | CK 中 api_key_prefix="sk-abc12" |
+| TC-CK04a | api_key_prefix 从 x-api-key 提取 | header `x-api-key: sk-abc123def456`（无 Authorization header） | POST 请求 | CK 中 api_key_prefix="sk-abc12" |
+| TC-CK04b | x-api-key 优先于 Authorization | header `x-api-key: sk-xyz789...` + `Authorization: Bearer sk-abc123...` | POST 请求 | CK 中 api_key_prefix 从 x-api-key 提取（"sk-xyz78"），非 Authorization |
 | TC-CK05 | 无 Authorization header | 不传 Authorization | POST 请求 | api_key_prefix="" |
 | TC-CK06 | source_container 正确记录 | 从特定容器名发请求 | POST 请求 | source_container 匹配请求来源容器名 |
 | TC-CK07 | 批量验证写入完整性 | Mock 正常，连续发 100 个请求 | 循环发 100 个 | CK 中正好 100 条记录，无丢失无重复 |
@@ -428,7 +440,7 @@ Mock Server 启动
 | TC-CK09 | CK 恢复后代理自动重连 | TC-CK08 后 `docker start clickhouse` | 等待恢复后发请求 | CK 写入恢复正常 |
 | TC-CK10 | CK 写入超时不影响响应 | 模拟 CK 慢写入（延迟 > 2s） | POST 请求 | 响应正常返回，CK 写入跳过 |
 | TC-CK11 | CK 写入失败 buffer 机制 | CK 停止，发 10 个请求 | 观察代理日志 | 代理 buffer 最多保留 1000 条 / 64MB，不阻塞响应 |
-| TC-CK12 | CK 恢复后 buffer 补写 | TC-CK11 后启动 CK | 等待 buffer 刷新 | 优先补写 buffer 中的记录，再处理新请求 |
+| TC-CK12 | CK 恢复后 buffer 补写（不阻塞新请求） | TC-CK11 后启动 CK | 等待 buffer 刷新时同时发起新请求 | 优先补写 buffer 中的记录，同时新请求正常处理（补写不阻塞新请求处理） |
 | TC-CK13 | CK buffer 超限截断 | CK 长时间不可用，持续发请求超过 1000 条或 64MB | 持续发请求 | 超出部分丢弃，不占用内存 |
 
 #### 2.4.3 优雅关闭 flush buffer
@@ -444,10 +456,12 @@ Mock Server 启动
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
 | TC-CK17 | request_body 超过 64KB 截断 | 发送 > 64KB prompt | POST 请求 | CK 中 request_body 截断，前 32KB + 后 32KB，truncated=1 |
-| TC-CK18 | response_body 超过 128KB 截断 | Mock `huge_response`（> 128KB body） | POST 请求 | CK 中 response_body 截断，前 48KB + 后 48KB，truncated=1 |
+| TC-CK18 | response_body 超过 128KB 截断（非 streaming） | Mock `huge_response`（> 128KB body） | POST 请求（非 streaming） | CK 中 response_body 截断，前 48KB + 后 48KB，truncated=1 |
+| TC-CK18b | response_body 超过 128KB 截断（streaming） | Mock 配置 200 个 chunks 总计 > 256KB text | POST streaming 请求 | 单个 chunk 不截断，写入 CK 时拼接后 response_body 总量超过 128KB 则截断，streaming truncated=1 |
 | TC-CK19 | 刚好达到边界不截断 | Mock 返回 128KB 响应（阈值 > 128KB 才截断） | POST 请求 | 不截断（截断条件为 response_body 大小 > 128KB，128KB 刚好不超过阈值，应完整保留） |
 | TC-CK19b | UTF-8 字符边界截断 | 请求 body 含 4 字节 UTF-8 字符（如 emoji），总大小超过 64KB | POST 请求 | 截断在 UTF-8 字符边界，不产生乱码（截断点落在完整字符后） |
 | TC-CK20 | PII 脱敏 | 请求 body 含 `"api_key": "sk-secret123"` | POST 请求 | CK 中 `[REDACTED]`，转发响应不脱敏 |
+| TC-CK20b | x-api-key 值脱敏 | header `x-api-key: sk-supersecret` | POST 请求 | CK request_body 中 sk-supersecret 被 `[REDACTED]` 替换，转发响应不脱敏 |
 
 ### 2.5 性能基准（Performance）
 
@@ -513,6 +527,10 @@ Mock Server 启动
 | TC-SEC11 | SSRF IP 地址绕过 | 配置白名单含 `deepseek.com`，但使用 `http://192.168.1.1`（白名单中域名的 IP） | POST 请求 | 代理 DNS 解析后校验 IP 是否匹配白名单，拒绝非白名单 IP |
 | TC-SEC12 | 代理日志 PII 脱敏 | 请求含敏感字段（password, token, api_key） | 观察代理 stdout/stderr 日志 | 代理自身日志不打印完整 API key 和敏感字段值，仅输出 `[REDACTED]` |
 
+| TC-SEC13 | DNS rebinding 攻击 | 配置 `UPSTREAM_URL=https://attacker-controlled.com`，该域名 DNS 先返回合法 IP 再返回恶意 IP | 启动代理后发请求 | 代理在 DNS 解析后校验 IP 是否匹配白名单，拒绝 DNS rebinding（仅首次解析有效） |
+| TC-SEC14 | IPv6 SSRF 绕过 | 配置白名单含 `deepseek.com`，但使用 IPv6 地址绕过白名单校验 | POST 请求（目标使用 IPv6 地址） | 代理校验 IPv6 地址是否匹配白名单，不匹配则拒绝 |
+| TC-SEC15 | IP 混淆表示绕过 | 使用十进制/十六进制/八进制 IP 表示法（例如 `http://0x7f000001` 或 `http://2130706433`） | POST 请求 | 代理正确解析非常规 IP 格式，拒绝非白名单 IP |
+
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
 | TC-GC01 | SIGTERM 正常关闭 | 无进行中请求 | 发送 SIGTERM | 代理在 1s 内退出，exit 0 |
@@ -546,7 +564,7 @@ Mock Server 启动
 |------|------|----------|------|----------|
 | TC-DC01 | 客户端 Ctrl+C 中断 streaming | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 在收到 2 个 chunk 后客户端发送 SIGINT | 代理检测客户端断连，释放 goroutine 和连接资源，已收 chunks 写入 CK（truncated=1） |
 | TC-DC02 | 客户端终端关闭 | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 关闭客户端终端/Tab 页 | 代理在 TCP 连接 RST 后检测到断连，释放资源，已收 chunks 写入 CK |
-| TC-DC03 | 客户端网络闪断 | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 使用 `iptables -A OUTPUT -p tcp --dport 2082 -j DROP` 模拟客户端网络断连 | 代理在 TCP keepalive 超时或写入失败后检测到断连，释放资源，已收 chunks 写入 CK（truncated=1） |
+| TC-DC03 | 客户端网络闪断 | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 使用 `iptables -C OUTPUT -p tcp --dport 2082 -j DROP 2>/dev/null || iptables -A OUTPUT -p tcp --dport 2082 -j DROP` 模拟，t.Cleanup 中 `iptables -D OUTPUT -p tcp --dport 2082 -j DROP` | 代理在 TCP keepalive 超时或写入失败后检测到断连，释放资源，已收 chunks 写入 CK（truncated=1） |
 
 ---
 
@@ -672,9 +690,10 @@ services:
       - UPSTREAM_URL=http://mock-deepseek:18080/anthropic/v1/messages
       - UPSTREAM_URL_WHITELIST=mock-deepseek
       - CK_DSN=clickhouse://clickhouse:9000/infra
-      - CONNECT_TIMEOUT=10s
-      - IDLE_TIMEOUT=60s
-      - TOTAL_TIMEOUT=300s
+      - CONNECT_TIMEOUT=3s
+      - IDLE_TIMEOUT=10s
+      - TOTAL_TIMEOUT_NON_STREAMING=5s
+      - TOTAL_TIMEOUT_STREAMING=30s
       - CB_WINDOW_SIZE=5m
       - CB_FAILURE_RATE=20
       - CB_MIN_REQUEST_COUNT=10
@@ -722,7 +741,7 @@ services:
 | 超时处理 | TC-A01 ~ TC-A06 | ~70s（含超时等待） |
 | 错误状态码 | TC-A07 ~ TC-A12 | ~5s |
 | 错误格式转换 | TC-A13 ~ TC-A17 | ~5s |
-| Streaming 异常 | TC-A18 ~ TC-A28 | ~90s（含 stall 等待） |
+| Streaming 异常 | TC-A18 ~ TC-A29 | ~90s（含 stall 等待） |
 | 熔断器 | TC-CB01 ~ TC-CB14 | ~120s（含 30s 等待） |
 | CK 写入 | TC-CK01 ~ TC-CK20 | ~30s |
 | 速率限制 | TC-RL01 ~ TC-RL08 | ~30s |
@@ -834,16 +853,16 @@ docker exec proxy tc qdisc del dev eth0 root 2>/dev/null || true
 
 | 场景 | 注入方式 | 覆盖的 TC |
 |------|----------|-----------|
-| **断网 10s** | `iptables -A OUTPUT -d mock-deepseek -j DROP` 10s 后恢复 | TC-CB01（熔断触发），TC-GC06（Watch fallback） |
+| **断网 10s** | `iptables -C OUTPUT -d mock-deepseek -j DROP 2>/dev/null || iptables -A OUTPUT -d mock-deepseek -j DROP`，t.Cleanup 中 `iptables -D OUTPUT -d mock-deepseek -j DROP`（幂等添加） | TC-CB01（熔断触发），TC-GC06（Watch fallback） |
 | **DNS 故障 30s** | 修改 proxy 容器的 `/etc/hosts`，mock-deepseek 指向 10.0.0.1 | TC-A05（DNS 失败） |
 | **延迟抖动 1s ±500ms** | `tc qdisc replace dev eth0 root netem delay 1000ms 500ms`（幂等 replace） | TC-A03（超时） |
 | **随机丢包 10%** | `tc qdisc replace dev eth0 root netem loss 10%`（幂等 replace） | TC-CB01（熔断），TC-P04（代理延迟） |
 | **带宽限制 100Kbps** | `tc qdisc replace dev eth0 root tbf rate 100kbps burst 10k`（幂等 replace） | TC-P04（延迟测量） |
 | **CK 容器停止** | `docker stop clickhouse` | TC-CK08 ~ TC-CK13（CK fail-open） |
 | **CK 容器恢复** | `docker start clickhouse` | TC-CK09（自动恢复） |
-| **代理 OOM 模拟** | `docker update --memory=64m proxy` + 发大请求 | TC-P11（内存超限截断） |
+| **代理 OOM 模拟** | `docker update --memory=64m proxy` + 发大请求；恢复：`docker update --memory=256m proxy`（t.Cleanup） | TC-P11（内存超限截断） |
 | **端口冲突** | 先在 :2082 启动一个 nc 监听，再启动代理 | TC-BC06（启动失败） |
-| **时钟跳跃** | `docker exec proxy date -s "+1 hour"` | 代理延迟计算不受影响（monotonic clock） |
+| **时钟跳跃** | `docker exec proxy date -s "+1 hour"`；恢复：`docker exec proxy chronyd -q` 或 `ntpdate -u pool.ntp.org`（t.Cleanup） | 代理延迟计算不受影响（monotonic clock） |
 
 #### 3.5.3 「星期五下午」综合压力场景
 
@@ -935,7 +954,7 @@ Chaos Scenario: "星期五下午"
 | G-2.3 | 熔断 Fallback 测试 | 手动停止代理后，Claude 自动切直连 | MANDATORY | 停止代理 → 检查 Claude 能否继续工作 |
 | G-2.4 | Fallback 恢复测试 | 启动代理后，Claude 自动切回 | MANDATORY | 启动代理 → 检查 ANTHROPIC_BASE_URL |
 | G-2.5 | 代理延迟 | P50 引入延迟 < 50ms, P99 < 200ms | MANDATORY | Grafana 面板 |
-| G-2.6 | 错误率 | 代理不增加错误率 | MANDATORY | Grafana 对比 |
+| G-2.6 | 错误率 | 代理不增加错误率（错误率 < 0.1%） | MANDATORY | Grafana 对比 |
 | G-2.7 | CK 完整率 | CK 日志记录率 > 99%（允许 CK 短暂不可用） | TOLERANCE | CK 查询对比代理计数 |
 | G-2.8 | 熔断自动恢复 | 模拟上游故障，熔断 OPEN → 恢复 → CLOSED | MANDATORY | Chaos 测试 |
 | G-2.9 | Watch 进程自动 Fallback | 代理宕机后 Watch 自动切直连 | MANDATORY | 停止代理 → 检查 Watch 日志 |
@@ -1004,7 +1023,7 @@ Chaos Scenario: "星期五下午"
 | R-01 | Phase 1/2 范围内 P99 延迟 > 无代理 + 500ms 持续 5 分钟 | Grafana 告警 | 自动 |
 | R-02 | 代理错误率 > 5% 持续 3 分钟（429 除外） | Grafana 告警 | 自动 |
 | R-03 | 代理进程 crash 或 OOM | systemd/docker 自动重启检测 | 自动 |
-| R-04 | CK 写入连续 10 分钟失败（buffer 即将超限） | 代理自身 metric | 自动 |
+| R-04 | CK buffer 使用率 > 80% 持续 30 秒 | 代理自身 metric（buffer_usage_ratio） | 自动 |
 | R-05 | 熔断器 OPEN 状态持续超过 5 分钟 | /readiness + 告警 | 自动 |
 | R-06 | Watch 进程连续 5 次以上 fallback 到直连 | Watch 日志监控 | 自动 |
 | R-07 | 人工发现异常（如 PII 泄漏、错误转发） | 人工报告 | 人工确认后触发 |
@@ -1079,7 +1098,7 @@ TC 失败
 
 | 参数 | 默认值 | 测试中使用的值 | 说明 |
 |------|--------|---------------|------|
-| CONNECT_TIMEOUT | 10s | 2s（加速测试） | TCP 连接超时 |
+| CONNECT_TIMEOUT | 10s | 3s（加速测试） | TCP 连接超时 |
 | IDLE_TIMEOUT | 60s | 10s（加速测试） | Streaming 空闲超时 |
 | TOTAL_TIMEOUT（非 streaming） | 30s | 5s（加速测试） | 非 streaming 总超时 |
 | TOTAL_TIMEOUT（streaming） | 300s | 30s（加速测试） | Streaming 总超时 |
