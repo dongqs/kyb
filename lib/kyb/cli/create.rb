@@ -21,7 +21,7 @@ module Kyb::CLI
     end
     proj = Kyb::Config.project(project)
     image = Kyb::Container::BASE_IMAGE
-    image = Kyb::Docker.project_image(project, File.join(proj[:path], proj[:dockerfile]), proj[:path]) if proj[:dockerfile]
+    image = Kyb::Container.new(project, nil).project_image if proj[:dockerfile]
 
     if Kyb::Docker.image_exists?(Kyb::Container::BASE_IMAGE)
       path = Kyb::Config.base_image_path
