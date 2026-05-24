@@ -35,6 +35,11 @@ module Kyb::Parser
     [project, branch]
   end
 
+  def parse_or_detect(str = nil)
+    return parse(str) if str
+    auto_detect
+  end
+
   def validate_branch!(branch)
     return if branch.match?(VALID_BRANCH_RE)
 

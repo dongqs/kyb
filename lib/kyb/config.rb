@@ -20,9 +20,18 @@ module Kyb::Config
 
   module_function
 
-  def load_config
-    Kyb.die("#{Kyb::CONFIG_FILE} not found") unless File.exist?(Kyb::CONFIG_FILE)
-    @config ||= YAML.safe_load_file(Kyb::CONFIG_FILE, permitted_classes: [Symbol])
+  def load_config(force: false)
+    path = Kyb::CONFIG_FILE
+    if force || @config_cache.nil?
+      Kyb.die("#{path} not found") unless File.exist?(path)
+      @config_cache = YAML.safe_load_file(path, permitted_classes: [Symbol]) || {}
+      @config_mtime = File.mtime(path)
+    elsif @config_mtime && (!File.exist?(path) || File.mtime(path) != @config_mtime)
+      Kyb.die("#{path} not found") unless File.exist?(path)
+      @config_cache = YAML.safe_load_file(path, permitted_classes: [Symbol]) || {}
+      @config_mtime = File.mtime(path)
+    end
+    @config_cache
   end
   alias load load_config
   module_function :load
@@ -75,33 +84,56 @@ module Kyb::Config
   end
 
   def project(name)
-    p = load_config.dig('projects', name)
-    Kyb.die("'#{name}' not found in #{Kyb::CONFIG_FILE}") unless p
-    base_cp = load_config.dig('base', 'cp_files')
-    base_extra = load_config.dig('base', 'extra_prompt')
-    proj_extra = p['extra_prompt']
+    proj = load_project_config(name)
+    merge_defaults(proj)
+    resolve_paths(proj)
+    setup_cp_files(proj)
+    proj
+  end
+
+  def load_project_config(name)
+    raw = load_config.dig('projects', name)
+    Kyb.die("'#{name}' not found in #{Kyb::CONFIG_FILE}") unless raw
+    { name: name, raw: raw }
+  end
+
+  def merge_defaults(proj)
+    raw = proj[:raw]
+    base = load_config
+    base_extra = base.dig('base', 'extra_prompt')
+    proj_extra = raw['extra_prompt']
     extra = [base_extra, proj_extra].compact.join(' ')
-    {
-      name: name,
-      path: File.expand_path(p['path']),
-      git_url: p['git_url'],
-      base_branch: p['base_branch'],
-      dockerfile: p['dockerfile'],
-      repo_root: p['repo_root'] || 'shared_host_disk_mount',
-      ports: Array(p['ports']).map(&:to_i).reject(&:zero?),
-      symlinks: Array(p['symlinks']).map(&:to_s).reject(&:empty?).join(','),
-      mounts_rw: Array(p['mounts_rw']).map(&:to_s).reject(&:empty?).join(','),
-      mounts_ro: Array(p['mounts_ro']).map(&:to_s).reject(&:empty?).join(','),
-      cp_files: build_cp_files(p, base_cp),
-      cp_files_base_keys: base_cp.is_a?(Hash) ? base_cp.keys.freeze : [].freeze,
-      timezone: p['timezone'] || 'Asia/Shanghai',
-      proxy: p['proxy'] || proxy,
-      proxy_in_container: p['proxy_in_container'] || proxy_in_container || proxy,
-      no_proxy: p['no_proxy'] || no_proxy,
-      memory: p['memory'] || default_memory,
-      sandbox_allowed_domains: DEFAULT_SANDBOX_DOMAINS + Array(p['sandbox_allowed_domains']).map(&:to_s).reject(&:empty?),
-      extra_prompt: extra.empty? ? nil : extra
-    }
+
+    proj[:path] = raw['path']
+    proj[:git_url] = raw['git_url']
+    proj[:base_branch] = raw['base_branch']
+    proj[:dockerfile] = raw['dockerfile']
+    proj[:repo_root] = raw['repo_root'] || 'shared_host_disk_mount'
+    proj[:ports] = Array(raw['ports']).map(&:to_i).reject(&:zero?)
+    proj[:symlinks] = Array(raw['symlinks']).map(&:to_s).reject(&:empty?).join(',')
+    proj[:mounts_rw] = Array(raw['mounts_rw']).map(&:to_s).reject(&:empty?).join(',')
+    proj[:mounts_ro] = Array(raw['mounts_ro']).map(&:to_s).reject(&:empty?).join(',')
+    proj[:timezone] = raw['timezone'] || 'Asia/Shanghai'
+    proj[:proxy] = raw['proxy'] || proxy
+    proj[:proxy_in_container] = raw['proxy_in_container'] || proxy_in_container || proj[:proxy]
+    proj[:no_proxy] = raw['no_proxy'] || no_proxy
+    proj[:memory] = raw['memory'] || default_memory
+    proj[:sandbox_allowed_domains] = DEFAULT_SANDBOX_DOMAINS + Array(raw['sandbox_allowed_domains']).map(&:to_s).reject(&:empty?)
+    proj[:extra_prompt] = extra.empty? ? nil : extra
+    proj
+  end
+
+  def resolve_paths(proj)
+    proj[:path] = File.expand_path(proj[:path])
+    proj
+  end
+
+  def setup_cp_files(proj)
+    raw = proj.delete(:raw)
+    base_cp = load_config.dig('base', 'cp_files')
+    proj[:cp_files] = build_cp_files(raw, base_cp)
+    proj[:cp_files_base_keys] = base_cp.is_a?(Hash) ? base_cp.keys.freeze : [].freeze
+    proj
   end
 
   def build_cp_files(config, base_cp_files = nil)
