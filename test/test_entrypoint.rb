@@ -49,6 +49,53 @@ class EntrypointTest < Minitest::Test
     assert $?.success?, "entrypoint.sh syntax: #{bash_check}"
   end
 
+  def test_entrypoint_has_feishu_bot_startup
+    entrypoint = File.expand_path('../entrypoint.sh', __dir__)
+    content = File.read(entrypoint)
+    assert_includes content, 'feishu-bot',
+                    'entrypoint.sh should contain feishu-bot auto-start logic'
+    assert_includes content, '.env',
+                    'entrypoint.sh should source .env for feishu credentials'
+    assert_includes content, 'nohup',
+                    'entrypoint.sh should use nohup for background feishu-bot'
+  end
+
+  def test_feishu_bot_startup_in_container
+    cname = 'kyb-test-feishu-bot'
+    image_exists = system('docker', 'image', 'inspect', IMAGE, %i[out err] => File::NULL)
+    skip "#{IMAGE} not available" unless image_exists
+
+    begin
+      system('docker', 'rm', '-f', cname, %i[out err] => File::NULL)
+      system('docker', 'run', '-d', '--name', cname,
+             IMAGE, 'sleep', 'infinity',
+             %i[out err] => File::NULL)
+      wait_for_ready(cname, 30)
+
+      # Copy kyb project files into container
+      system('docker', 'exec', cname, 'mkdir', '-p', '/home/dev/projects/kyb', %i[out err] => File::NULL)
+      system('docker', 'cp', '/home/dev/projects/kyb/.env', "#{cname}:/home/dev/projects/kyb/.env", %i[out err] => File::NULL)
+      system('docker', 'cp', '/home/dev/projects/kyb/bin/', "#{cname}:/home/dev/projects/kyb/", %i[out err] => File::NULL)
+      system('docker', 'cp', '/home/dev/projects/kyb/lib/', "#{cname}:/home/dev/projects/kyb/", %i[out err] => File::NULL)
+
+      # Simulate entrypoint's feishu-bot startup as dev user (has Ruby via mise)
+      system('docker', 'exec', '-u', 'dev', '-w', '/home/dev/projects/kyb',
+             cname, 'bash', '-l', '-c',
+        "set -a && . .env && set +a && " \
+        "nohup bin/feishu-bot >> /tmp/feishu-bot.log 2>&1 &")
+
+      sleep 4
+
+      bot_pid = exec_in(cname, 'pgrep', '-f', 'bin/feishu-bot')
+      refute_empty bot_pid, 'Feishu bot process should be running'
+
+      log = exec_in(cname, 'cat', '/tmp/feishu-bot.log')
+      assert_includes log, '[feishu-bot]', 'Log should contain feishu-bot output'
+    ensure
+      system('docker', 'rm', '-f', cname, %i[out err] => File::NULL)
+    end
+  end
+
   private
 
   def start_container
