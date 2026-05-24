@@ -172,7 +172,7 @@ module Kyb::Docker
       args += ['-e', "https_proxy=#{kyb_proxy_translated}"]
       args += ['-e', "HTTP_PROXY=#{kyb_proxy_translated}"]
       args += ['-e', "http_proxy=#{kyb_proxy_translated}"]
-      no_proxy_val = '.deepseek.com,localhost,127.0.0.1,host.orb.internal,.local,.internal,192.168.0.0/16,100.64.0.0/10'
+      no_proxy_val = Kyb::Config.no_proxy
       args += ['-e', "NO_PROXY=#{no_proxy_val}"]
       args += ['-e', "no_proxy=#{no_proxy_val}"]
     end

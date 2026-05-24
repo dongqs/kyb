@@ -96,7 +96,7 @@ class ConfigTest < Minitest::Test
   def test_proxy_default_nil
     stub_config('base' => {}) do
       assert_nil Kyb::Config.proxy
-      assert_nil Kyb::Config.no_proxy
+      assert_equal Kyb::Config::DEFAULT_NO_PROXY, Kyb::Config.no_proxy
     end
   end
 

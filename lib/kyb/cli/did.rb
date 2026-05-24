@@ -81,7 +81,7 @@ module Kyb::CLI
       proxy_translated = Kyb::Docker.host_to_docker_proxy(Kyb::Config.proxy)
       run_args += ['-e', "ALL_PROXY=#{proxy_translated}"]
     end
-    run_args += ['-e', "NO_PROXY=#{Kyb::Config.no_proxy}"] if Kyb::Config.no_proxy
+    run_args += ['-e', "NO_PROXY=#{Kyb::Config.no_proxy}"]
     run_args += ['-v', "#{volume}:/home/dev/projects/#{name}"]
 
     # Shared build-tool caches
