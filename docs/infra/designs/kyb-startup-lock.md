@@ -193,7 +193,7 @@ $ kyb
 ║                                                          ║
 ║ 继续使用即表示您了解以上行为。                            ║
 ║                                                          ║
-║ 输入 yes 确认，或重新尝试。按 Ctrl+D 退出。              ║
+║ 输入 yes 表示已了解并同意。Ctrl+D 取消本次操作。         ║
 ║ 如需在 CI/非交互环境中跳过，设置环境变量：                ║
 ║   export KYB_STARTUP_BYPASS=true                          ║
 ║ 或通过配置文件永久禁用：                                  ║
@@ -226,7 +226,7 @@ $ echo kyb ps | ssh server
 
 ```ruby
 # 伪代码示意
-def self.check(consent_path:, input_io:, env:, tty: input_io.tty?)
+def self.check(consent_path:, input_io:, env:, tty: input_io.tty?, config_loader: nil, output: $stderr)
   # [1] 已同意过（带内容校验）
   return if valid_consent?(consent_path)
 
@@ -243,8 +243,7 @@ def self.check(consent_path:, input_io:, env:, tty: input_io.tty?)
   end
 
   # [4] 配置中显式禁用
-  config_path = File.expand_path('~/.config/kyb/config.yml')
-  config = File.exist?(config_path) ? (YAML.safe_load_file(config_path) rescue {}) : {}
+  config = config_loader ? config_loader.call : load_config
   return unless config.dig('startup_lock', 'enabled') != false
 
   # [5] 交互式同意（带重试）
@@ -372,7 +371,7 @@ end
 ║                                                          ║
 ║ 继续使用即表示您了解以上行为。                            ║
 ║                                                          ║
-║ 输入 yes 确认，或重新尝试。按 Ctrl+D 退出。              ║
+║ 输入 yes 表示已了解并同意。Ctrl+D 取消本次操作。         ║
 ║ 如需在 CI/非交互环境中跳过，设置环境变量：                ║
 ║   export KYB_STARTUP_BYPASS=true                          ║
 ║ 或通过配置文件永久禁用：                                  ║
@@ -433,7 +432,8 @@ def self.check(
   consent_path: File.expand_path('~/.config/kyb/.consent'),
   input_io: $stdin,
   env: ENV,
-  tty: input_io.tty?  # 独立注入，StringIO.tty? 永远 false
+  tty: input_io.tty?,  # 独立注入，StringIO.tty? 永远 false
+  config_loader: nil    # 测试注入，nil 时使用默认读取 config.yml
 )
 ```
 
