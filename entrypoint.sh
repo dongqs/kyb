@@ -260,6 +260,9 @@ fi
 # credential management solution, not a local fix. See issue #108.
 runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]'" 2>/dev/null || true
 
+# Install Claude Code at container start (avoids npm/SOCKS5 hang during build)
+runuser -u dev -- bash -l -c '/home/dev/.local/bin/mise install npm:@anthropic-ai/claude-code@2 2>/dev/null' || true
+
 # Claude Code native binary (postinstall may fail during image build)
 runuser -u dev -- bash -l -c 'cmd=$(find /home/dev/.local/share/mise/installs/npm-anthropic-ai-claude-code -name install.cjs -path "*/@anthropic-ai/claude-code/*" 2>/dev/null | head -1); [ -n "$cmd" ] && node "$cmd" 2>/dev/null || true'
 
