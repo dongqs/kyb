@@ -67,7 +67,7 @@ module Kyb::CLI
 
     system('docker', 'volume', 'create', volume) || Kyb.die("failed to create volume '#{volume}'")
 
-    run_args = %w[docker run -d --init --restart unless-stopped --name]
+    run_args = %w[docker run -d --init --restart on-failure:5 --name]
     run_args << cname
     run_args += ['--label', 'kyb=true']
     run_args += ['--label', "did_parent=#{parent}"]

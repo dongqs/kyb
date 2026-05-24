@@ -15,7 +15,7 @@
 ```bash
 # sim 上已运行
 docker run -d --name kyb-registry-cache \
-  --restart always \
+  --restart unless-stopped \
   -p 5000:5000 \
   -v registry-data:/var/lib/registry \
   registry:2
