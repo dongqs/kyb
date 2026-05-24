@@ -26,6 +26,12 @@ if [ -n "${KYB_PROXY:-}" ]; then
   [ -z "${HTTP_PROXY:-}" ]   && export HTTP_PROXY="${KYB_PROXY}"  && export http_proxy="${KYB_PROXY}"
 fi
 
+# Export NO_PROXY from KYB_NO_PROXY if not already set (safety net for containers
+# where docker -e didn't set NO_PROXY, e.g. when only KYB_NO_PROXY was provided).
+if [ -n "${KYB_NO_PROXY:-}" ]; then
+  [ -z "${NO_PROXY:-}" ] && export NO_PROXY="${KYB_NO_PROXY}" && export no_proxy="${KYB_NO_PROXY}"
+fi
+
 uid_changed=false; gid_changed=false
 
 # Adjust UID (remove conflicting user first, e.g. ubuntu from base image)

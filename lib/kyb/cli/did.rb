@@ -82,6 +82,8 @@ module Kyb::CLI
       run_args += ['-e', "ALL_PROXY=#{proxy_translated}"]
     end
     run_args += ['-e', "NO_PROXY=#{Kyb::Config.no_proxy}"]
+    run_args += ['-e', "no_proxy=#{Kyb::Config.no_proxy}"]
+    run_args += ['-e', "KYB_NO_PROXY=#{Kyb::Config.no_proxy}"]
     run_args += ['-v', "#{volume}:/home/dev/projects/#{name}"]
 
     # Shared build-tool caches
