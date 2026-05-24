@@ -47,3 +47,21 @@
 
 1. **内存限制要谨慎** — CK 本来跑得好好的（30h+ 无限制），我加了 4g 限制后触发 OOM，反复 crash 损坏了数据卷。应该先加配置限制 CK 内部内存，再加 Docker 限制。
 2. **Vector 0.44.0 的 ClickHouse sink 有问题** — reqwest HTTP client 不兼容 CK HTTP 接口。手动测试全部通过，但 Vector 自身发送失败。
+
+## 更新
+
+### 23:27 — 第三轮巡检
+- 系统健康：load 1.34，内存 10Gi 可用
+- Sing-box 加 256m 限制（重建，代理正常 ✅）
+- #154 内存限制 — 已关闭（所有 infra 容器已加限制）
+
+## 当前容器限制状态
+
+| 容器 | 限制 |
+|------|------|
+| kyb-infra-nuc8-tunnel | 64m |
+| kyb-infra-boss | 2g |
+| kyb-infra-clickhouse | 4g |
+| kyb-infra-sing-box | 256m |
+| kyb-click-xiaoye | 8g（kyl 默认） |
+| kyb-hamilton-cat | 8g（kyb 默认） |
