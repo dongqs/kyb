@@ -270,20 +270,20 @@ touch /tmp/kyb-ready
 
 # Project setup: mise trust, npm install on first run
 if [ -n "${KYB_PROJECT:-}" ] && [ -d "/home/dev/projects/${KYB_PROJECT}" ]; then
-    runuser -u dev -- bash -l << EOF
-        cd /home/dev/projects/${KYB_PROJECT}
+    runuser -u dev -- bash -l -s "${KYB_PROJECT:-}" << 'EOF'
+        cd "/home/dev/projects/$1"
         # Trust system mise config first so mise activate works cleanly
         /home/dev/.local/bin/mise trust /home/dev/.config/mise/config.toml || true
         # Enable experimental plugins (swift, etc.)
         /home/dev/.local/bin/mise settings experimental=true 2>/dev/null || true
-        eval "\$(/home/dev/.local/bin/mise activate bash)"
+        eval "$(/home/dev/.local/bin/mise activate bash)"
         # Trust project-level mise config if any
         if [ -f mise.toml ]; then
             mise trust mise.toml || true
         fi
 
         # Node dependencies
-        if [ -f package.json ] && { [ ! -d node_modules ] || [ -z "\$(ls -A node_modules 2>/dev/null)" ]; }; then
+        if [ -f package.json ] && { [ ! -d node_modules ] || [ -z "$(ls -A node_modules 2>/dev/null)" ]; }; then
             if [ -f yarn.lock ]; then
                 yarn install --frozen-lockfile || true
             else
