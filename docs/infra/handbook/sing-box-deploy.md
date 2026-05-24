@@ -40,7 +40,7 @@ ALL_PROXY=socks5://127.0.0.1:2080 curl -sI https://github.com
 | 目标 | 出口 | 路径 |
 |------|------|------|
 | github.com/google.com | Relay-JP1/HK2 等 | Shadowsocks → 国际出口 |
-| leyantech.com | nuc8-proxy | SSH 隧道 → sim → Tailscale → nuc8 → 办公室 |
+| leyantech.com | nuc8-proxy | SSH 隧道 (Tailscale 直连) → nuc8 → 办公室 |
 | 国内 IP/CDN | direct | 直连 |
 
 ## 验证

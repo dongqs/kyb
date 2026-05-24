@@ -94,18 +94,16 @@ host.docker.internal:2080 → OrbStack → kyb-infra-sing-box
   │ 路由：leyantech.com / 120.132.11.237 → nuc8-proxy
   ▼
 SOCKS5 → kyb-infra-boss:2081
-  │ SSH 隧道
+  │ SSH 隧道 (autossh, Tailscale 直连 nuc8)
   ▼
-sim (100.113.24.32) ← Tailscale
-  │ SSH 隧道
-  ▼
-nuc8 (100.98.29.39:2080) ← Tailscale
+nuc8 (100.98.29.39:2081) ← Tailscale
   │ sing-box on nuc8
   ▼
 办公室 → GitLab (120.132.11.237)
 ```
 
-> GitLab HTTPS 必须走 4 跳代理链。SSH (`git@`) 直连不依赖 proxy。
+> GitLab HTTPS 必须走 3 跳代理链。SSH (`git@`) 直连不依赖 proxy。
+> 2026-05 更新：SSH 隧道不再经 sim 跳转（`-J sim`），改为 Tailscale 直连 nuc8。
 
 ### 中国站点
 
@@ -129,4 +127,4 @@ pang-s2        100.73.225.60    Linux
 shiwei-mac     100.124.229.78   macOS
 ```
 
-nuc8 提供 exit node，公司内网流量经 sim → nuc8 转发。
+nuc8 提供 exit node，公司内网流量经 SSH 隧道（Tailscale 直连）→ nuc8 转发。

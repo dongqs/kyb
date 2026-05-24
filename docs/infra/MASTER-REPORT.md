@@ -216,7 +216,7 @@ Proxy Chain:
     → sing-box routing:
       - ai-extra (anthropic.com) → Relay-US2 (Shadowsocks)
       - cn-ip (deepseek.com) → Direct
-      - nuc8-proxy (git.leyantech.com) → SSH tunnel → sim → Tailscale → nuc8
+      - nuc8-proxy (git.leyantech.com) → SSH tunnel (Tailscale 直连) → nuc8
       - default → Relay-JP2 (Shadowsocks)
 ```
 
@@ -225,7 +225,7 @@ Proxy Chain:
 | Traffic | Path | Latency | Notes |
 |---------|------|---------|-------|
 | DeepSeek API (Claude Code) | Direct (cn-ip match) | ~80ms | Chinese IPs, no relay |
-| GitLab (git.leyantech.com) | sing-box → SSH tunnel → sim (47.100.71.220) → Tailscale → nuc8 (100.98.29.39) | ~80ms | TCP-over-TCP bottleneck |
+| GitLab (git.leyantech.com) | sing-box → SSH tunnel (Tailscale 直连) → nuc8 (100.98.29.39) | ~80ms | TCP-over-TCP bottleneck |
 | Docker Hub pulls | sing-box → Relay-JP2 (103.181.1.45, MonoCloud Tokyo) | Variable | 3 Mbps bottleneck via sim |
 | ClickHouse (host.orb.internal) | Direct (internal) | <1ms | No proxy for infra traffic |
 

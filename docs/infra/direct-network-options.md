@@ -71,8 +71,8 @@ nuc8's `tailscale netcheck` output:
 
 | Route | Latency (warm) | Notes |
 |-------|---------------|-------|
-| Via SSH tunnel → sim → nuc8 | ~80ms | Current setup |
-| Via direct SSH → nuc8 | ~100ms | Direct tunnel |
+| Via SSH tunnel → sim → nuc8 | ~80ms | 旧拓扑（已弃用，现改为 Tailscale 直连） |
+| Via direct SSH → nuc8 | ~100ms | **已实施** — SSH 隧道改为 Tailscale 直连 nuc8，不再经 sim |
 | Via sing-box → nuc8 (direct Tailscale) | Not tested | Would bypass SSH tunnel |
 
 Both paths are comparable because all traffic converges on sim as the Tailscale relay.
@@ -97,6 +97,8 @@ Both paths are comparable because all traffic converges on sim as the Tailscale 
 Then kill the SSH tunnel: `kill 57472` (or `pkill -f "ssh.*-L.*2081"`)
 
 **Effect**: Removes the SSH tunnel through sim as an intermediate hop. Sing-box connects directly to nuc8's SOCKS5 via Tailscale.
+
+> 注：SSH 隧道层已改为 Tailscale 直连 nuc8（不再经 sim 跳转）。sing-box 仍通过 boss 容器转发，未走 Option A 的完全直连。
 
 **Benefit**:
 - Eliminates the "TCP over TCP" problem (SSH tunnel encapsulation of TCP traffic)

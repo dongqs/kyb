@@ -88,7 +88,7 @@
 
 ### 2.4 Follow-up Session (2026-05-23 10:00-10:50)
 
-1. **nuc8 隧道修复** — SSH 隧道（→ sim → nuc8 → GitLab）因 boss 重启断线，已重建
+1. **nuc8 隧道修复** — SSH 隧道（→ sim → nuc8 → GitLab）因 boss 重启断线，已重建（注：后续改为 Tailscale 直连 nuc8，不再经 sim）
 2. **Session handoff 更新** — 加入孤儿容器评估、双 boss 分析、凭证清理
 3. **MR !140 审查** — 13 路代理审查，9 条 coment 已发；复查发现明文密码已清除
 4. **交接模板创建** — `docs/infra/SESSION-HANDOFF-TEMPLATE.md`
@@ -104,7 +104,7 @@ macOS Host (Orbstack)
   ├── sing-box (192.168.97.2:2080)
   │   ├── ai-extra (Anthropic) → Relay-US2 (Shadowsocks)
   │   ├── cn-ip (DeepSeek) → Direct
-  │   ├── nuc8-proxy (GitLab) → SSH tunnel → sim → Tailscale → nuc8
+  │   ├── nuc8-proxy (GitLab) → SSH tunnel (Tailscale 直连) → nuc8
   │   └── default → Relay-JP2
   │
   ├── PG 14/15/16/17, Redis, Kafka, CK, Grafana
@@ -123,7 +123,7 @@ macOS Host (Orbstack)
 | Feishu Webhook | `/home/dev/projects/kyb/.env.kyb` | `FEISHU_BOT_WEBHOOK` env var |
 | DingTalk Webhook | `/home/dev/projects/kyb/.env.kyb` | `DINGTALK_BOT_WEBHOOK` env var |
 | Anthropic API key | `~/.claude/settings.json` | For Claude Code |
-| GitLab access | via nuc8 tunnel (sing-box -> sim -> nuc8) | No direct access; proxied through nuc8 |
+| GitLab access | via nuc8 tunnel (sing-box -> nuc8 直连) | No direct access; proxied through nuc8 |
 | GitHub PAT | Not stored in repo | Needed for ghcr.io auth (PeerDB etc.) |
 
 ---

@@ -64,4 +64,4 @@ fi
 | # | 场景 | 问题 |
 |---|------|------|
 | 1 | sing-box 进程在但隧道坏 | proxy 工具挂起，agent 通过 `.deepseek.com` 直连不受影响 |
-| 2 | 容器内 4 跳代理链 | sandbox → sing-box → boss → sim → nuc8，延迟较高 |
+| 2 | 容器内 3 跳代理链 | sandbox → sing-box → boss → nuc8，延迟较旧拓扑（经 sim）已降低 |

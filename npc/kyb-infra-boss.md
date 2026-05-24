@@ -407,8 +407,9 @@ docker exec <任意容器> sh -c 'ALL_PROXY=socks5://host.orb.internal:2080 curl
 | 宿主机代理地址 | `socks5://127.0.0.1:2080` |
 | 容器代理地址 | `socks5://host.orb.internal:2080` |
 | 内置容器代理地址（同网络下） | `socks5://kyb-infra-sing-box:2080` |
-| nuc8 代理 | ❌ Tailscale `100.98.29.39:2080`（失效，见 Tailscale 现状） |
-| nuc8 ping | ❌ `100.98.29.39` unreachable（宿主机 Tailscale 未运行） |
+| nuc8 SSH 隧道 | ✅ autossh 保活，Tailscale 直连 `100.98.29.39`（不再经 sim） |
+| nuc8 代理 | ✅ `100.98.29.39:2081`（SOCKS5，经 SSH 隧道可达） |
+| nuc8 ping | ✅ `100.98.29.39` via Tailscale（~17ms） |
 | Tailscale socket | ❌ `/var/run/tailscaled.socket` → 空目录（Orbstack 预创建，无 tailscaled 进程） |
 | *.leyantech.com 路由 | 走 kyb-infra-sing-box direct 出站（国内 IP 直连） |
 
