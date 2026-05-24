@@ -246,4 +246,45 @@ class TestFeishuBot < Minitest::Test
     assert tracker.seen?('b')
     assert tracker.seen?('c')
   end
+
+  # === Bot Core 组件测试 ===
+
+  def test_bot_seen_tracker
+    tracker = Kyb::Bot::SeenTracker.new(max_size: 2)
+    tracker.mark('x')
+    assert tracker.seen?('x')
+    tracker.mark('y')
+    tracker.mark('z')
+    refute tracker.seen?('x')
+  end
+
+  def test_bot_rate_limiter
+    limiter = Kyb::Bot::RateLimiter.new(window: 60, max: 2)
+    refute limiter.limited?('user')
+    refute limiter.limited?('user')
+    assert limiter.limited?('user')
+  end
+
+  def test_bot_rate_limiter_per_user
+    limiter = Kyb::Bot::RateLimiter.new(window: 60, max: 2)
+    refute limiter.limited?('a')
+    refute limiter.limited?('a')
+    refute limiter.limited?('b')
+  end
+
+  def test_bot_ck_logger_esc
+    logger = Kyb::Bot::CkLogger.new
+    assert_equal "it\\'s", logger.send(:esc, "it's")
+    assert_equal '', logger.send(:esc, nil)
+  end
+
+  def test_bot_runner_adapter
+    adapter = Object.new
+    def adapter.name; 'test'; end
+    def adapter.fetch_new_items; []; end
+    def adapter.process_item(item); end
+    config = { poll_interval: 1 }
+    runner = Kyb::Bot::Runner.new(adapter, config)
+    assert runner.respond_to?(:run)
+  end
 end
