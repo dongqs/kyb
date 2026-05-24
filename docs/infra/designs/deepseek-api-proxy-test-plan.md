@@ -117,6 +117,7 @@ POST /__admin/reset
 | `fast_path_non_stream` | 极快非 streaming 响应 | 200 | JSON | `response_delay_ms: 5` |
 | `empty_messages` | 空 messages 数组（关联 TC-BC01） | 200 | JSON | — |
 | `reasoner_stream` | 含 reasoning_content 的 streaming（关联 TC-N09b） | 200 | SSE | `chunk_count: 5, has_reasoning: true` |
+| `reasoner_non_stream` | 含 reasoning_content 的非 streaming（关联 TC-N09c） | 200 | JSON | `response_delay_ms: 200, has_reasoning: true` |
 
 #### 1.4.2 故障注入场景
 
@@ -312,7 +313,8 @@ Mock Server 启动
 |------|------|----------|------|----------|
 | TC-N08 | 基本 streaming 请求 | Mock `happy_path_stream` | POST `/v1/messages`，`stream: true` | SSE 响应，5 个 chunk 依次到达 |
 | TC-N09 | Streaming chunk 顺序正确 | Mock `happy_path_stream` | 同上，记录每个 chunk 的 event 类型 | 顺序: message_start → content_block_start → content_block_delta(x3) → content_block_stop → message_delta → message_stop |
-| TC-N09b | Reasoner 模型 reasoning_content 透传 | Mock `reasoner_stream`（含 reasoning_content） | POST streaming，模型设为 deepseek-reasoner | SSE 中含 reasoning_content 字段，代理透传到客户端 |
+| TC-N09b | Reasoner 模型 reasoning_content 透传（streaming） | Mock `reasoner_stream`（含 reasoning_content） | POST streaming，模型设为 deepseek-reasoner | SSE 中含 reasoning_content 字段，代理透传到客户端 |
+| TC-N09c | Reasoner 模型 reasoning_content 透传（非 streaming） | Mock `reasoner_non_stream`（含 reasoning_content） | POST 非 streaming，模型设为 deepseek-reasoner | 200，content 含 reasoning_content 字段，CK 记录中 reasoning_content 完整 |
 | TC-N10 | Streaming 首 chunk 延迟验证 | Mock `happy_path_stream` | 记录请求到首 chunk 时间 | TTFT < 50ms（代理引入延迟） |
 | TC-N11 | 每 chunk 零延迟转发 | Mock `happy_path_stream`（chunk_interval: 100ms） | 在客户端记录每 chunk 到达时间 | chunk 间隔 ≈ 100ms（偏差 < 10ms），证明代理无缓冲延迟 |
 | TC-N12 | Flush 频率验证 | Mock `happy_path_stream`（50 chunks，interval 10ms） | 代理侧记录每次 Flush 时间 | 每 chunk 到达后 1ms 内调用 Flush() |
@@ -342,7 +344,7 @@ Mock Server 启动
 
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
-| TC-A01 | 连接超时（加速模式: CONNECT_TIMEOUT=3s） | blackhole 容器（无服务监听，或 iptables DROP 入站 SYN） | POST `/v1/messages` | 3s 后代理返回 504，error="connect_timeout" |
+| TC-A01 | 连接超时（加速模式: CONNECT_TIMEOUT=3s） | iptables DROP 入站 SYN（模拟无响应，非 connection refused） | POST `/v1/messages` | 3s 后代理返回 504，error="connect_timeout" |
 | TC-A02 | Streaming 空闲超时（加速模式: IDLE_TIMEOUT=10s） | Mock `stall_after_first_chunk` | POST streaming 请求，首 chunk 后无数据 | 10s 后代理返回 504，error="idle_timeout" |
 | TC-A03 | 非 streaming 总超时（加速模式: TOTAL_TIMEOUT_NON_STREAMING=5s） | Mock `slow_response`，配置 `response_delay_ms: 7000`（超过 5s） | POST `/v1/messages`（非 streaming） | 5s 后代理返回 504，error="total_timeout" |
 | TC-A04 | Streaming 总超时（加速模式: TOTAL_TIMEOUT_STREAMING=30s） | Mock 配置 streaming 持续 35s | 持续接收并验证 | 30s 后代理停止转发，返回 504，已收 chunks 写入 CK |
@@ -375,7 +377,7 @@ Mock Server 启动
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
 | TC-A18 | SSE 中途断开 | Mock `partial_sse`（2 chunks 后断连） | POST streaming 请求 | 代理检测到连接断开，写入 CK，truncated=1，error="stream_interrupted" |
-| TC-A19 | Streaming stall 后恢复 | Mock `stall_mid_stream`（停 30s 后恢复） | POST streaming，等 30s | 代理在 idle_timeout（60s）内等待，30s 后恢复传输，请求完整完成 |
+| TC-A19 | Streaming stall 后恢复（生产模式: IDLE_TIMEOUT=60s） | Mock `stall_mid_stream`（停 30s 后恢复） | POST streaming，等 60s | 代理在 idle_timeout（60s）内等待，30s 后恢复传输，请求完整完成 |
 | TC-A20 | 非法 SSE 格式 | Mock `invalid_sse_format` | POST streaming | 代理返回 502，error="sse_parse_error" |
 | TC-A21 | SSE data 非 JSON | Mock `invalid_sse_data` | POST streaming | 代理返回 502，error="sse_parse_error" |
 | TC-A22 | SSE 乱序 event — 状态机转换检测 | Mock `wrong_event_order`（先 message_stop 再 delta） | POST streaming | 代理按 event type 序列顺序检测非法状态机转换（例如 message_start 后不能又来一个 message_start），乱序则 CK 记录 `out_of_order=1`，按收到顺序写入 completion |
@@ -394,7 +396,7 @@ Mock Server 启动
 | TC-CB01 | 20% 失败率触发 OPEN（确定性） | Mock `pattern_errors`，预设模式：每 4 个请求返回 1 个 500（25% 失败率），连续 40 个请求 | 连续发 40 个请求 | 正好 10 个失败，失败率 25% > 20%，熔断器进入 OPEN |
 | TC-CB02 | 低于阈值不触发（确定性） | Mock `pattern_errors`，预设模式：每 10 个请求返回 1 个 500（10% 失败率），连续 50 个请求 | 连续发 50 个请求 | 正好 5 个失败，失败率 10% < 20%，熔断器保持 CLOSED |
 | TC-CB03 | 样本不足不触发 | 只发 5 个请求，3 个失败（60% > 20% 但 total < 10） | 发 5 个请求 | 熔断器保持 CLOSED（min_request_count=10） |
-| TC-CB04 | 滑动窗口过期重置 | 窗口内积累 8 个失败，等待 5 分钟后失败计数归零 | 等待 5 分钟后再发请求 | 失败率重新计算，熔断器不触发 |
+| TC-CB04 | 滑动窗口过期重置（加速模式: CB_WINDOW_SIZE=30s） | 窗口内积累 8 个失败，等待 30s 后失败计数归零 | 等待 30s 后再发请求 | 失败率重新计算，熔断器不触发 |
 | TC-CB05 | 429 不计入失败率 | Mock 返回 10 次 429 + 10 次 200 | 连续发 20 个请求 | 熔断器不 OPEN（429 不计入失败计数） |
 | TC-CB06 | CK 写入失败不影响熔断 | 停掉 CK，Mock 正常返回 | 连续发请求 | 熔断器不 OPEN（CK 失败不计入熔断计数） |
 
@@ -472,8 +474,8 @@ Mock Server 启动
 | 编号 | 名称 | 前置条件 | 步骤 | 测量指标 | 目标 |
 |------|------|----------|------|----------|------|
 | TC-P01 | 非 streaming 代理延迟 | Mock `fast_path_non_stream`（delay=5ms），直接测 Mock 得到基线，经代理再测 | 对比直接请求 Mock 和经代理请求 Mock 的延迟 | 代理引入额外延迟 P50 < 5ms, P99 < 20ms |
-| TC-P02 | Streaming TTFT 代理延迟 | Mock `happy_path_stream`（delay=0） | 从请求发出到收到首 chunk 的时间 | P50 < 5ms, P99 < 20ms |
-| TC-P03 | 每 chunk Flush 延迟 | Mock 100 chunks，interval 10ms | 从收到 chunk 到 Flush 返回的时间 | P50 < 1ms, P99 < 5ms |
+| TC-P02 | Streaming TTFT 代理延迟 | Mock `happy_path_stream`（delay=0） | 从请求发出到收到首 chunk 的时间 | P50 < 50ms, P99 < 200ms |
+| TC-P03 | 每 chunk Flush 延迟 | Mock 100 chunks，interval 10ms | 通过 admin metrics endpoint 暴露 `proxy_flush_duration`，测量从收到 chunk 到 Flush 返回的时间 | P50 < 1ms, P99 < 5ms |
 | TC-P04 | CK 写入对响应的影响 | Mock `happy_path_non_stream`，开启和关闭 CK 写入对比 | 对比两组的响应延迟 | CK 写入不增加响应延迟（异步 goroutine 零阻塞） |
 
 #### 2.5.2 吞吐量
@@ -735,7 +737,7 @@ services:
 
 | 场景 | 涵盖的 TC | 预计执行时间 |
 |------|-----------|-------------|
-| 正常非 streaming 路径（含 /v1/models, /v1/complete） | TC-N01 ~ TC-N07b | ~5s |
+| 正常非 streaming 路径（含 /anthropic/v1/messages, /v1/models, /v1/complete） | TC-N01 ~ TC-N07b | ~5s |
 | 正常 streaming 路径 | TC-N08 ~ TC-N17 | ~15s |
 | 并发请求 | TC-N18 ~ TC-N20 | ~10s |
 | 超时处理 | TC-A01 ~ TC-A06 | ~70s（含超时等待） |
@@ -999,8 +1001,8 @@ Chaos Scenario: "星期五下午"
 |------|--------|----------|----------|
 | 非 streaming 代理延迟（P50） | < 5ms | Mock `fast_path_non_stream`，100 次请求 | Phase 1 |
 | 非 streaming 代理延迟（P99） | < 20ms | Mock `fast_path_non_stream`，100 次请求 | Phase 1 |
-| Streaming TTFT（P50） | < 5ms | Mock `happy_path_stream`，50 次请求 | Phase 1 |
-| Streaming TTFT（P99） | < 20ms | Mock `happy_path_stream`，50 次请求 | Phase 1 |
+| Streaming TTFT（P50） | < 50ms | Mock `happy_path_stream`，50 次请求 | Phase 1 |
+| Streaming TTFT（P99） | < 200ms | Mock `happy_path_stream`，50 次请求 | Phase 1 |
 | 每 chunk Flush 延迟（P50） | < 1ms | Mock 100 chunks，interval 10ms | Phase 1 |
 | 每 chunk Flush 延迟（P99） | < 5ms | Mock 100 chunks，interval 10ms | Phase 1 |
 | 200 并发 | 全部成功 | Mock `fast_path_non_stream` | Phase 1 |
