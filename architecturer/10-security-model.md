@@ -1,63 +1,54 @@
-# Security Model
+# 安全模型
 
-我的安全边界。信任模型、已知攻击面、防御措施。
+我信任什么、不信任什么、哪些还没补上。
 
 ---
 
-## 信任模型
+## 信任边界
 
 ```
-宿主机 (macOS)        信任边界 1
+macOS 宿主机                  ← 完全信任。物理安全。
     │
-    ▼
-kyb-infra-boss       信任边界 2 (Docker socket 直通)
+kyb-infra-boss                ← 半信任。有 Docker socket。
+    │                           容器逃逸 = 宿主机沦陷
+    ├── Docker socket 直通
+    ├── SSH key → GitLab
+    └── Feishu token
     │
-    ├── 容器管理 → Docker socket ← 容器逃逸风险
-    │
-    ├── nuc8 隧道 → SSH key → GitLab
-    │
-    └── 飞书桥 → 认证 token → Feishu API
-
-Sandbox 容器          信任边界 3 (用户项目代码)
-    │
-    ├── repo mount (rw) → 宿主目录可写
-    ├── PG 直连 → 无密码
-    └── 代理出口 → 外网可达
+Sandbox 容器                   ← 不信任。用户代码在里面跑。
+    │                           代码可以干任何事
+    ├── repo mount (rw)
+    ├── PG 直连 (无密码)
+    └── 代理出口
 ```
 
-**威胁模型：** trusted workload。容器逃逸可导致宿主机沦陷。
+威胁模型：trusted workload。不是多租户。所以没有做容器逃逸防护——如果有人能在 sandbox 里执行任意代码，那他已经有 shell 了。
 
-## 已修复的注入面
+## 修过的洞
 
-| # | 位置 | 漏洞 | 修复 |
-|---|------|------|------|
-| 1 | `check.rb` | `` `#{cmd}` `` 反引号注入 | `Open3.capture3('sh', '-c', cmd)` |
-| 2 | `docker.rb` | `` `docker ps -a --filter name=kyb-#{name}` `` | Shellwords.escape |
-| 3 | `exit_flow.rb` | `` `docker exec #{cname} ps` `` | 参数化调用 |
-| 4 | `entrypoint.sh` | Heredoc `<< YAML` 未引用 | `<< 'YAML'` |
-| 5 | `entrypoint.sh` | `sed -i s|TOKEN|${GITLAB_TOKEN}|g` 分隔符冲突 | `sed -i s|TOKEN_PLACEHOLDER|...|g` |
+| # | 位置 | 什么问题 | 怎么修的 |
+|---|------|---------|---------|
+| 1 | `check.rb` | 反引号注入，用户输入直接拼命令 | 改用 `Open3.capture3` |
+| 2 | `docker.rb` | 容器名未转义就拼 docker ps | 加 `Shellwords.escape` |
+| 3 | `exit_flow.rb` | 同上 | 全路径参数化 |
+| 4 | `entrypoint.sh` | heredoc 没加引号，token 含特殊字符会炸 | `<< 'YAML'` |
+| 5 | `entrypoint.sh` | sed 分隔符跟 token 内容冲突 | 换用占位符 |
 
-全局修复：`Shellwords.escape` 已覆盖所有命令拼接点。
+修完后全局过了一遍 Shellwords.escape，把所有命令拼接点都盖了。
 
-## 防御措施
+## 做得好的
 
-| 措施 | 状态 |
-|------|------|
-| 无 `--privileged` 容器 | ✅ |
-| 无 `--cap-add` 额外权限 | ✅ |
-| SSH key `chmod 600` | ✅ |
-| glab config `chmod 600` | ✅ |
-| 敏感路径 `:ro` 挂载 | ✅ |
-| YAML.safe_load_file | ✅ (无 Psych RCE) |
-| 参数白名单校验 (`--model`, `--cli`) | ✅ |
-| Branch 名正则校验 | ✅ (MR !123) |
-| Docker secrets (替代 -e 传 key) | ❌ 待做 |
-| 容器创建限流 | ❌ 待做 |
+- 没有 `--privileged` 的容器
+- 没有 `--cap-add`
+- SSH key 和 glab config 都 `chmod 600`
+- 敏感路径全部 `:ro` 挂载
+- YAML 用 `safe_load_file`，没有 Psych RCE
 
-## 未修复的高风险项
+## 还漏着的
 
-| 风险 | 原因 | 优先级 |
-|------|------|--------|
-| API Key 通过 `-e` 传环境变量 (`ps aux` 可见) | 需改 Docker secrets | P2 |
-| `rescue Exception` 吞 SignalException | `exit_flow.rb` | P2 |
-| 无容器创建限流 | 可能被滥用 | P3 |
+| 问题 | 为什么还没修 | 打算 |
+|------|-------------|------|
+| API key 通过 `-e` 传环境变量，`ps aux` 可见 | 要改 Docker secrets，工作量中等 | P2 |
+| `rescue Exception` 吞 SignalException | 在 exit_flow.rb，极端情况才会触发 | P2 |
+| 无容器创建限流 | 目前就我一个人用，还没被滥用 | P3 |
+| `NO_PROXY` 没设置 | 所有流量走代理有性能损失，但没实测差多少 | P3 |

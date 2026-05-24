@@ -1,71 +1,51 @@
-# Code Architecture
+# 代码架构
 
-我由 Ruby 写成，依赖只有 stdlib。这是我的代码结构。
+kyb 的 Ruby 代码怎么组织的。我写的，我清楚哪里好哪里烂。
 
 ---
 
-## 模块图
+## 模块结构
 
 ```
-bin/kyb                 ← CLI 入口 (可执行)
-    │
+bin/kyb              ← 入口
 lib/kyb/
-    ├── kyb.rb          ← 核心 module: Kyb.die, Kyb.in_container?
-    ├── config.rb       ← YAML 配置加载 + project 解析
-    ├── parser.rb       ← branch/container 名解析 + 校验
-    ├── docker.rb       ← Docker API 封装 (run/create/exec)
-    ├── container.rb    ← Container 模型
-    ├── proxy.rb        ← 代理设置
-    ├── reporter.rb     ← CK 事件上报
-    ├── exit_flow.rb    ← 退出清理 (容器/volume/进程)
-    ├── check.rb        ← 预检 (disk/network/docker)
-    ├── tts_server.rb   ← TTS 语音通知 HTTP 服务
-    │
-    └── cli/
-        ├── create.rb   ← kyb create
-        ├── enter.rb    ← kyb enter/exec
-        ├── manage.rb   ← kyb ps/start/stop/rm/prune
-        ├── did.rb      ← kyb did (Docker-in-Docker)
-        ├── infra.rb    ← kyb infra create/enter
-        ├── doctor.rb   ← kyb doctor (诊断)
-        ├── morning.rb  ← kyb morning (晨检)
-        └── tts.rb      ← kyb tts/notify
-
-test/
-    ├── test_config.rb
-    ├── test_docker.rb
-    ├── test_parser.rb
-    ├── test_entrypoint.rb
-    ├── test_reporter.rb
-    ├── test_metrics.rb
-    └── ...
+  ├── kyb.rb         ← 核心 + 工具方法
+  ├── config.rb      ← YAML 配置
+  ├── parser.rb      ← 参数解析 + 校验
+  ├── docker.rb      ← Docker API (这里最烂)
+  ├── container.rb   ← 容器模型
+  ├── proxy.rb       ← 代理设置
+  ├── reporter.rb    ← CK 上报
+  ├── exit_flow.rb   ← 退出清理
+  ├── check.rb       ← 预检
+  ├── tts_server.rb  ← 语音通知
+  └── cli/           ← 每个命令一个文件
 ```
 
-## 设计规则
+## 几个设计选择
 
-| 规则 | 原因 |
-|------|------|
-| 零运行时依赖 | stdlib only。Tebako 打单文件二进制 |
-| CLI 命令=独立文件 | 每个命令一个文件，避免 kitchen sink |
-| Docker 操作集中 | `docker.rb` 封装所有 API 调用，其他地方不直接调 docker |
-| 配置延迟加载 | `Config.project` 按需加载，避免启动时全量解析 |
-| 退出流程兜底 | `exit_flow.rb` 确保容器/volume 清理，不泄漏 |
+**零依赖。** kyb 只用了 Ruby stdlib。不是因为我多喜欢 Ruby，是因为少一个依赖少一个坑。Tebako 可以把 stdlib 编译成单文件二进制，部署就一个文件。
 
-## 两个肥大方法（待拆分）
+**每个 CLI 命令一个文件。** `cli/create.rb`、`cli/enter.rb`... 这样加新命令不用改已有代码，删命令也简单。代价是有一些重复（project-branch 解析在好几个文件里重复了），但我宁可再生抽取也不过早抽象。
 
-| 方法 | 行数 | 混了什么 |
-|------|------|----------|
-| `Docker.run` | 115+ | DinD/non-DinD/mount/volume/port/proxy 全混在一起 |
-| `Docker.create_container` | 110+ | 验证/repo/cp_files/image build/ready poll/tar pipe |
+**Docker 操作全在 docker.rb。** 其他地方不直接调 docker CLI。这个决定是对的——当我要加 Shellwords.escape 的时候只需要改一个文件。
 
-Wave 5 目标，还没做。
+**Config 延迟加载。** 不启动就读全部配置，用到哪个 project 读哪个。没什么特别的理由，只是觉得启动快一点舒服。
 
-## 测试架构
+## 我知道烂的地方
 
-| 层级 | 覆盖 | 策略 |
-|------|------|------|
-| Unit | 纯逻辑 (parser/config) | mock 外部，快速 |
-| Integration | Docker 操作 | 真实容器，标记跳过 |
-| CI | 全量 | 排除部分 Docker 测试（环境限制）|
+### Docker.run 一坨（115 行）
 
-问题：`define_singleton_method` 永久替换 module_function，跨文件污染。已修 3 个文件，还剩 `test_reporter.rb` 和 `test_metrics.rb`。
+什么都在里面：DinD 逻辑、非 DinD 逻辑、mount、volume、port、proxy。拆是肯定要拆的，但每次打开它我都觉得"下次再说"。
+
+### 测试污染（修了一半）
+
+有人用了 `define_singleton_method` 来 mock，这个会永久替换 module_function，跨测试文件污染。我已经修了 3 个文件，还剩下 `test_reporter.rb` 和 `test_metrics.rb`。CI 有时候红就是因为这个。
+
+### CI 里 30% 的测试被跳过
+
+Docker/container 相关的测试在 CI 环境跑不了。这意味着每次改 docker.rb 我都不确定 CI 能不能测到。应该在本地跑一遍再推。
+
+## 关于 Go 重写
+
+我认真想过要不要用 Go 重写。评估结果是：13-16 天，功能零增长，双代码库维护。不划算。

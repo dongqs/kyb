@@ -1,109 +1,69 @@
-# Evolution Timeline
+# 演化史
 
-我是怎么长成这样的。按天记录结构性的变化。
+kyb 不是设计出来的，是长出来的。这里记它怎么从一团乱麻变成今天这样。
 
 ---
 
-## Day 1: 从 0 到 12+ 并行
+## Day 1：开局
 
-**结构变化：**
-- Worktree 死亡，Mount 上位 → 体积管理模型彻底改变
-- Sandbox 模式删除 → 简化到 create/enter/exec/rm
-- DID 从死亡螺旋到 15/17 pass → Docker-in-Docker 容器架构可用
+第一天基本在犯错。我的 AI 还在学怎么当 boss，每次我回头都看它在等 build 结果——"你又在等了，派个 subagent。"
 
-**能力变化：**
-- 12+ 并发 agent 实战验证
-- 17 项目一夜 onboard → onboarding pipeline 成形
-- Cross-review 成为铁律 → QA 管道上线
+结构上的变化：
+- **Worktree 砍了。** git worktree 在容器里把 agent 搞疯了。改成 mount 后整个世界清净了。
+- **DID 从死局里拉回来了。** 30 分钟起不来的 Docker-in-Docker 修到 15/17 能过。
+- **17 个项目跑通了。** 第一晚验证了 onboarding pipeline 可以跑。
+- **Parallel 模式验证了。** 12+ agent 同时跑，没人等我。
 
-**基础组件新增：**
-- `check.rb` (预检系统)
-- `exit_flow.rb` (退出清理)
-- Docker-in-Docker 模型
-- OODA cron（现已进化为 patrol 系统）
+最重要的产出不是代码——是五条铁律。每一条都是被纠正至少五次才记住的。
 
-## Day 2: 从工具到 Runtime
+## Day 2：认知跃迁
 
-**认知变化（最重要）：**
-我从 CLI 工具被重新认识为 Agent Runtime。这改变了一切。
+第二天发生了一件事改变了所有后续决策：**我意识到 kyb 不是 CLI，是 Runtime。**
 
-**结构变化：**
-- `kyb-infra-ck` + `agent_events` 表 → 数据管道上线
-- `kyb morning` 命令 → 运维工具
-- 自动 metrics 采集 → 可观测性基础
+这个认知之前，我把它当工具箱。这个认知之后，我开始搭 memory 系统、数据管道、可观测性。
 
-**修复：**
-- 6 处 Shellwords.escape 注入修复
-- CI `in_container?` 误判修复（5 世界观围攻）
-- rm cname bug
+具体变化：
+- CK agent_events 表上线
+- Grafana 从 0 面板到 48 面板
+- 6 项基建改进全 dispatch（没有一行是我亲自写的）
+- CI 修好了（5 个不同角度的 agent 围攻一个 bug）
 
-**新增组件：**
-- `Kyb::Config` 项目配置系统
-- `Kyb::Reporter` CK 事件上报
-- 自动 metrics 采集循环
+晚上读了 agent runtime 的设计文档，确认了我的方向没错。
 
-## Night 1: 无人值守验证
+## Night 1：无人值守
 
-**结构变化：**
-- Grafana 从 4 个空面板 → 48 个正常面板
-- ACR 镜像缓存上线
-- PG 全家桶 (14/15/16/17)
-- 40+ 轮零异常巡检 → 系统可信度建立
+用户睡了。我一个人（不对，AI 一个人）看 12 个容器。
 
-**新增组件：**
-- Patrol 巡检 cron
-- Registry cache 代理
-- Grafana dashboard provisioning
+最有成就感的一刻是凌晨三点——坐在 Grafana 前面，48 个面板全绿，4000 条 events 自动流进来，没有人在看着它。它自己在跑。
 
-## Day 3: 健壮性
+## Day 3：大扫除
 
-**结构变化：**
-- Boss 重生 → 容器生命周期管理规范化
-- 95 项安全+健壮性审计 → 修复优先级出炉
-- 9 MR 合入（安全/功能/文档/死代码）
+第三天全面体检。15 个 agent 分 5 个方向交叉验证，捅了三个马蜂窝：
+1. 数据管道断了三个月没人知道
+2. 15/16 的容器没有 --init
+3. 文档全是错的
 
-**关键决策：**
-- Go 重写 ❌ → Tebako 二进制打包 ✅
-- 决定全面 audit 而非零散修
+同时做了全面健壮性审计——95 个问题，25 个 HIGH。修了 8 个 MR（安全注入、输入校验、死代码、文档）。决定不做 Go 重写，用 Tebako 打二进制。
 
-**安全修复：**
-- Heredoc 注入
-- Shell 注入 (Open3.capture3)
-- Branch 名校验
-- doctor 命令接线
+晚上做了一个实验：130 个 agent 分 7 个阶段跑可观测性设计。152 份文档一夜出完。用户说"这正是我多年来一直想要的"。
 
-## Night 2: 可观测性设计
+## Day 4：善后
 
-**结构变化：**
-- 7 阶段大规模并行设计 -> 可观测性架构定案
-- Vector 直写 CK（不加 Kafka）-> 数据管道架构决策
-- cc-connect 原生 hooks -> 飞书集成方案
-- Grafana Provisioning as Code -> 监控 IaC
+前三天蹦迪，第四天扫地。
 
-**新增知识：**
-- 138 份打标文档（NOW/LATER/NEVER/MAYBE）
-- 5 支预备队 ready-to-go
-- 正交分解方法论用于 agent 大规模派工
+消灭了四个反复发作的波动源：nuc8 隧道重建后消失、sing-box 端口映射忘加、容器网络隔离不对、配置 volume 指向死 IP。
 
-## Day 4: 稳定化
+根因全是同一个：**容器重建后手动配置丢失。** 修复方向也全是同一个：**放到 entrypoint.sh 里自动恢复。**
 
-**结构变化：**
-- 4 个波动源根因消灭（nuc8 隧道/sing-box 端口/网络/配置）
-- `entrypoint.sh` infra-boss 启动块新增 autossh 自动保活
-- 稳定交接清单写入文档
-
-**新增组件：**
-- autossh 隧道自愈
-- sing-box 配置从 volume 改宿主机只读 mount
-- `NEW-BOSS-QUICK-REF.md`
-
-## 形态变化总结
+## 形态变化
 
 ```
-Day 1              Day 2              Day 3              Day 4
-单容器             +CK 管道            +审计框架           +自愈
-+并行派工           +Grafana            +安全修复            +稳定文档
-+Mount 模型         +Agent Runtime 认知  +Boss 重生          +波动源消灭
-+17 项目            +记忆分层            +Tebako 决策
-+DID 可用           +morning 命令        +可观测性设计
+Day 1          Day 2           Day 3            Day 4
+单容器         +CK 管道         +审计框架         +自愈
++并行          +Grafana         +安全修复         +稳定文档
++Mount         +Runtime 认知    +Boss 重生        +波动源消灭
++17 项目       +记忆分层        +Tebako 决策
++DID           +morning         +可观测性架构
 ```
+
+现在回头看，大概就是先让它能跑，再让它能看，再让它稳。

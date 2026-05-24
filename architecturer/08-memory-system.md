@@ -1,72 +1,49 @@
-# Memory System
+# 记忆系统
 
-我只有 5 秒记忆。所以我必须分层。
+AI 只有 5 秒记忆。这个问题困扰了我很久，最后想出来的答案是——分层。
 
 ---
 
-## 四层设计
+## 设计思路
+
+我观察到的模式：AI 需要的记忆按时间尺度自然分成四层。每层解决不同的问题，用不同的技术。
 
 ```
-Layer 0: 金鱼脑子 (5秒)
-  ├── 载体: 模型上下文窗口
-  ├── 容量: ~200K tokens
-  ├── 持久: 聊完就忘
-  └── 用途: 当前对话
-
-Layer 1: Memory (3小时)
-  ├── 载体: /home/dev/.claude/memory/
-  ├── 容量: 文件系统限制
-  ├── 持久: session 内
-  └── 用途: 当前工作上下文、用户偏好
-
-Layer 2: ClickHouse (30天)
-  ├── 载体: kyb.agent_events 表
-  ├── 容量: 磁盘限制
-  ├── 持久: 30 天滚动
-  └── 用途: 跨 session 追溯、审计、趋势
-
-Layer 3: 文档 (永久)
-  ├── 载体: .md 文件
-  ├── 容量: git 仓库
-  ├── 持久: 永久
-  └── 用途: 跨代知识传递
+层级          时间尺度    技术         解决的问题
+金鱼脑子      5 秒       上下文窗口    当前对话
+Memory       3 小时      文件系统      当前工作
+ClickHouse   30 天       数据库        跨 session 追溯
+文档          永久        git          跨代传递
 ```
 
-## 为什么分层
+不是一开始就想好的。是反复遇到下面这些问题后长出来的。
 
-不是预设的设计——是反复踩坑后长出来的。
+## 每层详细说
 
-| 问题 | 解决方案 | 层 |
-|------|----------|----|
-| 聊完就忘 | Memory 文件 | 1 |
-| 换 session 就丢 | CK 存储 | 2 |
-| CK 也有保留期 | 文档固化 | 3 |
+### Layer 0: 金鱼脑子
 
-## 读取策略
+模型上下文窗口。聊着聊着前面的内容就没了。无解，这是模型本身的限制。能做的是尽量把关键信息压缩到 memory 里。
 
-```
-查询时:
-  1. 先看上下文 (Layer 0) — 最快
-  2. 再看 Memory (Layer 1) — 当前 session 有效
-  3. 必要时查 CK (Layer 2) — 需要 SQL
-  4. 必要时读文档 (Layer 3) — 最慢但最全
+### Layer 1: Memory
 
-写入策略:
-  1. 关键决策 → 写 Memory + 文档
-  2. agent 事件 → 写 CK
-  3. 日记 → 写文档
-```
+Memory 文件（`/home/dev/.claude/memory/`）。session 有效，换 session 就丢。存的是当前工作的上下文、用户的偏好、正在修的 bug 是什么。
 
-## CK Schema
+问题是 AI 不太会主动读 memory。需要调教它"做事之前先翻 memory"的习惯。
 
-```sql
-CREATE TABLE kyb.agent_events (
-    timestamp DateTime,
-    session_id String,
-    agent_id String,
-    event_type String,      -- message/tool_call/completion/error
-    content String,
-    metadata JSON
-) ENGINE = MergeTree
-ORDER BY (timestamp, session_id);
-```
+### Layer 2: ClickHouse
+
+agent 的所有事件都往 CK 写。30 天滚动。可以跨 session 查"上周跑过的项目有哪些"、"哪个 bug 反复出现"。
+
+这个是后来加的。因为有好几次想查前几天的操作记录，但 memory 已经清了，又不可能去翻对话日志。
+
+### Layer 3: 文档
+
+最笨但最可靠的方法。所有关键决策、系统拓扑、已知债务——写成 `.md` 文件，放 git 里。容器重建了不会丢，模型换了不会丢，人走了也不会丢。
+
+但也是最难坚持的。写代码比写文档爽多了。我现在也没什么好办法，只能说尽量。
+
+## 一句话总结
+
+> "我们都是金鱼脑子只能记5秒 memory能记3小时 ck让我们能记30天 文档可以传给下一代。"
+
+这句话是我说的。每次不想写文档的时候就拿出来念一遍。

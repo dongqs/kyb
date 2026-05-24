@@ -1,79 +1,65 @@
-# Infrastructure Stack
+# 基础设施栈
 
-这是我的基础设施层——boss、代理、隧道、监控。
+底层骨架。infra-boss、sing-box、nuc8 隧道、监控——这些是我花最多精力稳定的东西。
 
 ---
 
 ## Infra-Boss
 
-管理容器。核心职责：
+就是那个一直在跑的 Claude Code session。什么脏活都干：
 
-```
-kyb-infra-boss
-    │
-    ├── 调度 Agent (dispatch subagent)
-    ├── nuc8 隧道 (autossh, :2081)
-    ├── 巡检系统 (patrol agents, 15min)
-    ├── 飞书通信 (API 直发 + cc-connect 桥)
-    ├── 决策者 (70% 置信度)
-    └── 日记 (记录系统状态)
-```
+- 调度 agent
+- 维护 nuc8 隧道（autossh，端口 2081）
+- 每 15 分钟巡检一次
+- 发飞书通知
+- 写日记
 
-重建后自动恢复：`entrypoint.sh` 负责安装 autossh、建隧道、配代理。
+最头疼的问题是**容器重建后所有配置都没了**。每次重建我都要手动装 autossh、建隧道、配代理。后来把这事写进了 `entrypoint.sh`——现在重启自动恢复。
 
 ## Sing-Box
 
-唯一的网络出口。
+唯一的网络出口。所有容器都通过它出去。
 
 ```
-宿主机 127.0.0.1:2080
+macOS 宿主机 127.0.0.1:2080
         │ socks5
         ▼
-kyb-infra-sing-box (容器内 :2080)
+kyb-infra-sing-box (容器)
         │
         ├── GitHub/GitLab 直连
         └── nuc8 隧道 → git.leyantech.com
 ```
 
-**关键约束：** 重建时必须加 `-p 2080:2080` 和 `--network kyb-net`，否则端口映射和容器名 DNS 全断。
+重建这个容器我踩过三个坑，每个都断网：
+
+1. **端口映射。** `-p 2080:2080` 忘了加。宿主机连不上。
+2. **网络模式。** 落到默认 bridge 网段，跟其他容器不在一个网，容器名 DNS 不通。必须 `--network kyb-net`。
+3. **配置 volume。** 里面的 IP 指向了不存在的机器。现在改成从宿主机只读 mount。
 
 ## nuc8 隧道
 
-访问 git.leyantech.com 的唯一路径。
+访问 git.leyantech.com 的唯一路径。公司内网机器，外面连不进去，要从 sim 跳板机走。
 
 ```
-kyb-infra-boss     sim (阿里云 ECS)     nuc8 (内网)
-:2081 ──── autossh ──── 跳板 ──── SSH ──── GitLab
+infra-boss:2081 → sim (阿里云 ECS) → nuc8 → GitLab
 ```
 
-**过去为什么总断：** 容器重建后 SSH 隧道消失。`entrypoint.sh` 以前没有重建隧道逻辑。
-
-**修复后：** `entrypoint.sh` 的 infra-boss 启动块负责 `autossh` 安装和隧道创建。
+过去为什么总断：容器重建后 SSH 隧道丢失。修复方案是 `entrypoint.sh` 里加 autossh 逻辑，容器活了隧道就建。
 
 ## 巡检系统
 
-| 组件 | 间隔 | 职责 |
-|------|------|------|
-| Patrol-1 | 每 15 分 | 容器清单、磁盘、代理连通性 |
-| Patrol-2 | 每 15 分（交错）| CK 写入、Grafana 可达、事件流 |
-| Patrol-3 | 每 15 分（交错）| 飞书通知、issue 检查 |
-| Heartbeat | 每次巡检 | 写心跳文件，哨兵互检 |
+我是那种"系统不在眼皮底下就焦虑"的人。所以搞了三层巡检：
 
-如果某个 patrol 不写心跳：另两个 patrol 会告警。
+| 巡逻兵 | 间隔 | 干什么 |
+|--------|------|--------|
+| Patrol-1 | 每 15 分 | 容器活着吗、磁盘满了吗、代理通了吗 |
+| Patrol-2 | 每 15 分（错开）| CK 能写吗、Grafana 能看吗 |
+| Patrol-3 | 每 15 分（错开）| 飞书能发吗 |
 
-## 监控栈
+三个 patrol 互相盯心跳。一个不写了另外两个会报。
 
-```
-Agent Events ──→ Hooks ──→ CK ──→ Grafana (48 panels)
-                                          │
-                                    7 告警规则:
-                                    ├── 磁盘 >80%
-                                    ├── 容器大面积重启
-                                    ├── CK 写入延迟
-                                    ├── 代理不可达
-                                    ├── 隧道离线
-                                    ├── 飞书桥断开
-                                    └── Heartbeat 超时
-```
+## 监控
 
-全 IaC 部署：Grafana datasource/dashboard/alert 全部 provisioning as code。
+Grafana 48 个面板 + 7 条告警规则。全 IaC 部署，不手动配。
+
+最有用的是"活动曲线"面板——看到曲线动就知道系统在工作。凌晨三点曲线平的时候，坐在 Grafana 前面发呆也是一种奇怪的满足感。
