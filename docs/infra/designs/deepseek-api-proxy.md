@@ -54,71 +54,83 @@ Issue #169 经过 4 轮审查（集成审查、全栈审查、基础设施架构
 │  ANTHROPIC_BASE_URL=http://kyb-infra-api-proxy:2082         │
 │  (HTTP 明文, Docker 内部网络)                                │
 └────────────────────┬────────────────────────────────────────┘
-                     │ POST /v1/messages
-                     │ (JSON body: model, messages, stream=true/false)
+                     │ POST /v1/messages          │
+                     │ POST /v1/models           │
+                     │ GET  /v1/models            │
+                     │ (Anthropic 兼容路径均路由)   │
                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│ kyb-infra-api-proxy (:2082)                                   │
-│                                                               │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
-│  │ Receive      │───▶│ Log Request  │───▶│ Forward to   │   │
-│  │ Handler      │    │ (async CK)   │    │ DeepSeek     │   │
-│  └──────────────┘    └──────────────┘    └──────┬───────┘   │
-│                                                  │           │
-│  ┌──────────────┐    ┌──────────────┐           │           │
-│  │ Return to    │◀───│ Log Response │◀──────────┘           │
-│  │ Claude       │    │ (async CK)   │                       │
-│  └──────────────┘    └──────────────┘                       │
-│                                                               │
-│  ┌──────────────┐                                           │
-│  │ Health Check │  :2082/healthz                            │
-│  │ (every 30s)  │  :2082/readiness                          │
-│  └──────────────┘                                           │
-└────────────────────┬────────────────────────────────────────┘
-                     │ HTTPS (原始 TLS)
-                     │ api.deepseek.com/anthropic/v1/messages
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│ api.deepseek.com                                              │
-│ Anthropic 兼容接口                                             │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ kyb-infra-api-proxy (:2082)                                       │
+│                                                                   │
+│  ┌──────────────┐     ┌──────────────┐     ┌─────────────────┐   │
+│  │ Receive      │────▶│ SSRF Check   │────▶│ Forward to      │   │
+│  │ Handler      │     │ (URL 白名单)  │     │ DeepSeek        │   │
+│  └──────────────┘     └──────────────┘     └───────┬─────────┘   │
+│        │                                            │             │
+│        │  ┌──────────────┐                          │             │
+│        └─▶│ Buffer req   │                          │             │
+│           │ in memory    │                          │             │
+│           └──────────────┘                          │             │
+│                                                     │             │
+│           ┌──────────────┐               ┌──────────┴─────────┐  │
+│           │ INSERT all   │◀──────────────│ Response complete  │  │
+│           │ at once to   │  (async CK)   │ + buffer assembled │  │
+│           │ infra.api_logs│              │ (ctx.Background()) │  │
+│           └──────────────┘              └────────────────────┘  │
+│                                                                   │
+│  ┌──────────────┐                                               │
+│  │ Health Check │  :2082/healthz                                │
+│  │ (every 30s)  │  :2082/readiness                              │
+│  └──────────────┘                                               │
+└──────────────────────┬─────────────────────────────────────────┘
+                       │ HTTPS (原始 TLS)
+                       │ api.deepseek.com/anthropic/v1/messages
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ api.deepseek.com                                                  │
+│ Anthropic 兼容接口                                                 │
+└─────────────────────────────────────────────────────────────────┘
 
-                         ╔══════════════════╗
-                         ║   ClickHouse     ║
-                         ║  infra.api_logs  ║
-                         ║  (异步批量写入)   ║
-                         ╚══════════════════╝
+                         ╔═══════════════════════╗
+                         ║   ClickHouse          ║
+                         ║  infra.api_logs       ║
+                         ║  INSERT all-at-once   ║
+                         ║  (不 UPDATE, 不拆分   ║
+                         ║   req 和 resp 写入)    ║
+                         ╚═══════════════════════╝
 ```
 
 #### 核心流程（非 Streaming）
 
 1. Claude 发送 HTTP POST `http://kyb-infra-api-proxy:2082/v1/messages`
 2. 代理接收完整 request body，提取 `model`、`messages`、`stream` 字段
-3. 异步写入 `infra.api_logs`（request_body, model, timestamp, api_key_prefix）
-4. 代理转发请求到 `https://api.deepseek.com/anthropic/v1/messages`
+3. 代理在校验 SSRF 白名单后，转发请求到 `https://api.deepseek.com/anthropic/v1/messages`
    - 保留原始 HTTP headers（`Authorization`, `Content-Type`, `anthropic-version`）
    - 修改 `Host` 为 `api.deepseek.com`
    - 添加 `X-Request-Id` 用于追踪
-5. DeepSeek 返回完整 JSON response
-6. 代理读取完整 response body，提取 `usage`（prompt_tokens, completion_tokens）
-7. 异步写入 `infra.api_logs`（UPDATE same row: response_body, usage, latency_ms, status_code）
+4. DeepSeek 返回完整 JSON response
+5. 代理读取完整 response body，提取 `usage`（prompt_tokens, completion_tokens）
+6. 组装完整的日志记录（含 request_body + response_body + usage + latency_ms + status_code）
+7. 使用 `context.Background()` 异步 INSERT 一条完整记录到 `infra.api_logs`
+   （绝不使用 `r.Context()`，避免请求取消后 CK 写入被取消）
 8. 代理将 response 原样返回给 Claude
 
 #### 核心流程（Streaming / SSE）
 
 1. Claude 发送 HTTP POST `http://kyb-infra-api-proxy:2082/v1/messages`（`stream: true`）
-2. 代理接收完整 request body，记录同上
-3. 代理转发请求到 DeepSeek（同上）
+2. 代理接收完整 request body
+3. 代理在校验 SSRF 白名单后转发请求到 DeepSeek
 4. DeepSeek 返回 `Transfer-Encoding: chunked` + `Content-Type: text/event-stream`
 5. 代理逐行读取 SSE chunks
    - `event: message_start` → 记录起始时间（TTFT = now - start）
-   - `event: content_block_delta` → 拼接 completion text
+   - `event: content_block_delta` → 拼接 completion text，提取 `delta.reasoning_content`（如存在）
    - `event: message_delta` → 提取 usage（delta.usage）
    - `event: message_stop` → 标记 streaming 完成
    - `event: error` → 标记 error
-6. 每收到一个 chunk，立即原样转发给 Claude（**零延迟透传**）
-7. 在内存 buffer 中拼接 completion chunks
-8. `message_stop` 事件后，异步写入 `infra.api_logs`（完整 response_body, usage, latency_ms, ttft_ms）
+6. 每收到一个 chunk，立即 `w.Write(chunk)` + `w.(http.Flusher).Flush()` 转发给 Claude（**零延迟透传**）
+7. 在内存 buffer 中拼接 completion chunks（含 reasoning_content）
+8. `message_stop` 事件后，使用 `context.Background()` 异步 INSERT 一条完整记录到 `infra.api_logs`
+   （含 request_body, response_body, usage, latency_ms, ttft_ms, streaming=true）
 
 ### 1.4 Streaming (SSE) 处理方案
 
@@ -149,7 +161,10 @@ Claude                    Proxy                   DeepSeek
   │                         │  delta (chunk 1)       │
   │                         │◀───────────────────────│
   │  chunk 1                │                        │
-  │◀────────────────────────│  (buffer chunk 1 in   │
+  │◀────────────────────────│  w.Write(chunk)        │
+  │                         │  w.(http.Flusher).     │
+  │                         │    Flush()             │
+  │                         │  (buffer chunk 1 in    │
   │                         │   memory, forward      │
   │                         │   immediately)         │
   │                         │                        │
@@ -157,7 +172,10 @@ Claude                    Proxy                   DeepSeek
   │                         │  delta (chunk N)       │
   │                         │◀───────────────────────│
   │  chunk N                │                        │
-  │◀────────────────────────│  (buffer chunk N)      │
+  │◀────────────────────────│  w.Write(chunk)        │
+  │                         │  w.(http.Flusher).     │
+  │                         │    Flush()             │
+  │                         │  (buffer chunk N)      │
   │                         │                        │
   │                         │  event: message_stop   │
   │                         │◀───────────────────────│
@@ -170,6 +188,7 @@ Claude                    Proxy                   DeepSeek
   │                         │  - latency_ms          │
   │                         │  - ttft_ms             │
   │                         │  - streaming=true      │
+  │                         │  (context.Background())│
 ```
 
 #### 关键设计决策
@@ -181,6 +200,8 @@ Claude                    Proxy                   DeepSeek
 | CK 写入延迟 | 增加 0ms（异步，不阻塞转发） | 转发和 CK 写入在两个独立 goroutine |
 | 连接中断处理 | 已收到的 chunks 写入 CK，标记 `error=stream_interrupted` | 避免日志完全丢失 |
 | Content-Type 检测 | 非 SSE 响应按非 streaming 流程处理 | 兼容 DeepSeek 可能返回的非 streaming fallback |
+| **每 chunk Flush** | 每 chunk 后调用 `Flush()` | HTTP ResponseWriter 默认缓冲，不 Flush 则 chunk 积攒到 TCP 窗口满才发送，零延迟透传失效 |
+| **Scanner buffer** | 设为 1MB（`bufio.Scanner.Buffer(buf, 1024*1024)`） | 默认 `bufio.Scanner` 最大 token 64KB，超过时 `ErrTooLong` 导致截断。长 payload（如超大 content_block_delta）需要更大 buffer |
 
 #### SSE 行解析器设计
 
@@ -201,7 +222,9 @@ Claude                    Proxy                   DeepSeek
     │   │
     │   ├── event=content_block_delta:
     │   │   - delta.text 追加到 completion buffer
-    │   │   - 立即转发给 Claude
+    │   │   - delta.reasoning_content 追加到 reasoning buffer（DeepSeek reasoner 模型专用）
+    │   │   - 立即转发给 Claude（含 reasoning_content 字段）
+    │   │   - w.(http.Flusher).Flush() 确保立即发送
     │   │
     │   ├── event=message_delta:
     │   │   - delta.usage.output_tokens 保存
@@ -277,6 +300,12 @@ SETTINGS index_granularity = 8192;
 
 #### 设计说明
 
+> **关于写入模式**：CK MergeTree 引擎**不支持 UPDATE/DELETE**（仅支持 `ALTER TABLE ... DELETE` 或 `ALTER TABLE ... UPDATE` 这种重量级 mutation，性能极差且不应用作常规写入路径）。
+>
+> 因此本设计采用 **all-at-once INSERT** 模式：代理始终先收齐完整请求 + 完整响应（或 streaming 结束后的完整拼接），组装好所有字段，再一次性 INSERT 一整行。不存在"先写请求再 UPDATE 响应"的两阶段写入。
+>
+> 对于 streaming 场景，代理在 `message_stop` 事件后组装所有数据，一次性 INSERT。
+
 1. **ORDER BY `(timestamp, model, status_code)`** — 覆盖绝大多数查询场景：
    - 查某时间段的全部请求（timestamp 范围扫描）
    - 查某个 model 的用量（timestamp + model 前缀）
@@ -350,15 +379,61 @@ ORDER BY total_completion DESC;
 
 | 错误类型 | 行为 | CK 记录 |
 |----------|------|---------|
-| DeepSeek 连接超时（10s） | 返回 504，Claude 侧自行重试 | status_code=504, error="upstream_timeout" |
+| DeepSeek 连接超时（connect_timeout=10s） | 返回 504，Claude 侧自行重试 | status_code=504, error="connect_timeout" |
 | DeepSeek DNS 解析失败 | 返回 502 | status_code=502, error="dns_resolution_failed" |
 | DeepSeek TLS 握手失败 | 返回 502 | status_code=502, error="tls_handshake_failed" |
-| DeepSeek 返回 4xx（含 429） | 原样返回 Claude | status_code=实际值, error="" |
-| DeepSeek 返回 5xx | 原样返回 Claude（不自动重试，避免重复日志） | status_code=实际值, error="" |
+| DeepSeek 空闲超时（idle_timeout=60s，无任何数据到达） | 返回 504，Claude 侧自行重试 | status_code=504, error="idle_timeout" |
+| DeepSeek 总超时（total_timeout=300s，非 streaming 用 30s） | 返回 504 | status_code=504, error="total_timeout" |
+| DeepSeek 返回 4xx（含 429） | 原样返回 Claude（需经错误格式转换，见下文） | status_code=实际值, error="" |
+| DeepSeek 返回 5xx | 原样返回 Claude（不自动重试，避免重复日志，需经错误格式转换） | status_code=实际值, error="" |
 | DeepSeek 返回非法 body | 返回 502 | status_code=502, error="invalid_response_body" |
 | SSE 解析错误 | 返回 502 | status_code=502, error="sse_parse_error" |
 
 **关键原则：不要代替 Claude 做重试。** 重试决策在 Claude 侧（或上层业务逻辑），代理只做透传。代理侧的重试会导致重复日志，且与 Claude 侧的重试冲突。
+
+#### 错误格式转换
+
+Claude Code 和 Anthropic SDK 期望的 API 错误响应格式与 DeepSeek 的原生格式不同。代理必须将 DeepSeek 错误响应统一转为 Anthropic 兼容格式：
+
+**DeepSeek 原生错误格式：**
+```json
+{
+  "error": {
+    "message": "Rate limit exceeded",
+    "type": "rate_limit_error"
+  }
+}
+```
+
+**Anthropic 兼容错误格式（代理转换后）：**
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "rate_limit_error",
+    "message": "Rate limit exceeded"
+  }
+}
+```
+
+**转换规则：**
+
+| DeepSeek error.type | Anthropic error.type | HTTP 状态码 |
+|---------------------|---------------------|-------------|
+| `rate_limit_error` | `rate_limit_error` | 429 |
+| `invalid_request_error` | `invalid_request_error` | 400 |
+| `authentication_error` | `authentication_error` | 401 |
+| `permission_error` | `permission_error` | 403 |
+| `server_error` / `internal_error` | `api_error` | 500/502/503 |
+| `insufficient_quota` | `rate_limit_error` | 429 |
+| 其他 / 未知 | `api_error` | 502 |
+
+**实现要点：**
+- 代理对 DeepSeek 返回的所有错误响应（状态码 >= 400）进行格式转换
+- 转换发生在转发给 Claude 之前
+- 同时转发 HTTP 状态码 + 经过格式转换的 JSON body
+- 对于代理自身产生的错误（504/timeout/DNS 等），也使用相同的 Anthropic 格式返回
+- 格式转换代码必须在错误路径最前端执行，确保不会遗漏任何错误响应
 
 #### CK 写入层错误
 
@@ -466,33 +541,58 @@ func readinessHandler(w, r) {
 
 ### 2.3 熔断阈值
 
+熔断阈值使用 **滑动窗口 + 失败率** 而非计数绝对值，避免因瞬时流量波动导致的误触。
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ 熔断配置                                                     │
-├─────────────────────────────────────────────────────────────┤
-│  failure_threshold:    3      # 连续失败次数 → OPEN         │
-│  success_threshold:    2      # 半开后连续成功次数 → CLOSED │
-│  half_open_timeout:    30s    # OPEN → HALF-OPEN 等待时间   │
-│  max_half_open_retry:  3      # HALF-OPEN 最大重试次数       │
-│  health_check_interval: 10s   # 内部巡检间隔                  │
-├─────────────────────────────────────────────────────────────┤
-│ 失败判定条件（满足任一即 +1）                                  │
-├─────────────────────────────────────────────────────────────┤
-│  1. 转发 DeepSeek 超时（>10s）                                │
-│  2. DeepSeek 返回 502/503                                    │
-│  3. SSE 解析错误                                              │
-│  4. CK 连续 5 次写入失败（仅影响熔断决策，不阻塞请求）         │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ 熔断配置 — 滑动窗口模式                                            │
+├──────────────────────────────────────────────────────────────────┤
+│  window_size:           5m       # 滑动窗口大小（滚动 5 分钟）     │
+│  failure_rate_threshold: 20%     # 窗口内失败率 > 20% → OPEN     │
+│  min_request_count:     10      # 窗口内最少请求数（避免样本不足   │
+│                                 #  时因 1 次失败就熔断）          │
+│  half_open_timeout:     30s     # OPEN → HALF-OPEN 等待时间      │
+│  half_open_max_retry:   3       # HALF-OPEN 最大连续试探失败次数  │
+│  health_check_interval: 10s     # 内部巡检间隔                    │
+├──────────────────────────────────────────────────────────────────┤
+│ 失败判定条件（满足任一计入失败计数）                                 │
+├──────────────────────────────────────────────────────────────────┤
+│  1. 转发 DeepSeek 超时（connect_timeout > 10s）                    │
+│  2. DeepSeek 返回 502/503                                        │
+│  3. SSE 解析错误                                                  │
+│  4. 代理内部错误（panic、buffer 溢出等）                            │
+│                                                                  │
+│ 注意：429/4xx 不计入失败计数（这是 DeepSeek 限流，不是代理故障）     │
+│      CK 写入失败单独计数，不影响熔断决策（CK 是副通道）              │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 #### 熔断状态切换
 
 ```
-CLOSED → OPEN:  连续 3 次转发失败
+CLOSED → OPEN:  滑动窗口 5m 内失败率 > 20% 且总请求数 >= 10
 OPEN → HALF-OPEN: 30 秒后自动进入
-HALF-OPEN → CLOSED: 放行一个测试请求成功，再放行一个验证成功
-HALF-OPEN → OPEN: 测试请求失败，计数器归零，等待 30s 后重试
+HALF-OPEN → CLOSED: 放行一个探测请求成功 → 再放行一个验证请求成功
+HALF-OPEN → OPEN: 探测请求失败 → 重新等待 30s
 ```
+
+**滑动窗口实现要点：**
+
+采用 **环形数组（ring buffer）** 实现滑动窗口，每个桶记录 10s 内的请求总数和失败数：
+
+```
+时间轴:  |--10s--|--10s--|--10s--|...|--10s--|  (30 个桶 = 5m)
+          ^                                       ^
+          now-5m                                  now
+
+每 10s 滚动一个桶：
+  1. 清空过期桶
+  2. 新建当前桶
+  3. 求和所有非过期桶的 failed / total
+  4. failed / total > 20% && total >= 10 → OPEN
+```
+
+O(1) 时间复杂度，无锁原子操作更新计数器，不阻塞请求路径。
 
 #### 熔断触发后的行为
 
@@ -506,7 +606,7 @@ HALF-OPEN → OPEN: 测试请求失败，计数器归零，等待 30s 后重试
 
 #### 方案 A：ANTHROPIC_BASE_URL 切换（推荐）
 
-这是最彻底的 fallback：当代理熔断时，修改 Claude 的 `ANTHROPIC_BASE_URL` 跳过多层：
+这是最彻底的 fallback：当代理熔断时，修改 Claude 容器的 `ANTHROPIC_BASE_URL` 跳过多层：
 
 ```
 正常:   ANTHROPIC_BASE_URL=http://kyb-infra-api-proxy:2082
@@ -518,7 +618,7 @@ HALF-OPEN → OPEN: 测试请求失败，计数器归零，等待 30s 后重试
 
 | 优先级 | 方式 | 延迟 | 适用场景 |
 |--------|------|------|----------|
-| P0 | **配置中心/共享文件** — 代理写状态到共享文件，Claude 侧的 watch 进程检测到变化后修改 env | ~1s | 自动熔断 |
+| P0 | **自动恢复（Watch 进程）** — 独立 watch 进程检测代理健康状态，自动切换 env | ~1-3s | 自动熔断 + 自动恢复 |
 | P1 | **kyb 管理员手动执行** — `kyb infra proxy fallback --on / --off` | 手动 | 管理员干预 |
 | P2 | **容器重建** — 修改 docker-compose env，重建 Claude 容器 | ~10s | 极端场景 |
 
@@ -535,6 +635,61 @@ HALF-OPEN → OPEN: 测试请求失败，计数器归零，等待 30s 后重试
 2. Claude 侧切换有时间窗口，期间请求可能失败
 3. 增加了复杂性，不如方案 A 直接
 
+#### Watch 进程架构（自动恢复核心）
+
+熔断的自动检测和恢复由一个 **独立 watch 进程** 负责，该进程与代理进程分离部署，确保代理自身故障时 watch 仍能工作。
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ Watch 进程 (kyb-infra-api-proxy-watch)                            │
+│                                                                   │
+│ 部署位置: 宿主机 systemd 服务 (非 Docker 内部)                     │
+│ 或:       kyb-infra-boss 容器内的 sidecar 进程                    │
+│ 语言:     Go（与代理复用代码）或 Shell（简单 curl + sed）           │
+│ 资源:     极低 (<10MB, <0.01 core)                               │
+│                                                                   │
+│ 核心循环 (每 3s 执行一次):                                         │
+│ ┌────────────────────────────────────────────────────────────┐    │
+│ │ 1. GET http://kyb-infra-api-proxy:2082/healthz            │    │
+│ │    ├── 200 → proxy_healthy = true                         │    │
+│ │    └── 失败 → proxy_healthy = false, 失败计数++            │    │
+│ │                                                           │    │
+│ │ 2. 读取当前 ANTHROPIC_BASE_URL 状态 (从共享文件)           │    │
+│ │    ├── current_mode = "proxy" 或 "direct"                 │    │
+│ │                                                           │    │
+│ │ 3. 策略判断:                                              │    │
+│ │    ├── 当前=proxy 且 proxy_healthy=false 持续>10s         │    │
+│ │    │   → 执行 fallback: 设置 ANTHROPIC_BASE_URL=直连      │    │
+│ │    │   → 写入共享状态: mode=direct                        │    │
+│ │    │                                                      │    │
+│ │    ├── 当前=direct 且 proxy_healthy=true 持续>30s         │    │
+│ │    │   → 执行恢复: 设置 ANTHROPIC_BASE_URL=代理           │    │
+│ │    │   → 写入共享状态: mode=proxy                         │    │
+│ │    │                                                      │    │
+│ │    └── 其他 → 不操作                                      │    │
+│ └────────────────────────────────────────────────────────────┘    │
+│                                                                   │
+│ 状态共享方式:                                                     │
+│  - /tmp/kyb-infra-proxy-state.json (共享文件, 宿主机文件系统)     │
+│  - 内容: {"mode":"proxy|direct","healthy":true|false,            │
+│           "last_changed":"2026-05-25T12:00:00Z"}                 │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**ANTHROPIC_BASE_URL 切换方式：**
+
+Watch 进程通过 Docker API 或 docker exec 修改目标容器的环境变量：
+
+```bash
+# Fallback: 直连 DeepSeek
+docker exec <container> sh -c 'echo "export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic" >> ~/.bashrc'
+# 对于运行中的进程，发送 SIGHUP 或重新加载配置
+
+# 恢复: 切回代理
+docker exec <container> sh -c "sed -i '/ANTHROPIC_BASE_URL/d' ~/.bashrc && \
+  echo 'export ANTHROPIC_BASE_URL=http://kyb-infra-api-proxy:2082' >> ~/.bashrc"
+```
+
 #### Fallback 时机决策流程
 
 ```
@@ -544,33 +699,30 @@ HALF-OPEN → OPEN: 测试请求失败，计数器归零，等待 30s 后重试
 熔断器状态？
     ├── CLOSED → 正常转发到 DeepSeek
     │
-    ├── OPEN → 代理返回 502 + X-Fallback-URL header
-    │         Claude 侧 watch 进程检测到 → 修改 ANTHROPIC_BASE_URL
+    ├── OPEN → 代理返回 502 + Anthropic 格式错误
+    │         Watch 进程在下一轮巡检(3s)检测到代理不健康
+    │         → 执行 docker exec 修改 ANTHROPIC_BASE_URL
     │         → 后续请求直连 DeepSeek
     │
-    └── HALF-OPEN → 放行一个测试请求
-        ├── 成功 → CLOSED（恢复正常）
-        └── 失败 → OPEN（继续熔断）
+    └── HALF-OPEN → 放行一个探测请求
+        ├── 成功 → CLOSED（恢复正常，watch 在下一轮检测后自动切回）
+        └── 失败 → OPEN（继续熔断，watch 不操作）
 ```
 
-#### 熔断恢复流程
+#### 熔断自动恢复流程
 
 ```
-代理启动 / 熔断恢复
+Watch 进程巡检 (每 3s)
     │
     ▼
-1. 代理读取自身状态（共享文件或内存）
-    ├── 上次是 OPEN → 进入 HALF-OPEN
-    └── 上次是 CLOSED → 正常模式
+代理健康检查通过?
+    ├── 否 → 不操作 (已在直连模式)
     │
-    ▼
-2. 健康检查通过 → CLOSED
-    │
-    ▼
-3. 通知外部：代理可用
-    ├── 写入共享文件："proxy_healthy=true"
-    └── 管理员手动切回：
-        docker exec claude-container sh -c 'export ANTHROPIC_BASE_URL=http://kyb-infra-api-proxy:2082'
+    └── 是且持续 >30s 健康 → 执行自动恢复:
+        1. Watch 读取共享状态 → mode=direct
+        2. Watch 执行 docker exec 恢复 ANTHROPIC_BASE_URL 指向代理
+        3. Watch 更新共享状态 → mode=proxy, healthy=true
+        4. 后续请求重新走代理
 ```
 
 ---
@@ -672,7 +824,15 @@ type Scenario struct {
 | TC-17 | 长连接复用 | 连续 50 个请求复用同一连接 | 连接池正常工作 |
 | TC-18 | 多个不同 API key | 发请求时换 Authorization header | 正确记录 api_key_prefix |
 | TC-19 | 空 Authorization header | 请求无 auth | 正常转发（DeepSeek 决定行为） |
-| TC-20 | 熔断后恢复 | 触发 3 次失败 → 等待 30s → 发送成功请求 | 自动恢复 CLOSED |
+| TC-20 | 熔断后恢复（滑动窗口） | 5m 内发送 50 个请求，12 个失败（>20%）→ 等待 30s → 发送成功请求 | 熔断 OPEN，30s 后 HALF-OPEN，成功后 CLOSED |
+| TC-21 | 错误格式转换 | DeepSeek 返回 429（原生格式） | 代理返回 Anthropic 格式 `{"type":"error","error":{"type":"rate_limit_error","message":"..."}}` |
+| TC-22 | PII 脱敏 | request body 含 `"api_key": "sk-xxx"` | CK 中存 `[REDACTED]`，转发内容不做脱敏 |
+| TC-23 | 优雅关闭 | 发送 SIGTERM，同时有进行中 streaming 请求 | 进行中请求完成，新请求返回 503，CK buffer flush |
+| TC-24 | SSRF 白名单 | 配置 `UPSTREAM_URL=https://evil.com` | 代理启动失败，拒绝非法上游 URL |
+| TC-25 | Flush 零延迟验证 | Mock: 100 chunks, 各间隔 10ms | 每 chunk 到达后 1ms 内转发给客户端（响应式 `Flush()` 时间戳差值） |
+| TC-26 | 超大 delta chunk（> 64KB） | Mock: 单个 content_block_delta 含 500KB text | bufio.Scanner 正常读取，不截断 |
+| TC-27 | API 路径映射 | GET `http://proxy:2082/v1/models` | 正确转发到 `api.deepseek.com/anthropic/v1/models` |
+| TC-28 | Watch 进程自动恢复 | 代理不可用（docker stop）→ Watch 检测到 → 切直连 → 代理恢复 → Watch 自动切回 | 整个流程自动完成，无需人工介入 |
 
 ### 3.3 Chaos Monkey 场景
 
@@ -748,18 +908,33 @@ services:
     container_name: kyb-infra-api-proxy
     restart: always
     ports:
-      - "2082:2082"   # 代理端口（Docker 内部 + 宿主机 localhost）
-      - "2083:2083"   # 健康检查端口
+      # 仅绑定 127.0.0.1（不暴露到外部网络），Docker 内部通过 kyb-net 访问
+      - "127.0.0.1:2082:2082"   # 代理端口
+      - "127.0.0.1:2083:2083"   # 健康检查端口
     environment:
       - LISTEN_ADDR=:2082
       - HEALTH_ADDR=:2083
       - UPSTREAM_URL=https://api.deepseek.com/anthropic/v1/messages
+      - UPSTREAM_URL_WHITELIST=api.deepseek.com  # SSRF 保护：只允许此域名
       - CK_DSN=clickhouse://clickhouse:9000/infra
       - CK_USER=default
       - CK_PASSWORD=
-      - REQUEST_TIMEOUT=10s
-      - CIRCUIT_BREAKER_THRESHOLD=3
+      # 超时模型（拆分，不共用总超时）
+      - CONNECT_TIMEOUT=10s       # TCP 连接超时
+      - IDLE_TIMEOUT=60s         # streaming 空闲超时（无数据到达）
+      - TOTAL_TIMEOUT=300s       # streaming 总超时（非 streaming 用 30s）
+      # 熔断配置
+      - CB_WINDOW_SIZE=5m        # 滑动窗口大小
+      - CB_FAILURE_RATE=20       # 失败率阈值（百分比）
+      - CB_MIN_REQUEST_COUNT=10  # 最少请求数
+      - CB_HALF_OPEN_TIMEOUT=30s # 半开等待时间
+      # PII 脱敏
+      - PII_MASK_ENABLED=true
+      - PII_KEYWORDS=token,password,secret,key,credential,authorization
+      # 其他
       - LOG_LEVEL=info
+      - MAX_BUFFER_SIZE=2MB      # SSE buffer 上限
+      - SCANNER_BUFFER_SIZE=1MB  # bufio.Scanner 最大行长度
     networks:
       - kyb-net
     deploy:
@@ -834,47 +1009,103 @@ Step 4: 所有 sandbox 切换完毕后，观察 1 周
 
 ### 4.3 回滚方案
 
-#### 快速回滚（单个容器）
+回滚的核心原则：**切断代理路径，让所有 Claude 容器直连 DeepSeek。**
+
+回滚分三个等级，按严重程度选择。
+
+#### Level 1：Watch 进程自动回滚（最快，<5s）
+
+当熔断器 OPEN 且 watch 进程检测到代理不可用时，自动执行：
 
 ```bash
-# 直连：直接清除 env 变量
-docker exec <sandbox> sh -c 'unset ANTHROPIC_BASE_URL'
-# 或修改 bashrc
-docker exec <sandbox> sh -c "sed -i '/ANTHROPIC_BASE_URL/d' ~/.bashrc"
-```
+# Watch 进程自动执行（无需人工干预）:
+# 1. 读取当前配置的所有 Claude 容器列表
+containers=$(docker ps --format '{{.Names}}' | grep -E '^(kyb-|claude-)')
 
-#### 批量回滚（全部容器）
-
-```bash
-# 如果有配置中心
-configctl set global/ANTHROPIC_BASE_URL "" && reload-all
-
-# 如果没有，逐个容器执行
-for c in $(docker ps --format '{{.Names}}' | grep '^kyb-'); do
-  docker exec "$c" sh -c 'unset ANTHROPIC_BASE_URL'
+# 2. 逐个切到直连
+for c in $containers; do
+  docker exec "$c" sh -c '
+    sed -i "/ANTHROPIC_BASE_URL/d" ~/.bashrc
+    echo "export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic" >> ~/.bashrc
+  ' 2>/dev/null || true
 done
+
+# 3. 更新共享状态文件
+echo '{"mode":"direct","healthy":false,"last_changed":"'"$(date -Iseconds)"'"}' \
+  > /tmp/kyb-infra-proxy-state.json
 ```
 
-#### 容器级回滚
+**触发条件**：proxy 健康检查连续 4 次失败（约 12s 无响应）+ 熔断器已 OPEN。
 
-如果代理容器本身有问题：
+#### Level 2：管理员半自动回滚（<30s）
+
+当 watch 进程未自动触发时，管理员手动执行：
 
 ```bash
-docker stop kyb-infra-api-proxy
-# 所有使用代理的 Claude 容器的请求会失败
-# 然后执行快速回滚（清除所有容器的 ANTHROPIC_BASE_URL）
+# Step 1: 确认故障
+curl -f http://kyb-infra-api-proxy:2082/healthz || echo "PROXY DOWN"
+
+# Step 2: 停止代理容器（可选，防止故障扩散）
+docker stop --time=30 kyb-infra-api-proxy
+
+# Step 3: 批量切换所有 Claude 容器到直连
+# 方案 A: 通过 watch 进程触发（推荐）
+touch /tmp/force-fallback  # watch 进程检测到此文件后执行 fallback
+
+# 方案 B: 直接执行（watch 进程不可用时）
+for c in $(docker ps --format '{{.Names}}' | grep -E '^(kyb-|claude-)'); do
+  docker exec "$c" sh -c "
+    sed -i '/ANTHROPIC_BASE_URL/d' ~/.bashrc
+    echo 'export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic' >> ~/.bashrc
+  " 2>/dev/null || true
+done
+
+# Step 4: 验证回滚生效
+docker exec kyb-infra-boss sh -c 'echo $ANTHROPIC_BASE_URL'
+# 输出应为: https://api.deepseek.com/anthropic
+
+# Step 5: 通知团队回滚完成
+kyb notify urgent "DeepSeek proxy rolled back to direct connect"
 ```
 
-#### 应急回滚 Playbook
+#### Level 3：容器重建回滚（最彻底，~60s）
 
+当代理配置严重损坏（如 CK schema 变更导致代理 crash-loop）时：
+
+```bash
+# Step 1: 停止代理
+docker rm -f kyb-infra-api-proxy
+
+# Step 2: 移除所有容器的代理配置 + 重建（如有 docker-compose）
+for c in $(docker ps --format '{{.Names}}' | grep -E '^(kyb-|claude-)'); do
+  if docker inspect "$c" --format '{{.Config.Env}}' | grep -q ANTHROPIC_BASE_URL; then
+    docker stop "$c" && docker start "$c"  # 清除运行时 env（需镜像默认无此变量）
+  fi
+done
+
+# Step 3: 验证直连正常
+curl -s -o /dev/null -w "%{http_code}" \
+  https://api.deepseek.com/anthropic/v1/models \
+  -H "Authorization: Bearer $DEEPSEEK_API_KEY"
+
+# Step 4: 确认所有关键容器（kyb-infra-boss 等）正常运行
+docker ps --filter "status=running" --format "{{.Names}}" | grep kyb-
 ```
-1. 发现代理故障（告警或用户反馈）
-2. 立即执行：echo "ANTHROPIC_BASE_URL=" > /tmp/fallback-env
-3. Watch 进程检测到 → 清除所有容器的 ANTHROPIC_BASE_URL
-4. 验证：glab issue view 169（直接走 DeepSeek）
-5. 修复代理容器（查看日志、修复 bug、重新部署）
-6. 验证：代理健康检查通过
-7. 重新灰度切流
+
+#### 恢复（重新启用代理）
+
+```bash
+# 在代理问题修复 + 健康检查通过后:
+# Step 1: 确认代理健康
+curl -f http://kyb-infra-api-proxy:2082/healthz
+
+# Step 2: 触发 watch 进程自动恢复（或手动执行）
+rm -f /tmp/force-fallback
+# Watch 进程检测到代理健康持续 >30s → 自动切回
+
+# Step 3: 手动验证
+docker exec kyb-infra-boss sh -c 'echo $ANTHROPIC_BASE_URL'
+# 输出应为: http://kyb-infra-api-proxy:2082
 ```
 
 ### 4.4 监控告警
@@ -928,6 +1159,290 @@ docker stop kyb-infra-api-proxy
 | **P1** | 飞书群 | 15 分钟内响应 |
 | **P2** | 飞书群（不 @ 人） | 工作时间内响应 |
 
+### 4.5 优雅关闭（Graceful Shutdown）
+
+代理必须实现 SIGTERM/SIGINT 处理，确保关闭过程中不丢弃进行中的请求。
+
+```
+收到 SIGTERM
+    │
+    ▼
+1. 标记拒绝新请求
+   - HTTP 服务器停止接受新连接（Shutdown 或健康检查返回 503）
+   - 进行中的请求继续处理
+    │
+    ▼
+2. 等待进行中请求完成
+   - 非 streaming: 等待 HTTP handler 返回
+   - streaming: 标记"关闭中"，当前 chunks 继续转发，
+     但不再接受新的 streaming 请求
+    │
+    ▼
+3. Flush CK buffer
+   - 等待 CK 异步写入 goroutine 处理完 buffer 中的剩余记录
+   - 超时 5s 后强制退出（不阻塞进程关闭）
+    │
+    ▼
+4. 关闭连接池
+   - 关闭到 DeepSeek 的 HTTP 连接池
+   - 关闭到 CK 的连接
+    │
+    ▼
+5. 进程退出 (exit 0)
+```
+
+**Go 实现要点：**
+
+```go
+// 伪代码 — 描述设计，非实现
+func main() {
+    ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+    defer stop()
+
+    srv := &http.Server{Addr: ":2082", Handler: router}
+
+    // 启动 goroutine 监听信号
+    go func() {
+        <-ctx.Done()
+        log.Println("shutting down gracefully...")
+
+        // 1. 拒绝新请求（健康检查返回 503）
+        atomic.StoreInt32(&shuttingDown, 1)
+
+        // 2. 等待进行中请求完成（最多 30s）
+        shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+        defer cancel()
+        srv.Shutdown(shutdownCtx)
+
+        // 3. 等待 CK buffer flush（最多 5s）
+        ckBuffer.FlushWithTimeout(5 * time.Second)
+
+        log.Println("shutdown complete")
+    }()
+
+    srv.ListenAndServe()
+}
+```
+
+**关键设计点：**
+
+| 问题 | 方案 | 理由 |
+|------|------|------|
+| 关闭中收到新请求 | 返回 503 + `{"type":"error","error":{"type":"overloaded_error","message":"proxy shutting down"}}` | Claude 侧自动重试到其他端点（或直连） |
+| Streaming 进行中 | 不中断，等待 `message_stop` 或 idle_timeout 超时 | 避免 completion 丢失一半 |
+| CK 异步写入未完成 | 等待最多 5s，超时后丢弃剩余 | 不阻塞关闭进程 |
+| 健康检查在关闭期间 | 返回 503 | 负载均衡器 / watch 进程检测到后切走流量 |
+
+---
+
+## 5. 性能基准与验收标准
+
+### 5.1 代理引入的额外延迟
+
+代理在请求路径上增加的延迟必须可量化、可验收。以下是代理引入的额外延迟（不包含 DeepSeek 自身延迟）：
+
+| 场景 | 目标 P50 | 目标 P99 | 测量方法 |
+|------|----------|----------|----------|
+| **非 streaming**（透传） | < 5ms | < 20ms | 代理记录 `latency_ms` − DeepSeek 响应时间 |
+| **Streaming TTFT**（首字节） | < 5ms | < 20ms | 代理从收到请求到发出第一个 chunk 的时间 |
+| **Streaming 每 chunk** | < 1ms | < 5ms | 从收到 DeepSeek chunk 到 `Flush()` 返回的时间 |
+| **CK 异步写入** | 不影响响应 | 不影响响应 | 异步 goroutine，零阻塞转发路径 |
+| **健康检查响应** | < 1ms | < 5ms | watch 进程测量 |
+
+### 5.2 端到端延迟验收标准
+
+与直接调用 DeepSeek（无代理）对比，端到端延迟增幅：
+
+| 指标 | 无代理 | 经代理 | 允许增幅 |
+|------|--------|--------|----------|
+| P50 延迟 | DeepSeek 基线 | 基线 + <50ms | < 50ms |
+| P99 延迟 | DeepSeek 基线 | 基线 + <200ms | < 200ms |
+| Streaming TTFT | DeepSeek 基线 | 基线 + <50ms | < 50ms |
+| 错误率 | DeepSeek 基线 | 基线 ± 0.5% | 不增加错误 |
+
+### 5.3 吞吐量验收标准
+
+| 指标 | 目标 | 测试条件 |
+|------|------|----------|
+| 最大并发请求 | >= 200 | 200 个 goroutine 同时转发到 Mock DeepSeek |
+| 最大吞吐 | >= 1000 req/s | 非 streaming，每个响应 ~1KB |
+| 最大 streaming 连接数 | >= 50 | 50 个 concurrent SSE 流，各持续 30s |
+| 内存上限 | < 128MB | 上述所有并发条件下 |
+
+### 5.4 验收测试工具
+
+```bash
+# 使用 hey 或 wrk 进行吞吐量测试
+# 注意: 测试目标是 Mock DeepSeek server，非生产环境
+
+# 非 streaming 吞吐
+hey -n 10000 -c 100 -m POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test-key" \
+  -d '{"model":"deepseek-chat","messages":[{"role":"user","content":"hello"}],"stream":false}' \
+  http://localhost:2082/v1/messages
+
+# Streaming 吞吐
+hey -n 1000 -c 50 -m POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test-key" \
+  -d '{"model":"deepseek-chat","messages":[{"role":"user","content":"hello"}],"stream":true}' \
+  http://localhost:2082/v1/messages
+
+# 延迟对比（直接 vs 代理）
+time curl -s -o /dev/null -w "direct: %{time_total}s\n" \
+  https://api.deepseek.com/anthropic/v1/messages -H "Authorization: Bearer $KEY" -d '...'
+
+time curl -s -o /dev/null -w "via proxy: %{time_total}s\n" \
+  http://localhost:2082/v1/messages -H "Authorization: Bearer $KEY" -d '...'
+```
+
+### 5.5 性能劣化触发告警
+
+当以下任一条件触发时，产生 P2 告警：
+
+- 代理 P50 引入延迟 > 50ms（持续 5 分钟）
+- 代理 P99 引入延迟 > 200ms（持续 5 分钟）
+- 代理内存 > 100MB
+- 代理 goroutine 数 > 5000（可能泄漏）
+
+---
+
+## 6. CI/CD 与部署流水线
+
+### 6.1 镜像构建与版本管理
+
+| 项目 | 方案 |
+|------|------|
+| 基础镜像 | `golang:1.22-alpine` 构建 → `distroless/static:nonroot` 运行 |
+| 构建方式 | Docker multi-stage build |
+| 版本策略 | SemVer + git commit SHA：`kyb-infra-api-proxy:1.2.3` 和 `kyb-infra-api-proxy:1.2.3-abc1234` |
+| 镜像仓库 | Docker Hub 或自建 registry（`registry.kyb.internal/kyb-infra-api-proxy`） |
+| CI 平台 | 复用 kyb 项目的 GitLab CI（`.gitlab-ci.yml`） |
+| 产物 | Docker 镜像 + 编译后的静态二进制（便于直接部署到宿主机） |
+
+### 6.2 GitLab CI 流水线定义
+
+```yaml
+# .gitlab-ci.yml (在 kyb 仓库中作为额外 job，或独立仓库)
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  IMAGE_NAME: registry.kyb.internal/kyb-infra-api-proxy
+  IMAGE_TAG: ${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}
+
+# Stage 1: 测试
+test:
+  stage: test
+  image: golang:1.22-alpine
+  script:
+    - go test ./... -v -race -coverprofile=coverage.out
+    - go vet ./...
+  artifacts:
+    paths:
+      - coverage.out
+
+# Stage 2: 构建 Docker 镜像
+build:
+  stage: build
+  image: docker:24
+  services:
+    - docker:dind
+  script:
+    - docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+    - docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+    - docker push ${IMAGE_NAME}:${IMAGE_TAG}
+    - docker push ${IMAGE_NAME}:latest
+  only:
+    - tags
+    - master
+
+# Stage 3: 部署（手动触发）
+deploy-staging:
+  stage: deploy
+  script:
+    - ssh kyb-infra-host "docker pull ${IMAGE_NAME}:${IMAGE_TAG}"
+    - ssh kyb-infra-host "docker-compose -f /opt/kyb-infra/docker-compose.yml up -d kyb-infra-api-proxy"
+  environment:
+    name: staging
+  when: manual
+  only:
+    - master
+
+deploy-production:
+  stage: deploy
+  script:
+    # 灰度 1: 先更新非关键容器
+    - ssh kyb-infra-host "docker service update --image ${IMAGE_NAME}:${IMAGE_TAG} kyb-infra-api-proxy"
+    # 灰度 2: 观察 10 分钟
+    - sleep 600
+    # 灰度 3: 确认健康后标记完成
+    - curl -f http://kyb-infra-api-proxy:2082/healthz && echo "Deploy OK"
+  environment:
+    name: production
+  when: manual
+  only:
+    - tags
+```
+
+### 6.3 Dockerfile 设计
+
+```dockerfile
+# Stage 1: 构建
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /app/proxy ./cmd/proxy
+
+# Stage 2: 运行（最小镜像）
+FROM gcr.io/distroless/static:nonroot
+COPY --from=builder /app/proxy /proxy
+EXPOSE 2082 2083
+ENTRYPOINT ["/proxy"]
+```
+
+### 6.4 部署拓扑
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 宿主机 (kyb-infra-host)                                           │
+│                                                                   │
+│  ┌──────────────────────┐    ┌──────────────────────────────┐    │
+│  │ Docker Compose /     │    │ systemd (宿主机)              │    │
+│  │ Docker Stack         │    │                              │    │
+│  │                      │    │  kyb-infra-api-proxy-watch    │    │
+│  │  kyb-infra-api-proxy │    │  (独立进程, 非 Docker)        │    │
+│  │  (容器, kyb-net)     │    │                              │    │
+│  │  :2082 → :2082       │    │  用途: 健康巡检 + 自动恢复    │    │
+│  │  :2083 → :2083       │    │  粒度: 3s 间隔               │    │
+│  └──────────────────────┘    └──────────────────────────────┘    │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ 共享状态文件 /tmp/kyb-infra-proxy-state.json              │    │
+│  │ watch 进程写入, 其他工具读取                               │    │
+│  └──────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 6.5 发布流程
+
+```
+1. 开发: git commit + push → GitLab CI test + build
+2. 测试: 手动部署到 staging 环境（Mock DeepSeek）→ 跑 chaos monkey
+3. 打 tag: git tag v1.2.3 → push → GitLab CI 构建生产镜像
+4. 灰度: 手动触发 deploy-production job
+   - CI pull 新镜像 → docker stack deploy
+   - 观察 10 分钟健康状态
+   - 验证 perf benchmark 达标
+5. 全量: 确认健康后，标记 deploy 完成
+6. 回滚: 如有问题，使用上一个 tag 的镜像重新 deploy
+```
+
 ---
 
 ## 附录
@@ -947,10 +1462,17 @@ Grafana         ← 新增 data source：infra.api_logs
 ### B. 安全考虑
 
 1. **API key 不落盘** — CK 中只存 `api_key_prefix`（前 8 位）
-2. **容器间通信加密** — Claude → 代理走 Docker 内部网络（不暴露到宿主机外部），代理 → DeepSeek 走 HTTPS
-3. **内容脱敏** — 考虑在代理层添加 PII 脱敏（正则替换 email、phone、api key 等），作为 Phase 1 可选功能
-4. **最小端口暴露** — `:2082` 仅在 `kyb-net` 网络暴露，不绑定 `0.0.0.0`（默认绑定 Docker 内部 IP）
-5. **日志访问控制** — `infra.api_logs` 表在 CK 中通过用户权限控制，仅 infra 管理员可查询
+2. **容器间通信加密** — Claude → 代理走 Docker 内部网络（绑定 `127.0.0.1`，不暴露到宿主机外部），代理 → DeepSeek 走 HTTPS
+3. **PII 脱敏（P0）** — 代理层必须对 CK 日志中的 PII 做脱敏处理，不可延迟到 Phase 1：
+   - **配置化关键词过滤**：通过 `PII_KEYWORDS` 环境变量配置敏感关键词列表（默认：`token,password,secret,key,credential,authorization`）
+   - **脱敏规则**：对 `request_body` 和 `response_body` 中匹配关键词的字段值，替换为 `[REDACTED]`
+   - **实现方式**：在写入 CK 之前，对 JSON body 做深度遍历，匹配 key 名包含关键词的字段，替换其 value
+   - **性能要求**：脱敏处理在写入 goroutine 中异步执行，不增加响应延迟
+   - **配置示例**：`PII_KEYWORDS=token,password,secret,key,credential,authorization,api_key,access_key`
+   - **注意**：脱敏仅作用于 CK 写入的内容，转发给 Claude 的响应**不**做脱敏（Claude 正常使用需要这些值）
+4. **SSRF 保护** — `UPSTREAM_URL` 配置必须经过白名单校验，仅允许 `api.deepseek.com`。`UPSTREAM_URL_WHITELIST` 环境变量控制白名单域名列表，启动时校验，非法域名立即拒绝启动
+5. **最小端口暴露** — `:2082` 和 `:2083` 均在 docker-compose 中绑定 `127.0.0.1`，Docker 内部通过 `kyb-net` 网络访问
+6. **日志访问控制** — `infra.api_logs` 表在 CK 中通过用户权限控制，仅 infra 管理员可查询
 
 ### C. 决策记录
 
@@ -960,8 +1482,19 @@ Grafana         ← 新增 data source：infra.api_logs
 | 2026-05-25 | 语言选 Go 而非 Ruby/Python | 关键路径确定性延迟、单二进制部署 |
 | 2026-05-25 | Streaming 用逐 chunk 透传 + 内存拼接 | 最小化首字节延迟 |
 | 2026-05-25 | CK 写入 fail-open | 代理不能因 CK 故障而阻塞请求 |
-| 2026-05-25 | 熔断阈值连续 3 次失败 | 保守 — meta-infra 级别宁可误触不可不触 |
+| 2026-05-25 | ~~熔断阈值连续 3 次失败~~ → 滑动窗口 5m 内失败率 >20% | 避免瞬时流量波动误触，需 min_request_count 确保样本足够 |
 | 2026-05-25 | Fallback 方式为修改 ANTHROPIC_BASE_URL | 最彻底的直连恢复，不依赖 Claude 侧逻辑 |
+| 2026-05-25 | CK MergeTree 采用 all-at-once INSERT（不 UPDATE） | CK 不支持常规 UPDATE，拆分写入不可行 |
+| 2026-05-25 | 异步 CK 写入使用 context.Background() | 避免请求取消导致日志写入被取消 |
+| 2026-05-25 | 超时模型拆分为 connect / idle / total | 10s 总超时会误杀 streaming（长对话 >10s 正常） |
+| 2026-05-25 | Streaming 每 chunk 后 Flush() | HTTP ResponseWriter 默认缓冲，不 Flush 则零延迟透传失效 |
+| 2026-05-25 | bufio.Scanner buffer 设为 1MB | 默认 64KB 限制会导致超大 delta chunk 截断 |
+| 2026-05-25 | 错误格式从 DeepSeek 原生转为 Anthropic 格式 | Claude SDK 识别特定 error format，格式不匹配导致 SDK 解析异常 |
+| 2026-05-25 | PII 脱敏升为 P0（配置化关键词过滤） | 安全审计要求，不可延迟到 Phase 1 |
+| 2026-05-25 | 端口绑定 127.0.0.1 而非 0.0.0.0 | 最小暴露原则，Docker 内部通过 kyb-net 访问，无需宿主机外部暴露 |
+| 2026-05-25 | 优雅关闭 SIGTERM handler | 避免关闭过程中丢弃进行中的请求 |
+| 2026-05-25 | SSRF 保护：UPSTREAM_URL 白名单校验 | 防止容器被用于 SSRF 攻击 |
+| 2026-05-25 | Watch 进程独立于代理部署（宿主机 systemd） | 代理自身故障时 watch 仍能工作 |
 
 ### D. 未解决问题（待 Phase 1 设计）
 
@@ -969,6 +1502,8 @@ Grafana         ← 新增 data source：infra.api_logs
 2. **缓存策略** — 相同 prompt 是否返回缓存结果？对于调试场景不合适，对成本敏感场景有价值。需要更明确的需求。
 3. **采样率** — 是否需要支持采样（如只记录 10% 的请求）用于降本？
 4. **请求审计与 replay** — 能否从 CK 中提取请求，重新发送到 DeepSeek？功能上可行，但需要额外的 replay 工具。
+5. **sing-box mirror 集成** — 方案 B（sing-box）作为副产物，需要确定其配置、部署和与代理的数据关联方式。暂定 Phase 1 并行设计。
+6. **watch 进程容灾** — watch 进程自身宕机时，需要冗余设计。当前暂定 watch 进程通过 systemd 自动重启 + 人工巡检兜底。
 
 ---
 
