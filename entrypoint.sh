@@ -19,7 +19,8 @@ uid_changed=false; gid_changed=false
 if [ "$HOST_UID" != "$(id -u dev)" ]; then
     if getent passwd "$HOST_UID" >/dev/null 2>&1; then
         name=$(getent passwd "$HOST_UID" | cut -d: -f1)
-        [ "$name" != "dev" ] && userdel -r "$name" 2>/dev/null || true
+        uid=$(getent passwd "$HOST_UID" | cut -d: -f3)
+        [ "$name" != "dev" ] && [ "$uid" -ge 1000 ] && userdel -r "$name" 2>/dev/null || true
     fi
     usermod -u "$HOST_UID" dev
     uid_changed=true
@@ -37,6 +38,11 @@ fi
 
 # Only chown entire tree when UID/GID actually changed (common case: no change = skip)
 if $uid_changed || $gid_changed; then
+    # Skip known host bind mounts (projects/, .ssh-host, etc.) to avoid
+    # propagating incorrect ownership to the host filesystem
+    for dir in /home/dev/projects /home/dev/.ssh-host /home/dev/sing-box-config /home/dev/.claude-skills-host /home/dev/.claude-host-settings.json /home/dev/.config/kyb; do
+        [ -e "$dir" ] && chown dev:dev "$dir" 2>/dev/null || true
+    done
     chown -R dev:dev /home/dev 2>/dev/null || true
 fi
 
