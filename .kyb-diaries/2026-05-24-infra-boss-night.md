@@ -32,8 +32,15 @@ kyb-infra-clickhouse      ✅ Up
 
 ## 巡检
 
-每 10 分钟自动检查一次：一直无症状。
+22:44 第一轮：系统正常。CK crash loop（OOM），重建加 4g 内存限制。
 
----
+## 容器状态
 
-*下一轮：继续修 P1 #154（内存限制）→ #155（Hooks→CK）*
+| 容器 | 状态 | 限制 |
+|------|------|------|
+| kyb-infra-nuc8-tunnel | ✅ | 64m + HEALTHCHECK |
+| kyb-infra-boss | ✅ | 2g |
+| kyb-infra-clickhouse | ✅ 重建 | 4g（之前无症状 OOM） |
+| kyb-infra-sing-box | ✅ | 无限制（待修 #154） |
+| kyb-click-xiaoye | ✅ | 无限制 |
+| kyb-hamilton-cat | ✅ | 无限制 |
