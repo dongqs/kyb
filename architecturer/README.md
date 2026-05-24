@@ -4,25 +4,7 @@
 
 ---
 
-## 人类架构师视角 — [journey/](journey/)
-
-我四天的经历。做了什么、看到了什么、在想什么。
-
-| 章 | 内容 |
-|----|------|
-| [01 从 FizzBuzz 到 Boss Mode](journey/01-first-contact.md) | Day 1 — 被纠正了一整天，Worktree 砍了，17 项目 |
-| [02 学会派活、CI 大战](journey/02-growing-pains.md) | Day 2 — 阈值训练、五路围攻、Runtime 觉醒 |
-| [03 我一个人看 12 个容器](journey/03-night-watch.md) | Night — Grafana 48 面板、40+ 轮零异常 |
-| [04 大扫除、Boss 重生](journey/04-the-overhaul.md) | Day 3 — 15 路体检、95 项审计、9 MR |
-| [05 130 人的疯狂一夜](journey/05-the-big-experiment.md) | Night 2 — 7 阶段、152 文档、可观测定案 |
-| [06 善后、消灭波动源](journey/06-stabilization.md) | Day 4 — nuc8、sing-box、稳定交接 |
-
-**心路 moments：**
-- [起飞时刻](journey/moments/takeoff.md)
-- [看完日记睡不着了](journey/moments/couldnt-sleep.md)
-- [我们没什么区别](journey/moments/we-are-same.md)
-- [Agent 社会学：我在造伊甸园小人儿](journey/moments/agent-sociology.md)
-- [上下文是唯一的最终成本](journey/moments/context-is-cost.md)
+> 人类视角的旅程日记已移至 `.kyb-diaries/architecturer-journey/`。
 
 ## 系统演化视角 — [evolution/](evolution/)
 
