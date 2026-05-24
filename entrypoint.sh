@@ -316,4 +316,53 @@ fi
 # Start cron daemon (for heartbeat and periodic tasks)
 crond -b 2>/dev/null || true
 
+# infra-boss: establish nuc8 SSH tunnel for GitLab proxy chain
+if echo "$HOSTNAME" | grep -q "kyb-infra-boss"; then
+  # Copy SSH keys to root (host mount is read-only)
+  if [ -d /home/dev/.ssh-host ]; then
+    mkdir -p /root/.ssh
+    cp /home/dev/.ssh-host/id_rsa /root/.ssh/id_rsa 2>/dev/null || true
+    cp /home/dev/.ssh-host/id_rsa_aliyun /root/.ssh/id_rsa_aliyun 2>/dev/null || true
+    cp /home/dev/.ssh-host/config /root/.ssh/config 2>/dev/null || true
+    chmod 600 /root/.ssh/id_rsa /root/.ssh/id_rsa_aliyun 2>/dev/null || true
+  fi
+
+  # Add nuc8-tunnel host config if not present
+  if ! grep -q "nuc8-tunnel" /root/.ssh/config 2>/dev/null; then
+    cat >> /root/.ssh/config << 'CONF'
+
+Host nuc8-tunnel
+  HostName 100.98.29.39
+  User dongqs
+  ProxyJump sim
+  IdentityFile /root/.ssh/id_rsa
+  StrictHostKeyChecking no
+  ConnectTimeout 10
+  ServerAliveInterval 15
+  ServerAliveCountMax 3
+  ExitOnForwardFailure yes
+CONF
+  fi
+
+  # Install autossh if missing
+  if ! command -v autossh >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y -qq autossh 2>/dev/null || true
+  fi
+
+  # Start autossh tunnel (background, auto-reconnect)
+  if ! ss -tlnp 2>/dev/null | grep -q :2081; then
+    AUTOSSH_PIDFILE=/tmp/autossh-tunnel.pid \
+    nohup autossh -M 0 \
+      -o StrictHostKeyChecking=no \
+      -o ConnectTimeout=10 \
+      -o ServerAliveInterval=15 \
+      -o ServerAliveCountMax=3 \
+      -o ExitOnForwardFailure=yes \
+      -L 0.0.0.0:2081:localhost:2081 \
+      -N \
+      nuc8-tunnel \
+      > /dev/null 2>&1 &
+  fi
+fi
+
 exec runuser -u dev -- "$@"
