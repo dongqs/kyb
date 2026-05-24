@@ -384,7 +384,9 @@ class InfraTest < Minitest::Test
     sys = ->(*args, **_) { calls << args; true }
     out, = capture_io {
       Kyb::CLI.stub(BT, bt) {
-        Kyb::CLI.stub(:system, sys) { Kyb::CLI.infra_down }
+        $stdin.stub(:gets, "y") {
+          Kyb::CLI.stub(:system, sys) { Kyb::CLI.infra_down }
+        }
       }
     }
     assert_match(/removed/, out)

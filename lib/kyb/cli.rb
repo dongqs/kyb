@@ -28,8 +28,9 @@ module Kyb::CLI
     when 'init'
       init(args)
     when 'create'
-      Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--clone] [--ports HOST:CONTAINER] [--model flash|pro]") unless args.first
+      Kyb.die("create requires a project-branch\n  Usage: kyb create PROJECT-BRANCH [--clone] [--docker] [--ports HOST:CONTAINER] [--model flash|pro]") unless args.first
       repo_root = args.delete('--clone') ? 'isolated_local_repo_clone' : nil
+      docker_sock = args.delete('--docker') ? true : false
       port_overrides = nil
       model = nil
       project, branch = Kyb::Parser.parse(args.shift)
@@ -42,7 +43,7 @@ module Kyb::CLI
         model = args.shift
         Kyb.die("--model must be 'flash' or 'pro'") unless %w[flash pro].include?(model)
       end
-      create(project, branch, port_overrides, model: model, repo_root: repo_root)
+      create(project, branch, port_overrides, model: model, repo_root: repo_root, docker_sock: docker_sock)
     when 'ps', 'ls'
       ps
     when 'enter'
@@ -153,8 +154,8 @@ module Kyb::CLI
 
         init [NAME] [--port PORT] [--symlink PATH] [--env-template FILE]
                                          Add current project to config
-        create PROJECT-BRANCH [--clone] [--ports HOST:CONTAINER] [--model flash|pro]
-                                         Create and start a container (--clone: isolated git clone)
+        create PROJECT-BRANCH [--clone] [--docker] [--ports HOST:CONTAINER] [--model flash|pro]
+                                         Create and start a container (--clone: isolated git clone, --docker: mount docker.sock)
         ps, ls                           List containers
         enter PROJECT-BRANCH [--cli claude|kimi|bash]
                                          Enter container (default: claude)

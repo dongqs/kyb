@@ -13,6 +13,7 @@
 3. **重启后自检** — 改完必须验证代理连通性，失败立即回滚
 4. **不改自己够不着的** — 不碰宿主机 launchd/plist，不碰 Orbstack 配置
 5. **留后路** — 任何操作前确保还有另一条路能进容器 docker exec
+6. **不拿自己做实验** — 验证"防误删"要靠读代码和从外部容器 exec 测试，不是亲自下场试删自己
 
 与 kyb-*-boss（项目 boss）的区别：
 
@@ -48,9 +49,17 @@ kyb-infra-<service>           # 基础设施服务（纯容器，无 agent）
 │  端口: 2080 (socks5)              │
 └────────────────────────────────────┘
 
+┌── kyb-infra-nuc8-tunnel ─────────────┐
+│  kyb-base:latest + SSH              │  < 64MB
+│  restart: always                    │  纯隧道，无 agent
+│  SSH -D :2081 → nuc8(100.98.29.39) │
+│  mount: 宿主机 .ssh（只读）          │
+│  kyb-net IP: 192.168.97.3          │
+└──────────────────────────────────────┘
+
 ┌── kyb-infra-postgresql ────────────┐   （规划中）
 ┌── kyb-infra-clickhouse ────────────┐   （规划中）
-┌── kyb-infra-xxx ───────────────────┐   （规划中）
+┌── kyb-infra-xxx ───────────────────┘   （规划中）
 ```
 
 所有 kyb-*-boss 和 kyb-*-<branch> 容器的 ALL_PROXY 指向 kyb-infra-sing-box:2080。
@@ -58,8 +67,16 @@ kyb-infra-boss 的 ALL_PROXY 也指向它，但 direct 规则包含 kyb-infra-* 
 
 ### 生命周期
 
-kyb-infra-sing-box 是唯一 restart: always 的容器。死了全集群断网。
+kyb-infra-sing-box 和 kyb-infra-nuc8-tunnel 是 restart: always 的容器。
+- sing-box 死了全集群断网
+- nuc8-tunnel 死了 GitLab 不可达（所有 nuc8-proxy 出站流量中断）
+- 两者都是纯服务容器，无 agent，Docker daemon 存活期间自动恢复
+
 kyb-infra-boss 随用随建，跟普通容器一样——死了重新 create。
+
+> **架构决策：** 关键网络隧道必须属于 restart: always 的容器。
+> 之前隧道跑在 boss 容器内（restart: unless-stopped），boss 被 kill 时隧道也死。
+> 2026-05-24 抽出独立隧道容器，解耦隧道与 agent 生命周期。
 
 ## kyb-infra-boss 职责
 

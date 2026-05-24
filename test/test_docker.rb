@@ -176,6 +176,38 @@ class DockerTest < Minitest::Test
     FileUtils.rm_rf('/tmp/test-wt-clone')
   end
 
+  # --- run (docker.sock) ---
+
+  def test_run_default_no_docker_sock
+    repo_path = '/tmp/test-wt-nosock'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path))
+    refute args.each_cons(2).any? { |f, v| f == '-v' && v.include?('/var/run/docker.sock') },
+           'expected NO docker.sock mount by default'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-nosock')
+  end
+
+  def test_run_docker_sock_when_enabled
+    repo_path = '/tmp/test-wt-sock'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: false, **default_run_kwargs(repo_path: repo_path, docker_sock: true))
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == '/var/run/docker.sock:/var/run/docker.sock' },
+           'expected docker.sock mount when docker_sock: true'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-sock')
+  end
+
+  def test_run_dind_still_has_docker_sock
+    repo_path = '/tmp/test-wt-dindsock'
+    FileUtils.mkdir_p(repo_path)
+    args = with_run_stubs(dind: true, **default_run_kwargs(repo_path: repo_path, docker_sock: true))
+    assert args.each_cons(2).any? { |f, v| f == '-v' && v == '/var/run/docker.sock:/var/run/docker.sock' },
+           'expected docker.sock mount in DinD mode when docker_sock: true'
+  ensure
+    FileUtils.rm_rf('/tmp/test-wt-dindsock')
+  end
+
   def test_run_skips_project_path_when_matches_wt_target
     # When project_path equals the mount target, only the repo_path bind mount
     # (line 115) should appear — NOT a second project_path mount (line 119).

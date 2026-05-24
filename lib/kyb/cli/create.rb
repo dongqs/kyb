@@ -3,9 +3,9 @@
 module Kyb::CLI
   module_function
 
-  def create(project, branch, port_overrides = nil, model: nil, repo_root: nil, worldview: nil, diversity: nil)
+  def create(project, branch, port_overrides = nil, model: nil, repo_root: nil, worldview: nil, diversity: nil, docker_sock: false)
     if diversity
-      create_diverse(project, branch, port_overrides, model: model, repo_root: repo_root, diversity: diversity)
+      create_diverse(project, branch, port_overrides, model: model, repo_root: repo_root, diversity: diversity, docker_sock: docker_sock)
       return
     end
 
@@ -13,7 +13,7 @@ module Kyb::CLI
       puts "⚠️ create 命令不应在容器内运行"
       exit 1
     end
-    container, ports = Kyb::Docker.create_container(project, branch, port_overrides, model: model, repo_root: repo_root)
+    container, ports = Kyb::Docker.create_container(project, branch, port_overrides, model: model, repo_root: repo_root, docker_sock: docker_sock)
 
     if worldview
       Kyb::Worldview.assign(container, worldview)
@@ -53,7 +53,7 @@ module Kyb::CLI
   end
 end
 
-def create_diverse(project, branch, port_overrides = nil, model: nil, repo_root: nil, diversity: 1)
+def create_diverse(project, branch, port_overrides = nil, model: nil, repo_root: nil, diversity: 1, docker_sock: false)
   worldviews = Kyb::Worldview.sample_without_replacement(diversity)
   puts "==> Creating #{worldviews.size} containers with diverse worldviews:"
   worldviews.each do |wv_name|
@@ -66,7 +66,7 @@ def create_diverse(project, branch, port_overrides = nil, model: nil, repo_root:
       next
     end
     begin
-      cname, ports = Kyb::Docker.create_container(project, diverse_branch, port_overrides, model: model, repo_root: repo_root)
+      cname, ports = Kyb::Docker.create_container(project, diverse_branch, port_overrides, model: model, repo_root: repo_root, docker_sock: docker_sock)
       Kyb::Worldview.assign(cname, wv_name)
       puts "    \u2713 created (ports: #{ports || 'none'})"
     rescue => e

@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -e
 
+# Safety: prevent infra-boss from accidentally deleting its own container
+docker() {
+  for arg in "$@"; do
+    if echo "$arg" | grep -q "kyb-infra-boss$"; then
+      echo "ERROR: refusing to delete kyb-infra-boss from inside itself" >&2
+      echo "       Run this from another container or the host:" >&2
+      echo "       docker rm -f kyb-infra-boss" >&2
+      return 1
+    fi
+  done
+  command docker "$@"
+}
+
 HOST_UID="${HOST_UID:-1000}"
 HOST_GID="${HOST_GID:-1000}"
 

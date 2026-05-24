@@ -118,6 +118,7 @@ module Kyb::Config
     proj[:proxy_in_container] = raw['proxy_in_container'] || proxy_in_container || proj[:proxy]
     proj[:no_proxy] = raw['no_proxy'] || no_proxy
     proj[:memory] = raw['memory'] || default_memory
+    proj[:docker_sock] = raw['docker_sock'] || false
     proj[:sandbox_allowed_domains] = DEFAULT_SANDBOX_DOMAINS + Array(raw['sandbox_allowed_domains']).map(&:to_s).reject(&:empty?)
     proj[:extra_prompt] = extra.empty? ? nil : extra
     proj

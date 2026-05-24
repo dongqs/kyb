@@ -174,6 +174,8 @@ module Kyb::CLI
       puts "==> #{BOSS_NAME} does not exist"
       return
     end
+    print "⚠️  Confirm remove #{BOSS_NAME}? Running Claude session will be lost! (y/N) "
+    return unless $stdin.gets&.strip&.downcase == 'y'
     system('docker', 'rm', '-f', BOSS_NAME)
     puts "==> #{BOSS_NAME}: removed"
   end

@@ -12,16 +12,18 @@
 |------|------|--------|------|---------|
 | **kyb-infra-boss**（你） | 新拉的 | ✅ | 有限制 | **你就是这个** |
 | kyb-infra-boss-fallback | 正常运行 | ❌ | 无限制 | 上一任 boss **改名**后退下来的，还活着，有当前会话 |
-| kyb-infra-boss-old | 正常运行 | ❌ | 无限制 | **nuc8 SSH 隧道挂在这里** — 别动！ |
+| kyb-infra-boss-old | 正常运行 | ❌ | 无限制 | 上一任 boss，可择机清理（隧道已迁移出） |
 | kyb-infra-boss2 | 正常运行 | ✅ | 4GiB | 合规但完全空闲，可择机清理 |
+| **kyb-infra-nuc8-tunnel** | 正常运行 | ❌ | 64MiB | **nuc8 SSH 隧道（纯服务）** — 别动！ |
 
-**⚠️ 红线：`kyb-infra-boss-old` 不能删。** 它的 PID 1 里跑着 SSH 隧道：
+**⚠️ 红线：`kyb-infra-nuc8-tunnel` 不能删。** 它的 SSH 进程提供 nuc8 SOCKS5 代理：
 
 ```
-boss-old:2081 → SSH → nuc8(100.98.29.39):2081
+kyb-infra-nuc8-tunnel:2081 → SSH -D → nuc8(100.98.29.39) → 办公室网络
 ```
 
-GitLab（git.leyantech.com）的流量走这条路。SSH 隧道经 Tailscale 直连 nuc8（不再经 sim 跳转），`entrypoint.sh` 已集成 autossh 保活。
+GitLab（git.leyantech.com）的流量走这条路。这是一个 `restart: always` 的纯服务容器，
+无 agent，Docker daemon 存活期间自动恢复。隧道已从 boss 容器抽出（不再依赖 ephemeral 容器）。
 
 ## 2. Registry Cache — 文档写的全是错的
 
@@ -100,10 +102,12 @@ Docker 有 ~37GB 可回收，但：
 
 ---
 
-> 如果需要迁走 nuc8 隧道再清 boss-old，流程是：
-> 1. 新 boss 重建后 `entrypoint.sh` 已自动建立新隧道（autossh + Tailscale 直连 nuc8，无需 sim）
-> 2. 确认新隧道 GitLab 通：`docker exec kyb-infra-boss curl -sx socks5://127.0.0.1:2081 https://git.leyantech.com`
-> 3. 再停 boss-old 里的旧隧道进程
-> 4. 确认 GitLab 仍然通
+> 隧道现在由独立容器 `kyb-infra-nuc8-tunnel` 管理（`restart: always`），
+> 不再依赖 boss 容器的生命周期。如需操作隧道：
+> 1. 验证隧道存活：`ALL_PROXY=socks5://kyb-infra-sing-box:2080 curl -sI https://git.leyantech.com`
+> 2. 重启隧道：`docker restart kyb-infra-nuc8-tunnel`
+> 3. 查看日志：`docker logs kyb-infra-nuc8-tunnel --tail 20`
+>
+> 详见 [nuc8-tunnel-architecture.md](nuc8-tunnel-architecture.md)
 
 ／人◕ ‿‿ ◕人＼
