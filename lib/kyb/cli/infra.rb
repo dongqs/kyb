@@ -49,10 +49,12 @@ module Kyb::CLI
       puts "==> created network #{net}"
     end
     # Connect sing-box to the shared network so 'kyb-infra-sing-box' resolves
-    net_ids = `docker inspect kyb-infra-sing-box --format '{{range \$n, \$v := .NetworkSettings.Networks}}{{\$n}} {{end}}' 2>/dev/null`.strip.split
-    unless net_ids.include?(net)
-      system('docker', 'network', 'connect', net, SING_BOX)
-      puts "==> connected #{SING_BOX} to #{net}"
+    if system('docker', 'inspect', SING_BOX, out: File::NULL, err: File::NULL)
+      net_ids = `docker inspect kyb-infra-sing-box --format '{{range \$n, \$v := .NetworkSettings.Networks}}{{\$n}} {{end}}' 2>/dev/null`.strip.split
+      unless net_ids.include?(net)
+        system('docker', 'network', 'connect', net, SING_BOX)
+        puts "==> connected #{SING_BOX} to #{net}"
+      end
     end
 
     args = %w[docker run -d --init --name]
