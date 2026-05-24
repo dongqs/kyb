@@ -389,4 +389,14 @@ CONF
   fi
 fi
 
+# Feishu bot: auto-start if credentials configured in /home/dev/projects/kyb/.env
+if [ -z "${KYB_DID:-}" ] && [ -f "/home/dev/projects/kyb/.env" ]; then
+  FEISHU_APP_ID="$(sed -n 's/^FEISHU_APP_ID=//p' /home/dev/projects/kyb/.env | head -1)"
+  FEISHU_APP_SECRET="$(sed -n 's/^FEISHU_APP_SECRET=//p' /home/dev/projects/kyb/.env | head -1)"
+  if [ -n "$FEISHU_APP_ID" ] && [ -n "$FEISHU_APP_SECRET" ] && ! pgrep -f "feishu-bot" >/dev/null 2>&1; then
+    runuser -u dev -- bash -l -c "cd /home/dev/projects/kyb && set -a && . .env && set +a && nohup bin/feishu-bot >> /tmp/feishu-bot.log 2>&1 &" || true
+    echo "[entrypoint] feishu-bot started (log: /tmp/feishu-bot.log)"
+  fi
+fi
+
 exec runuser -u dev -- "$@"

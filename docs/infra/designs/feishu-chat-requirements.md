@@ -17,7 +17,7 @@
 ## 技术约束
 
 - 用现有的飞书 API 凭证（`FEISHU_APP_ID` / `FEISHU_APP_SECRET`）
-- 去掉现有的复杂 shell 脚本链（lark-claude-bridge / lark-watcher / feishu-monitor 等）
+- 去掉现有的复杂 shell 脚本链（lark-claude-bridge / lark-watcher / feishu-monitor 等）— ✅ 已完成（MR #142）
 - 用飞书 Open API 直接发消息、收事件
 
 ## 非需求（这次不做）
