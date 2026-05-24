@@ -84,8 +84,7 @@ module Kyb::ExitFlow
       unexpected = processes - baseline
       warnings << "processes: #{unexpected.join(', ')}" if unexpected.any?
 
-      did_kids = Open3.capture3('docker', 'ps', '-a', '--format', '{{.Names}}', '--filter', "label=did_parent=#{cname}").first
-                 .lines.map(&:strip).reject(&:empty?)
+      did_kids = Kyb::Docker.did_children(cname)
       warnings << "DID children: #{did_kids.join(', ')} (will be cascade deleted)" if did_kids.any?
     rescue Errno::ENOENT
     end
@@ -128,12 +127,7 @@ module Kyb::ExitFlow
     cname = container.name
     puts
 
-    begin
-      did_children = Open3.capture3('docker', 'ps', '-a', '--format', '{{.Names}}', '--filter', "label=did_parent=#{cname}").first
-    rescue Errno::ENOENT
-      did_children = ""
-    end
-    did_children.lines.map(&:strip).each do |did_child|
+    Kyb::Docker.did_children(cname).each do |did_child|
       puts "==> #{did_child}: removing DID child container"
       system('docker', 'rm', '-f', did_child)
       system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)

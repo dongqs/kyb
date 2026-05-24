@@ -103,7 +103,7 @@ module Kyb::CLI
 
     # Shared build caches
     %w[kyb-gradle-cache kyb-maven-cache kyb-mise-cache kyb-pip-cache].each do |vol|
-      system('docker', 'volume', 'create', vol, out: File::NULL) unless `docker volume ls -q --filter name=^#{vol}$`.strip == vol
+      Kyb::Docker.ensure_volume(vol)
     end
     args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
@@ -151,19 +151,14 @@ module Kyb::CLI
     end
 
     cname = BOSS_NAME
-    dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev', cname]
+    dexec = [DOCKER, 'exec', '-it', '-u', 'dev', '-w', '/home/dev']
     prompt = '@CLAUDE.md @projects/kyb/npc/kyb-infra-boss.md 读一下设计文档再开始工作'
+    cmd = "cd /home/dev/projects/kyb && claude --dangerously-skip-permissions #{Shellwords.escape(prompt)}"
 
     unless tmux_has_session?(cname)
-      system(*dexec, 'tmux',
-             'set', '-g', 'set-titles', 'on', ';',
-             'set', '-g', 'automatic-rename', 'off', ';',
-             'set', '-g', 'set-titles-string', '#{pane_title}', ';',
-             'new-session', '-s', 'dev', '-n', "kyb:#{cname}", ';',
-             'select-pane', '-T', "kyb:#{cname}", ';',
-             'send-keys', "cd /home/dev/projects/kyb && claude --dangerously-skip-permissions #{Shellwords.escape(prompt)}", 'Enter')
+      enter_container(cname, title: "kyb:#{cname}", cmd: cmd, dexec: dexec)
     end
-    system(*dexec, 'tmux', 'attach-session', '-t', 'dev')
+    system(*dexec, cname, 'tmux', 'attach-session', '-t', 'dev')
   end
 
   def tmux_has_session?(cname)

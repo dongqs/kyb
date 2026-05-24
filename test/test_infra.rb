@@ -295,7 +295,9 @@ class InfraTest < Minitest::Test
       File.stub(:exist?, exist_stub) {
         File.stub(:directory?, dir_stub) {
           Kyb::CLI.stub(BT, bt) {
-            Kyb::CLI.stub(:system, sys) { Kyb::CLI.infra_up }
+            Kyb::Docker.stub(:ensure_volume, ->(name) { calls << ['docker', 'volume', 'create', name]; true }) {
+              Kyb::CLI.stub(:system, sys) { Kyb::CLI.infra_up }
+            }
           }
         }
       }

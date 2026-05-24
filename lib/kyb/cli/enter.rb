@@ -25,22 +25,7 @@ module Kyb::CLI
     cmd = build_send_keys(cli, project, prompt)
     dexec = docker_exec_args
 
-    if tmux_has_session?(cname)
-      system(*dexec, cname, 'tmux',
-             'set', '-g', 'set-titles', 'on', ';',
-             'set', '-g', 'automatic-rename', 'off', ';',
-             'set', '-g', 'set-titles-string', '#{pane_title}', ';',
-             'rename-window', title, ';',
-             'attach-session', '-t', 'dev')
-    else
-      system(*dexec, cname, 'tmux',
-             'set', '-g', 'set-titles', 'on', ';',
-             'set', '-g', 'automatic-rename', 'off', ';',
-             'set', '-g', 'set-titles-string', '#{pane_title}', ';',
-             'new-session', '-s', 'dev', '-n', title, ';',
-             'select-pane', '-T', title, ';',
-             'send-keys', cmd, 'Enter')
-    end
+    enter_container(cname, title: title, cmd: cmd, dexec: dexec)
 
     # After docker exec returns: distinguish detach from session exit
     if tmux_has_session?(cname)
@@ -140,6 +125,25 @@ def resolve_worldview(cli_worldview, container_name)
       cmd += " -p #{Shellwords.escape(prompt)}"
     end
     cmd
+  end
+
+  def enter_container(cname, title:, cmd:, dexec:)
+    if tmux_has_session?(cname)
+      system(*dexec, cname, 'tmux',
+             'set', '-g', 'set-titles', 'on', ';',
+             'set', '-g', 'automatic-rename', 'off', ';',
+             'set', '-g', 'set-titles-string', '#{pane_title}', ';',
+             'rename-window', title, ';',
+             'attach-session', '-t', 'dev')
+    else
+      system(*dexec, cname, 'tmux',
+             'set', '-g', 'set-titles', 'on', ';',
+             'set', '-g', 'automatic-rename', 'off', ';',
+             'set', '-g', 'set-titles-string', '#{pane_title}', ';',
+             'new-session', '-s', 'dev', '-n', title, ';',
+             'select-pane', '-T', title, ';',
+             'send-keys', cmd, 'Enter')
+    end
   end
 
   def tmux_has_session?(cname)

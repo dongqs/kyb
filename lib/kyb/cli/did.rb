@@ -65,7 +65,7 @@ module Kyb::CLI
     parent = did_parent_name || 'host'
     volume = "#{cname}-worktree"
 
-    system('docker', 'volume', 'create', volume) || Kyb.die("failed to create volume '#{volume}'")
+    Kyb::Docker.ensure_volume(volume) || Kyb.die("failed to create volume '#{volume}'")
 
     run_args = %w[docker run -d --init --restart on-failure:5 --name]
     run_args << cname
@@ -86,7 +86,7 @@ module Kyb::CLI
 
     # Shared build-tool caches
     %w[kyb-gradle-cache kyb-maven-cache kyb-mise-cache kyb-pip-cache].each do |vol|
-      system('docker', 'volume', 'create', vol, out: File::NULL) || Kyb.die("failed to create volume '#{vol}'")
+      Kyb::Docker.ensure_volume(vol) || Kyb.die("failed to create volume '#{vol}'")
     end
     run_args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     run_args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
@@ -152,7 +152,7 @@ module Kyb::CLI
     cname = candidates.first
 
     # Remove child containers (DID-in-DID nesting)
-    `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{cname}`.lines.map(&:strip).each do |child|
+    Kyb::Docker.did_children(cname).each do |child|
       puts "==> #{child}: removing child container"
       system('docker', 'rm', '-f', child)
     end
