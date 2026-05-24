@@ -231,6 +231,34 @@ key 没加载进 agent，GitLab SSH 连接失败。
 2. **entrypoint.sh 应考虑自动启动 ssh-agent 并加载默认 key**
 3. **补救：** `eval $(ssh-agent) && ssh-add ~/.ssh/id_rsa`
 
+### 11. 文档与代码不一致：NO_PROXY 含 .leyantech.com
+
+**问题：** `Kyb::Config::DEFAULT_NO_PROXY` 包含 `.leyantech.com`，但
+`docs/network/proxy.md` 的 NO_PROXY 列表没有它。文档说 .leyantech.com 应该走
+nuc8 隧道（`sing-box 路由: leyantech.com → nuc8-proxy`），但代码的 NO_PROXY 让它
+绕过代理直连，导致 GitLab API 403。
+
+**影响链：**
+```
+容器有 ALL_PROXY 和 NO_PROXY=.leyantech.com
+     ↓
+curl/glab 看到 .leyantech.com 在 NO_PROXY → 不走代理直连
+     ↓
+直连 git.leyantech.com → IP 白名单拦住 → 403
+     ↓
+用户看到 GitLab 连不上，以为是代理/SSH 坏了
+     ↓
+调试方向完全跑偏（修 SSH、调 env、改 bashrc…）
+     ↓
+实际根因在一行 DEFAULT_NO_PROXY
+```
+
+**教训：**
+1. **NO_PROXY 的域名如果改了路由策略，需要同步清理** —— .leyantech.com 从直连改为 nuc8 隧道后，NO_PROXY 没跟着更新
+2. **文档和代码不一致时，文档可能是对的** —— `docs/network/proxy.md` 的 NO_PROXY 列表是正确的，`config.rb` 的 DEFAULT 是过时的
+3. **调试要先查文档再查代码** —— 如果一开始就对比文档和代码，能省 30 分钟
+4. **bash -l -c 不读 .bashrc** —— login shell 读 `.bash_profile`/`.profile`，非交互式不读 `.bashrc`。修复 env 要写到 `.bash_profile`
+
 ---
 
 ## 建议优先级
