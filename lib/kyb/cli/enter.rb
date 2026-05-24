@@ -61,6 +61,11 @@ def resolve_worldview(cli_worldview, container_name)
       return
     end
 
+    unless STDIN.tty?
+      Kyb::Docker.create_container(project, branch)
+      return
+    end
+
     id = "#{project}-#{branch}"
     print "==> #{cname}: container not found. Create it? [Y/n] (10s) "
     STDOUT.flush

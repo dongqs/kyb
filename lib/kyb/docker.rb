@@ -71,11 +71,26 @@ module Kyb::Docker
 
   def ensure_master_synced(repo_path, base_branch)
     return unless File.directory?("#{repo_path}/.git")
-    puts "==> syncing #{repo_path} to origin/#{base_branch}"
     Dir.chdir(repo_path) do
-      system('git', 'fetch', 'origin', base_branch) || Kyb.die("git fetch origin #{base_branch} failed")
-      system('git', 'checkout', base_branch) || Kyb.die("git checkout #{base_branch} failed")
-      system('git', 'merge', '--ff-only', "origin/#{base_branch}") || Kyb.die("git merge --ff-only origin/#{base_branch} failed")
+      # Fetch latest origin — safe, no local state affected
+      system('git', 'fetch', 'origin', base_branch, %i[out err] => File::NULL) || return
+
+      # Fast-forward merge from origin if possible (safe, no local changes lost)
+      current = `git rev-parse --abbrev-ref HEAD 2>/dev/null`.strip
+      if current == base_branch
+        system('git', 'merge', '--ff-only', "origin/#{base_branch}", %i[out err] => File::NULL)
+        return
+      end
+
+      # Switching branches — only proceed if working tree is clean
+      status = `git status --porcelain 2>/dev/null`.strip
+      if status.empty?
+        puts "==> syncing #{repo_path} to origin/#{base_branch}"
+        system('git', 'checkout', base_branch, %i[out err] => File::NULL) || return
+        system('git', 'merge', '--ff-only', "origin/#{base_branch}", %i[out err] => File::NULL)
+      else
+        puts "==> #{repo_path}: uncommitted changes found, skipping branch sync"
+      end
     end
   end
 
