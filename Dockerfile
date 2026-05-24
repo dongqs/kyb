@@ -108,9 +108,10 @@ RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     sudo chown -R dev:dev /home/dev/.local/share/mise && \
     for i in 1 2 3; do /home/dev/.local/bin/mise install clickhouse@26 && break; sleep 5; done
 
-RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
-    sudo chown -R dev:dev /home/dev/.local/share/mise && \
-    for i in 1 2 3; do /home/dev/.local/bin/mise install npm:@anthropic-ai/claude-code@2 && break; sleep 5; done
+# Claude Code installed at container start (entrypoint.sh) to avoid npm/SOCKS5 hang during build
+# RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
+#     sudo chown -R dev:dev /home/dev/.local/share/mise && \
+#     for i in 1 2 3; do /home/dev/.local/bin/mise install npm:@anthropic-ai/claude-code@2 && break; sleep 5; done
 
 RUN --mount=type=cache,target=/home/dev/.local/share/mise/downloads \
     sudo chown -R dev:dev /home/dev/.local/share/mise && \
