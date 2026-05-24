@@ -27,18 +27,20 @@ class ExitFlowTest < Minitest::Test
           true
         end
       }
-      Kyb::ExitFlow.stub(:system, system_stub) do
-        Kyb::ExitFlow.stub(:`, ->(cmd) { '' }) do
-          Kyb::Config.stub(:project, ->(n) { { name: n, path: repo_path, base_branch: 'master' } }) do
-            out, = capture_io do
-              result = Kyb::ExitFlow.run_idle_checks(CONTAINER, 'test')
-              assert result[:tmux], 'tmux should be dead'
-              assert result[:dirty], 'repo should be clean'
-              assert result[:remote], 'remote should be pushed'
+      Kyb.stub(:in_container?, false) do
+        Kyb::ExitFlow.stub(:system, system_stub) do
+          Kyb::ExitFlow.stub(:`, ->(cmd) { '' }) do
+            Kyb::Config.stub(:project, ->(n) { { name: n, path: repo_path, base_branch: 'master' } }) do
+              out, = capture_io do
+                result = Kyb::ExitFlow.run_idle_checks(CONTAINER, 'test')
+                assert result[:tmux], 'tmux should be dead'
+                assert result[:dirty], 'repo should be clean'
+                assert result[:remote], 'remote should be pushed'
+              end
+              assert_match(/✔ tmux.*no active sessions/, out)
+              assert_match(/✔ repo.*clean/, out)
+              assert_match(/✔ remote.*all pushed/, out)
             end
-            assert_match(/✔ tmux.*no active sessions/, out)
-            assert_match(/✔ repo.*clean/, out)
-            assert_match(/✔ remote.*all pushed/, out)
           end
         end
       end
@@ -54,14 +56,16 @@ class ExitFlowTest < Minitest::Test
         # Other calls (git diff, etc.) return true
         call_count == 1
       }
-      Kyb::ExitFlow.stub(:system, system_stub) do
-        Kyb::ExitFlow.stub(:`, ->(cmd) { '' }) do
-          Kyb::Config.stub(:project, ->(n) { { name: n, path: repo_path, base_branch: 'master' } }) do
-            out, = capture_io do
-              result = Kyb::ExitFlow.run_idle_checks(CONTAINER, 'test')
-              refute result[:tmux], 'tmux should be alive'
+      Kyb.stub(:in_container?, false) do
+        Kyb::ExitFlow.stub(:system, system_stub) do
+          Kyb::ExitFlow.stub(:`, ->(cmd) { '' }) do
+            Kyb::Config.stub(:project, ->(n) { { name: n, path: repo_path, base_branch: 'master' } }) do
+              out, = capture_io do
+                result = Kyb::ExitFlow.run_idle_checks(CONTAINER, 'test')
+                refute result[:tmux], 'tmux should be alive'
+              end
+              assert_match(/✘ tmux.*session still alive/, out)
             end
-            assert_match(/✘ tmux.*session still alive/, out)
           end
         end
       end
@@ -77,15 +81,17 @@ class ExitFlowTest < Minitest::Test
         # git diff returns false (dirty)
         call_count == 1 ? false : (call_count == 2 ? false : true)
       }
-      Kyb::ExitFlow.stub(:system, system_stub) do
-        Kyb::ExitFlow.stub(:`, ->(cmd) { '' }) do
-          Kyb::Config.stub(:project, ->(n) { { name: n, path: repo_path, base_branch: 'master' } }) do
-            out, = capture_io do
-              result = Kyb::ExitFlow.run_idle_checks(CONTAINER, 'test')
-              assert result[:tmux], 'tmux should be dead'
-              refute result[:dirty], 'repo should be dirty'
+      Kyb.stub(:in_container?, false) do
+        Kyb::ExitFlow.stub(:system, system_stub) do
+          Kyb::ExitFlow.stub(:`, ->(cmd) { '' }) do
+            Kyb::Config.stub(:project, ->(n) { { name: n, path: repo_path, base_branch: 'master' } }) do
+              out, = capture_io do
+                result = Kyb::ExitFlow.run_idle_checks(CONTAINER, 'test')
+                assert result[:tmux], 'tmux should be dead'
+                refute result[:dirty], 'repo should be dirty'
+              end
+              assert_match(/✘ repo.*uncommitted changes/, out)
             end
-            assert_match(/✘ repo.*uncommitted changes/, out)
           end
         end
       end
@@ -103,14 +109,16 @@ class ExitFlowTest < Minitest::Test
           true
         end
       }
-      Kyb::ExitFlow.stub(:system, system_stub) do
-        Kyb::ExitFlow.stub(:`, ->(cmd) { "unpushed\ncommit\n" }) do
-          Kyb::Config.stub(:project, ->(n) { { name: n, path: repo_path, base_branch: 'master' } }) do
-            out, = capture_io do
-              result = Kyb::ExitFlow.run_idle_checks(CONTAINER, 'test')
-              refute result[:remote], 'remote should have unpushed'
+      Kyb.stub(:in_container?, false) do
+        Kyb::ExitFlow.stub(:system, system_stub) do
+          Kyb::ExitFlow.stub(:`, ->(cmd) { "unpushed\ncommit\n" }) do
+            Kyb::Config.stub(:project, ->(n) { { name: n, path: repo_path, base_branch: 'master' } }) do
+              out, = capture_io do
+                result = Kyb::ExitFlow.run_idle_checks(CONTAINER, 'test')
+                refute result[:remote], 'remote should have unpushed'
+              end
+              assert_match(/✘ remote.*unpushed commits/, out)
             end
-            assert_match(/✘ remote.*unpushed commits/, out)
           end
         end
       end
@@ -158,42 +166,45 @@ class ExitFlowTest < Minitest::Test
   # --- collect_extra_warnings ---
 
   def test_extra_warnings_no_unexpected
-    backtick_stub = ->(cmd) {
+    capture3_stub = ->(*args) {
+      cmd = args.join(' ')
       if cmd.include?('ps -eo')
-        "bash\nsleep\n"  # only baseline processes
+        ["bash\nsleep\n", "", nil]
       else
-        ''  # no DID children
+        ["", "", nil]
       end
     }
-    Kyb::ExitFlow.stub(:`, backtick_stub) do
+    Open3.stub(:capture3, capture3_stub) do
       warnings = Kyb::ExitFlow.collect_extra_warnings(CONTAINER)
       assert_empty warnings
     end
   end
 
   def test_extra_warnings_unexpected_process
-    backtick_stub = ->(cmd) {
+    capture3_stub = ->(*args) {
+      cmd = args.join(' ')
       if cmd.include?('ps -eo')
-        "bash\nsleep\nnode server.js\n"
+        ["bash\nsleep\nnode server.js\n", "", nil]
       else
-        ''
+        ["", "", nil]
       end
     }
-    Kyb::ExitFlow.stub(:`, backtick_stub) do
+    Open3.stub(:capture3, capture3_stub) do
       warnings = Kyb::ExitFlow.collect_extra_warnings(CONTAINER)
       assert_includes warnings.first, 'node server.js'
     end
   end
 
   def test_extra_warnings_did_children
-    backtick_stub = ->(cmd) {
+    capture3_stub = ->(*args) {
+      cmd = args.join(' ')
       if cmd.include?('ps -eo')
-        "bash\nsleep\n"  # baseline only
+        ["bash\nsleep\n", "", nil]
       else
-        "did-test-child\n"  # DID children
+        ["did-test-child\n", "", nil]
       end
     }
-    Kyb::ExitFlow.stub(:`, backtick_stub) do
+    Open3.stub(:capture3, capture3_stub) do
       warnings = Kyb::ExitFlow.collect_extra_warnings(CONTAINER)
       did_warning = warnings.find { |w| w.include?('did-test-child') }
       assert did_warning, 'should warn about DID children'
@@ -255,11 +266,10 @@ class ExitFlowTest < Minitest::Test
   def test_perform_cleanup_removes_container
     calls = []
     system_stub = ->(*args) { calls << [:system, *args]; true }
-    backtick_stub = ->(cmd) { calls << [:backtick, cmd]; '' }
 
     Kyb::Config.stub(:project, { name: 'test', path: '/tmp/test-repo', base_branch: 'master' }) do
       Kyb::ExitFlow.stub(:system, system_stub) do
-        Kyb::ExitFlow.stub(:`, backtick_stub) do
+        Open3.stub(:capture3, ->(*args) { ["", "", nil] }) do
           Kyb::Docker.stub(:volume_rm, nil) do
             capture_io { Kyb::ExitFlow.perform_cleanup(CONTAINER, 'test', 'br') }
           end
@@ -275,14 +285,11 @@ class ExitFlowTest < Minitest::Test
   end
 
   def test_perform_cleanup_cascade_did_children
-    backtick_stub = ->(cmd) {
-      cmd.include?('did_parent') ? "did-child\n" : ''
-    }
     calls = []
     system_stub = ->(*args) { calls << args; true }
 
     Kyb::Config.stub(:project, { name: 'test', path: '/tmp/test-repo', base_branch: 'master' }) do
-      Kyb::ExitFlow.stub(:`, backtick_stub) do
+      Open3.stub(:capture3, ->(*args) { args.join(' ').include?('did_parent') ? ["did-child\n", "", nil] : ["", "", nil] }) do
         Kyb::ExitFlow.stub(:system, system_stub) do
           Kyb::Docker.stub(:volume_rm, nil) do
             capture_io { Kyb::ExitFlow.perform_cleanup(CONTAINER, 'test', 'br') }
