@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'tempfile'
+
 module Kyb::Config
   DEFAULT_SANDBOX_DOMAINS = [
     '*.npmjs.org', '*.npmmirror.com',
@@ -34,7 +36,10 @@ module Kyb::Config
     config['projects'] ||= {}
     config['projects'][project_name] = project_data
     FileUtils.mkdir_p(File.dirname(Kyb::CONFIG_FILE))
-    File.write(Kyb::CONFIG_FILE, YAML.dump(config))
+    tmp = Tempfile.new('.config.yml', File.dirname(Kyb::CONFIG_FILE))
+    tmp.write(YAML.dump(config))
+    tmp.close
+    File.rename(tmp.path, Kyb::CONFIG_FILE)
   end
 
   def base_image_path

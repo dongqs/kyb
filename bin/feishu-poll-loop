@@ -2,6 +2,10 @@
 # Continuous polling loop for Feishu events
 # Runs the check script every 5 seconds
 # Sends notifications to target tmux sessions
+# NOTE: Single-channel communication issue (#114) — this loop polls Feishu and sends
+# messages TO users, but user @bot messages go to cc-connect, not to kyb-infra-boss.
+# The fix requires runtime redesign (隔壁正在做), this polling approach is the
+# temporary workaround. See issue #114 and #119.
 
 EVENTS_DIR=/tmp/feishu-events
 SEEN_FILE=/tmp/feishu-seen
