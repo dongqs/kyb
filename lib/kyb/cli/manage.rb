@@ -127,8 +127,30 @@ module Kyb::CLI
   def prune
     Kyb::Config.load
 
+    # Collect all containers across all projects first
+    all = []
+    Kyb::Config.project_names.each do |proj_name|
+      proj = Kyb::Config.project(proj_name)
+      path = proj[:path]
+      unless File.directory?(path)
+        warn "WARNING: #{path} not found, skip #{proj_name}"
+        next
+      end
+
+      Kyb::Docker.containers_for_project(proj_name).each { |cname| all << cname }
+    end
+
+    if all.empty?
+      puts 'No sandbox containers.'
+      return
+    end
+
     puts "⚠  This will remove ALL containers and volumes for ALL projects!"
-    print "  Continue? [y/N] (10s auto: abort) "
+    puts
+    puts 'The following containers will be removed:'
+    all.each { |cname| puts "  #{cname}" }
+    puts
+    print "Continue? [y/N] (10s auto: abort) "
     STDOUT.flush
 
     input = nil
@@ -144,10 +166,7 @@ module Kyb::CLI
     Kyb::Config.project_names.each do |proj_name|
       proj = Kyb::Config.project(proj_name)
       path = proj[:path]
-      unless File.directory?(path)
-        warn "WARNING: #{path} not found, skip #{proj_name}"
-        next
-      end
+      next unless File.directory?(path)
 
       Kyb::Docker.containers_for_project(proj_name).each do |cname|
         c = Kyb::Container.new(nil, nil, name: cname)
