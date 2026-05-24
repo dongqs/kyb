@@ -2,15 +2,15 @@ require_relative 'test_helper'
 
 class ConfigTest < Minitest::Test
   def setup
-    Kyb::Config.instance_variable_set(:@config, nil)
+    Kyb::Config.instance_variable_set(:@config_cache, nil)
   end
 
   def stub_config(data)
-    old = Kyb::Config.instance_variable_get(:@config)
-    Kyb::Config.instance_variable_set(:@config, data)
+    old = Kyb::Config.instance_variable_get(:@config_cache)
+    Kyb::Config.instance_variable_set(:@config_cache, data)
     yield
   ensure
-    Kyb::Config.instance_variable_set(:@config, old)
+    Kyb::Config.instance_variable_set(:@config_cache, old)
   end
 
   def test_project_ports_as_integers
