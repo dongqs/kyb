@@ -160,12 +160,12 @@ startup_lock()
   │      ├─ yes → 写入 .consent → 静默通过
   │      └─ no  → 继续
   │
-  ├─ [3] config.yml startup_lock.enabled == false?
-  │      ├─ yes → 静默通过
+  ├─ [3] $stdin.tty? == false?
+  │      ├─ yes → 静默跳过（非交互式不阻塞），输出 stderr 日志
   │      └─ no  → 继续
   │
-  ├─ [4] $stdin.tty? == false?
-  │      ├─ yes → 静默跳过（非交互式不阻塞）
+  ├─ [4] config.yml startup_lock.enabled == false?
+  │      ├─ yes → 静默通过
   │      └─ no  → 继续
   │
   └─ [5] 交互式提示
@@ -193,7 +193,7 @@ $ kyb
 ║                                                          ║
 ║ 继续使用即表示您了解以上行为。                            ║
 ║                                                          ║
-║ 输入 yes 确认，或输入任意内容取消。                      ║
+║ 输入 yes 确认，或重新尝试。按 Ctrl+D 退出。              ║
 ║ 如需在 CI/非交互环境中跳过，设置环境变量：                ║
 ║   export KYB_STARTUP_BYPASS=true                          ║
 ║ 或通过配置文件永久禁用：                                  ║
@@ -203,6 +203,7 @@ $ kyb
 ╚══════════════════════════════════════════════════════════╝
 > yes
 ==> 感谢确认。继续执行...
+（所有提示文本输出到 stderr，不污染 stdout）
 
 # 场景 3：CI 环境
 $ KYB_STARTUP_BYPASS=true kyb build
@@ -217,14 +218,15 @@ $ kyb
 
 # 场景 5：非 TTY（SSH exec/管道/cron）
 $ echo kyb ps | ssh server
-（自动跳过，不阻塞）
+（自动跳过，不阻塞，输出一行 stderr 日志：
+ kyb: startup lock skipped (non-interactive)）
 ```
 
 **代码量**：约 50 行 Ruby
 
 ```ruby
 # 伪代码示意
-def self.check(consent_path:, input_io:, env:)
+def self.check(consent_path:, input_io:, env:, tty: input_io.tty?)
   # [1] 已同意过（带内容校验）
   return if valid_consent?(consent_path)
 
@@ -234,26 +236,30 @@ def self.check(consent_path:, input_io:, env:)
     return
   end
 
-  # [3] 配置中显式禁用
-  config = Kyb::Config.load rescue {}
-  return unless config.dig('startup_lock', 'enabled') != false
+  # [3] 非 TTY 自动跳过（不阻塞 cron/SSH exec），输出 stderr 日志
+  unless tty
+    $stderr.puts "kyb: startup lock skipped (non-interactive)"
+    return
+  end
 
-  # [4] 非 TTY 自动跳过（不阻塞 cron/SSH exec）
-  return unless input_io.tty?
+  # [4] 配置中显式禁用
+  config_path = File.expand_path('~/.config/kyb/config.yml')
+  config = File.exist?(config_path) ? (YAML.safe_load_file(config_path) rescue {}) : {}
+  return unless config.dig('startup_lock', 'enabled') != false
 
   # [5] 交互式同意（带重试）
   print_consent_notice
   loop do
-    print '> '
+    $stderr.print '> '
     input = input_io.gets&.strip
     if input == 'yes'
       write_consent(consent_path, 'consented')
-      puts '==> 感谢确认。继续执行...'
+      $stderr.puts '==> 感谢确认。继续执行...'
       return
     elsif input.nil?
       exit 1
     else
-      puts '输入 yes 确认，或设置 KYB_STARTUP_BYPASS=true 跳过。'
+      $stderr.puts '输入 yes 确认，或设置 KYB_STARTUP_BYPASS=true 跳过。'
     end
   end
 end
@@ -330,20 +336,21 @@ end
 
 | 场景 | 行为 | 说明 |
 |------|------|------|
-| `kyb --help` / `kyb -h` | 不触发启动锁 | 新用户查看帮助不受阻碍 |
-| `kyb --version` / `kyb -v` | 不触发启动锁 | 版本查询始终可用 |
-| `kyb <subcommand>` | 正常触发 | 标准流程 |
-| 非 TTY（管道/SSH exec/cron） | 自动跳过 | `$stdin.tty?` 为 false 时不阻塞 |
+| `kyb --help` / `kyb -h` | 不触发启动锁 | 仅顶级命令，新用户查看帮助不受阻碍 |
+| `kyb --version` / `kyb -v` | 不触发启动锁 | 仅顶级命令，版本查询始终可用 |
+| `kyb <subcommand>`（无 `--help`/`--version`） | 正常触发 | 标准流程 |
+| `kyb ps --help` / `kyb ps -h` | 不触发启动锁但也不拦截 | 子命令 help 正常显示，锁逻辑不介入 |
+| 非 TTY（管道/SSH exec/cron） | 自动跳过 | `$stdin.tty?` 为 false 时不阻塞，输出 stderr 日志 |
 | CI 环境 | 跳过（推荐设 `KYB_STARTUP_BYPASS=true`） | 显式确认 |
 
-**非 TTY 跳过理由**：非交互式场景下无法展示同意提示，直接阻断会破坏 cron/CI/远程执行。跳过不等于放弃同意——CI 应通过环境变量显式确认。
+**非 TTY 跳过理由**：非交互式场景下无法展示同意提示，直接阻断会破坏 cron/CI/远程执行。跳过不等于放弃同意——CI 应通过环境变量显式确认。跳过时会输出一行 stderr 日志以保留可追溯性。
 
-**实现位置**：启动锁在 `Kyb::CLI.dispatch` 入口插入，但 `--help`/`--version` 不经过锁。
+**实现位置**：启动锁在 `Kyb::CLI.dispatch` 入口插入。仅顶级 `--help`/`--version` 跳过启动锁（`argv.length == 1 && ['--help', '-h', '--version', '-v'].include?(argv.first)`），子命令如 `kyb ps --help` 不触发锁但也不被拦截，正常显示子命令帮助。
 
 ```ruby
 def self.dispatch(argv)
-  # --help 和 --version 不触发启动锁
-  if argv.any? { |a| ['--help', '-h', '--version', '-v'].include?(a) }
+  # 仅顶级 --help/--version 不触发启动锁（子命令 help 正常显示，锁不介入也不拦截）
+  if argv.length == 1 && ['--help', '-h', '--version', '-v'].include?(argv.first)
     return super
   end
 
@@ -365,7 +372,7 @@ end
 ║                                                          ║
 ║ 继续使用即表示您了解以上行为。                            ║
 ║                                                          ║
-║ 输入 yes 确认，或输入任意内容取消。                      ║
+║ 输入 yes 确认，或重新尝试。按 Ctrl+D 退出。              ║
 ║ 如需在 CI/非交互环境中跳过，设置环境变量：                ║
 ║   export KYB_STARTUP_BYPASS=true                          ║
 ║ 或通过配置文件永久禁用：                                  ║
@@ -375,7 +382,7 @@ end
 ╚══════════════════════════════════════════════════════════╝
 ```
 
-**交互行为**：
+**交互行为**（所有输出走 `$stderr.puts`，防止 stdout 污染）：
 - 输入 `yes` → 写入 `.consent`，继续执行
 - 输入其他内容（如 `no`、`n`） → 不退出，提示重试
 - Ctrl+D (EOF) → exit 1（用户放弃）
@@ -425,24 +432,44 @@ end
 def self.check(
   consent_path: File.expand_path('~/.config/kyb/.consent'),
   input_io: $stdin,
-  env: ENV
+  env: ENV,
+  tty: input_io.tty?  # 独立注入，StringIO.tty? 永远 false
 )
 ```
 
 ```ruby
-# 测试示例
-def test_consent_file_exists
+# 测试示例：tty: false 模拟非交互式
+def test_non_tty_skip
   Dir.mktmpdir do |tmpdir|
     consent_file = File.join(tmpdir, '.consent')
-    File.write(consent_file, "kyb-consent:v1\nconsented:2026-05-25T00:00:00+00:00")
+    # 不创建 consent 文件，模拟新用户
 
     result = Kyb::StartupLock.check(
       consent_path: consent_file,
       input_io: StringIO.new,
-      env: {}
+      env: {},
+      tty: false  # 显式注入，StringIO.tty? 永远 false
     )
 
-    assert result  # 静默通过
+    assert result  # 非 TTY 自动跳过
+  end
+end
+
+# 测试示例：tty: true 模拟交互式
+def test_interactive_consent
+  Dir.mktmpdir do |tmpdir|
+    consent_file = File.join(tmpdir, '.consent')
+    input = StringIO.new("yes\n")
+
+    result = Kyb::StartupLock.check(
+      consent_path: consent_file,
+      input_io: input,
+      env: {},
+      tty: true  # 强制为 true，StringIO 自带 tty? 为 false
+    )
+
+    assert result
+    assert File.exist?(consent_file)
   end
 end
 ```
@@ -463,10 +490,10 @@ end
 | 4 | `.consent` 不存在，`KYB_STARTUP_BYPASS=true` | `env: { 'KYB_STARTUP_BYPASS' => 'true' }` | 写入 `.consent`，通过 |
 | 5 | `.consent` 不存在，`KYB_STARTUP_BYPASS=false` | `env: { 'KYB_STARTUP_BYPASS' => 'false' }` | 降级到下一步 |
 | 6 | `.consent` 不存在，config 禁用 | `config_loader` → `{ 'enabled' => false }` | 通过 |
-| 7 | `.consent` 不存在，非 TTY | `input_io: StringIO.new` | 自动跳过，通过 |
-| 8 | `.consent` 不存在，输入 yes | `input_io` (tty, 回复 "yes") | 写入 `.consent`，通过 |
-| 9 | `.consent` 不存在，输入 no | `input_io` (tty, 回复 "no") | 提示重试，不 exit |
-| 10 | `.consent` 不存在，Ctrl+D | `input_io` (tty, gets → nil) | exit 1 |
+| 7 | `.consent` 不存在，非 TTY | `input_io: StringIO.new, tty: false` | 自动跳过，通过 |
+| 8 | `.consent` 不存在，输入 yes | `input_io, tty: true` (回复 "yes") | 写入 `.consent`，通过 |
+| 9 | `.consent` 不存在，输入 no | `input_io, tty: true` (回复 "no") | 提示重试，不 exit |
+| 10 | `.consent` 不存在，Ctrl+D | `input_io, tty: true` (gets → nil) | exit 1 |
 | 11 | `--help` 不触发启动锁 | `argv: ['--help']` | 不调 startup_lock |
 | 12 | `--version` 不触发启动锁 | `argv: ['--version']` | 不调 startup_lock |
 
@@ -528,7 +555,7 @@ rm -f ~/.config/kyb/.consent
 
 ### 6.1 README 更新
 
-在 `README.md` 中新增 "First Run Consent" 小节，包含：
+**必要操作**：在 `README.md` 中新增 "First Run Consent" 小节，包含：
 
 - 启动锁的目的说明（意外执行保护）
 - 首次运行时的交互流程
