@@ -1,13 +1,36 @@
-#!/bin/bash
-# Feishu event handler
-EVENT=$(cat)
-CHAT_ID=$(echo "$EVENT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('event',{}).get('chat_id',''))" 2>/dev/null)
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+# feishu-reply — 发送消息到飞书群
+# 用法:
+#   feishu-reply "消息内容"
+#   echo "消息" | feishu-reply
 
-if [ -n "$CHAT_ID" ]; then
-  LARK_CLI_NO_PROXY=1 lark-cli im +messages-send \
-    --chat-id "$CHAT_ID" --as bot \
-    --text "✅ 收到
-我在线。说"命令: xxx"让我干活
+$stdout.sync = true
+$LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
+require 'kyb'
 
-／人◕ ‿‿ ◕人＼" >/dev/null 2>&1
-fi
+begin
+  config = Kyb::FeishuBot.load_config
+rescue Kyb::FeishuBot::ConfigError => e
+  warn "ERROR: #{e.message}"
+  warn "请设置 FEISHU_APP_ID 和 FEISHU_APP_SECRET 环境变量"
+  exit 1
+end
+
+text = if ARGV.any?
+         ARGV.join(' ')
+       else
+         STDIN.read.strip
+       end
+
+if text.empty?
+  warn "用法: feishu-reply \"消息内容\""
+  exit 1
+end
+
+client = Kyb::FeishuBot::Client.new(config)
+result = Kyb::FeishuBot.with_retry(max_attempts: 3, base_delay: 1) do
+  client.send_message(config[:chat_id], text)
+end
+
+puts "已发送: #{text[0..100]}"
