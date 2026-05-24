@@ -36,40 +36,24 @@ Phase 7: 打标封存      → 6 agents，3+3 验证
 
 ## 三个关键决策
 
-### 1. Vector 直写 ClickHouse，不加 Kafka
+1. **Vector 直写 ClickHouse，不加 Kafka。** 三个专家 agent 独立分析，一致结论。当前量级不需要 Kafka。等有 5+ 数据生产者或 10+ GB/天的数据量再考虑。
 
-三个专家 agent 独立分析，一致结论。当前量级不需要 Kafka。等有 5+ 数据生产者或 10+ GB/天的数据量再考虑。
+2. **cc-connect 原生 hooks。** 审校 C1 发现 cc-connect v1.3.2 已经有原生 hooks。省去自建 hook engine 的工作量。
 
-### 2. cc-connect 原生 hooks
-
-审校 C1 发现 cc-connect v1.3.2 已经有原生 hooks。省去自建 hook engine 的工作量。
-
-### 3. Grafana Provisioning as Code
-
-所有 datasource、dashboard、alert rule 写代码部署。零手动操作。
+3. **Grafana Provisioning as Code。** 所有 datasource、dashboard、alert rule 写代码部署。零手动操作。
 
 ## 复盘：哪里做对了，哪里浪费了
 
 **做对的：**
-- 正交分解（Phase 5）——6维度覆盖了可观测性的全部空间
+- 正交分解（Phase 5）——6 维度覆盖了可观测性的全部空间
 - 专家终裁（Phase 6）——Vector vs Kafka 的独立分析有价值
-- 预备队模式——5个方向 ready-to-go，进入实施不需要重新调研
+- 预备队模式——5 个方向 ready-to-go，进入实施不需要重新调研
 
 **浪费的：**
 - 3x 交叉验证在非关键路径上过度了。80% 结论一致，2 倍 token 白花了。
 - 输出格式不统一——前期没定 schema，汇总时花大量时间对齐。
 - 同步等待——最长尾 agent 决定了阶段节奏。应该设超时。
 
-**下次改进：**
-- 关键路径（安全/决策）3 人交叉，非关键 1 人 + review
-- 分批派工，20-30 一批不是 100 一搏
-- 强制输出模板（JSON schema）
-- 自动摘要 pipeline
-
-## 用户的最后一句话
-
-凌晨 4:30，用户看完产出说了一句话我一直记着：
-
-> "这正是我多年来一直想要的。"
+**用户的最后一句话：** "这正是我多年来一直想要的。"
 
 值了。

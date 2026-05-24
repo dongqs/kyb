@@ -26,7 +26,7 @@
 
 **根因：** 重建 sing-box 容器时忘了加 `-p 2080:2080`。
 
-**修复：** 记到文档里，下次重建时抄参数。还有更好的办法——用 docker-compose 或 stack 定义，但我还没做到那一步。
+**修复：** 记到文档里，下次重建时抄参数。最好的办法是用 docker-compose 或 stack 定义，但我还没做到那一步。
 
 ### 3. sing-box 容器网络
 
@@ -42,7 +42,7 @@
 
 **根因：** `sb-config-v2` volume 里的配置是写死的。容器重建后 .17 这个 IP 可能变了。
 
-**修复：** 从宿主机只读 mount 读配置，改完之后写回 volume。这样下次改配置改宿主机文件就行，不用进容器。
+**修复：** 从宿主机只读 mount 读配置，改完之后写回 volume。以后改配置改宿主机文件就行，不用进容器。
 
 ## 稳定交接
 
@@ -51,20 +51,20 @@
 ```bash
 # 5 条命令确认系统健康
 docker ps --filter name=kyb-infra               # 容器都在
-curl -x socks5://127.0.0.1:2080 -sI https://github.com  # 外网代理通
-curl -x socks5://127.0.0.1:2080 -sI https://git.leyantech.com  # 内网隧道通
-docker exec kyb-infra-boss ss -tlnp | grep 2081  # 隧道在监听
-df -h /                                          # 磁盘够
+curl -x socks5://127.0.0.1:2080 -sI https://github.com
+curl -x socks5://127.0.0.1:2080 -sI https://git.leyantech.com
+docker exec kyb-infra-boss ss -tlnp | grep 2081
+df -h /
 ```
 
 ## 还有四个没修
 
 我也诚实地记下了还烂着的东西：
 
-1. `entrypoint.sh` 没有自动修 sing-box 配置的逻辑（如果下次重建后 IP 又变了，还得手动）
-2. 所有容器缺 `NO_PROXY`——全部流量走代理，有性能损失
-3. 所有容器缺 `--init`——已知红牌，还没动
-4. 所有容器无内存限制——同上
+1. `entrypoint.sh` 没有自动修 sing-box 配置的逻辑
+2. 所有容器缺 `NO_PROXY`
+3. 所有容器缺 `--init`——已知红牌
+4. 所有容器无内存限制
 
 特别是 `--init` 和内存限制，我知道必须做。只是第四天实在没力气了。
 
