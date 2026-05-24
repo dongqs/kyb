@@ -196,6 +196,41 @@ docker run -d --name kyb-kyb-architecturer \
 claude --session <session-id>  # session-id 在 .claude/sessions/*.json 中
 ```
 
+### 8. 重建容器要先问，不能直接 rm -f（抢救事故）
+
+**事故：** 2026-05-25 凌晨，architecturer 容器因 prune 误删后重建，
+但少了代理和 SSH 配置。我得知后直接 `docker rm -f` 重建，把用户刚恢复的 Claude 会话又杀了。
+
+**根因：** 习惯性思维——"容器是 cattle 不是 pet"，对开发容器也直接 rm 重建，
+忽略了里面可能有活跃的 Claude 会话。
+
+**教训：**
+1. **容器有活跃 session 时要先问用户** —— `docker rm -f` 前确认是否方便中断
+2. **优先 exec 修复而不是重建** —— 少配置直接 `docker exec` 补，不需要重启容器
+3. **env 修不好就写 bashrc** —— 容器创建后无法改 env 变量，bashrc 是持久化的变通方案
+
+### 9. NO_PROXY 与 nuc8 隧道的冲突
+
+**问题：** kyb 默认 `NO_PROXY=.leyantech.com`，但 git.leyantech.com 需要走 nuc8 隧道
+（SOCKS5 代理）才能绕过 IP 白名单。NO_PROXY 把它踢出代理通道，直连 403。
+
+**分析：** `.leyantech.com` 下有些服务走 nuc8，有些走直连，NO_PROXY 一刀切不合适。
+
+**教训：**
+1. **NO_PROXY 与 nuc8 路由冲突** —— 需要 nuc8 代理的域名不能出现在 NO_PROXY 中
+2. **长远方案：** sing-box 根据目标 IP 而非域名做 routing 决策，NO_PROXY 只排除内部地址
+3. **当前 workaround：** 需要 nuc8 隧道的容器不要设 `.leyantech.com` 的 NO_PROXY
+
+### 10. SSH agent 不会自动启动
+
+**问题：** kyb 容器重建后 SSH key 文件在 `.ssh/` 中，但 `ssh-agent` 不会自动跑，
+key 没加载进 agent，GitLab SSH 连接失败。
+
+**教训：**
+1. **SSH key 存在 != SSH 能连** —— agent 需手动 `ssh-add` 或 entrypoint 自动加载
+2. **entrypoint.sh 应考虑自动启动 ssh-agent 并加载默认 key**
+3. **补救：** `eval $(ssh-agent) && ssh-add ~/.ssh/id_rsa`
+
 ---
 
 ## 建议优先级
