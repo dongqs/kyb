@@ -443,12 +443,23 @@ class CLITest < Minitest::Test
 
   # -- in-container guards ---------------------------------------------------
 
-  def test_build_warns_when_in_container
+  def test_build_no_longer_blocked_in_container
+    called = false
     Kyb.stub(:in_container?, true) do
-      out, _ = capture_io do
-        assert_raises(SystemExit) { Kyb::CLI.build }
+      Kyb::Config.stub(:load_config, nil) do
+        Kyb::Config.stub(:base_image_path, '/tmp') do
+          File.stub(:exist?, ->(p) { p == '/tmp/Dockerfile' }) do
+            Kyb::Check.stub(:run_checks, nil) do
+              Kyb::Proxy.stub(:detect, nil) do
+                Kyb::Docker.stub(:build, ->(*) { called = true }) do
+                  capture_io { Kyb::CLI.build }
+                  assert called, 'build should proceed in container'
+                end
+              end
+            end
+          end
+        end
       end
-      assert_match(/build 命令不应在容器内运行/, out)
     end
   end
 
