@@ -255,6 +255,9 @@ if [ -z "${KYB_DID:-}" ]; then
 fi
 
 # pip tools (may fail during image build, retry here at runtime)
+# NOTE: Plaintext credentials below (readonlyuser:mimashishiliuwei) are known company tech debt.
+# The credential has read-only Nexus access only; fixing it requires a company-wide
+# credential management solution, not a local fix. See issue #108.
 runuser -u dev -- bash -l -c "pip install -i 'https://readonlyuser:mimashishiliuwei@nexus.leyantech.com/repository/pypi-all/simple' mig25 mig25-codegen 'requests[socks]'" 2>/dev/null || true
 
 # Claude Code native binary (postinstall may fail during image build)
