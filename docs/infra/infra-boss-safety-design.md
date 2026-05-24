@@ -15,6 +15,7 @@
 | **网络自杀** | 改 sing-box 配置把自己代理搞断 | 🟡 中（有带外恢复） |
 | **隧道丢失** | kill autossh 或误操作导致 nuc8 隧道断 | 🟡 中（entrypoint 会自动重建） |
 | **隧道跟着 boss 陪葬** | 隧道跑在 boss 容器内，boss 被 kill 时隧道死 | 🔴 **高**（已修复 → 独立 nuc8-tunnel 容器） |
+| **prune 误杀暂停容器** | `docker container prune -f` 清理了用户暂停的容器，Claude session 丢失 | 🟡 中（数据卷保留可重建） |
 | **配置污染** | 改 entrypoint.sh/settings.json 导致启动失败 | 🟢 低 |
 
 ---
@@ -165,6 +166,35 @@ kyb-infra-boss 设计文档已写了安全网，但需要确认实现：
 - [ ] ALL_PROXY direct 规则包含 kyb-infra-* 容器间通信
 
 这些不需要改代码，需要的是在操作规范中明确。
+
+### 7. 容器清理不能无差别攻击（prune 事故）
+
+**事故：** 2026-05-25 凌晨，subagent 执行 `docker container prune -f` 清理 dangling 容器，
+把用户暂停的 `kyb-kyb-architecturer` 等容器一并删了，Claude 会话中断。
+
+**根因：** `prune -f` 是地图炮——它不区分"用户故意停的"和"废弃的"。
+subagent 按"清理磁盘"的指令执行了最彻底的清理，但没有考虑暂停容器的保留意图。
+
+**教训：**
+
+1. **永远不要用 `prune -f`** —— 用 `docker container ls --filter status=exited` 手动确认后再删
+2. **暂停的容器等价于运行中的容器** —— 用户停它是有原因的，清理脚本不应碰
+3. **subagent 的边界约束要明确** —— 清理类任务必须指定"不改运行容器、不动暂停容器"
+4. **好在这类操作是可逆的** —— Claude 数据在命名卷中（`kyb-*-claude`），容器重建即可恢复
+
+**恢复方法：**
+```bash
+# 重建被误删的容器（数据卷还在就能恢复）
+docker run -d --name kyb-kyb-architecturer \
+  --init --restart on-failure:5 \
+  --network kyb-net --memory 8g \
+  -v kyb-kyb-architecturer-claude:/home/dev/.claude \
+  -v /path/to/project:/home/dev/projects/kyb \
+  kyb-base
+
+# 恢复会话
+claude --session <session-id>  # session-id 在 .claude/sessions/*.json 中
+```
 
 ---
 
