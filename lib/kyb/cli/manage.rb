@@ -80,8 +80,7 @@ module Kyb::CLI
         unpushed = Dir.chdir(path) { `git cherry 2>/dev/null`.lines.count > 0 }
       end
 
-      did_children = `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name} 2>/dev/null`
-                      .lines.map(&:strip).reject(&:empty?)
+      did_children = Kyb::Docker.did_children(c.name)
 
       if dirty || unpushed || did_children.any?
         puts "==> Pre-delete checks for #{c.name}:"
@@ -96,15 +95,14 @@ module Kyb::CLI
     end
 
     # Capture DID children info for metrics before cleanup
-    had_children = `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name} 2>/dev/null`
-                   .lines.map(&:strip).reject(&:empty?).any?
+    had_children = Kyb::Docker.did_children(c.name).any?
     Kyb::Reporter.emit_container_rm(project: project, had_did_children: had_children)
 
     # Clean up any DID children first (cascade: children → parent)
     # DID containers are labeled did_parent=<parent-container>, so without
     # this cascade the parent volume would be removed while children still
     # reference parent-owned networks.
-    `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{c.name} 2>/dev/null`.lines.map(&:strip).each do |did_child|
+    Kyb::Docker.did_children(c.name).each do |did_child|
       puts "==> #{did_child}: removing DID child container"
       system('docker', 'rm', '-f', did_child)
       system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)
@@ -139,7 +137,7 @@ module Kyb::CLI
         puts "==> #{cname}: removing container"
 
         # Clean up DID children first
-        `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{cname}`.lines.map(&:strip).each do |did_child|
+        Kyb::Docker.did_children(cname).each do |did_child|
           puts "       #{did_child}: removing DID child"
           system('docker', 'rm', '-f', did_child)
           system('docker', 'volume', 'rm', "#{did_child}-project", out: File::NULL)

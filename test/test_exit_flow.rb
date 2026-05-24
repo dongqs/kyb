@@ -201,13 +201,15 @@ class ExitFlowTest < Minitest::Test
       if cmd.include?('ps -eo')
         ["bash\nsleep\n", "", nil]
       else
-        ["did-test-child\n", "", nil]
+        ["", "", nil]
       end
     }
     Open3.stub(:capture3, capture3_stub) do
-      warnings = Kyb::ExitFlow.collect_extra_warnings(CONTAINER)
-      did_warning = warnings.find { |w| w.include?('did-test-child') }
-      assert did_warning, 'should warn about DID children'
+      Kyb::Docker.stub(:did_children, ->(name) { ['did-test-child'] }) do
+        warnings = Kyb::ExitFlow.collect_extra_warnings(CONTAINER)
+        did_warning = warnings.find { |w| w.include?('did-test-child') }
+        assert did_warning, 'should warn about DID children'
+      end
     end
   end
 
@@ -289,7 +291,7 @@ class ExitFlowTest < Minitest::Test
     system_stub = ->(*args) { calls << args; true }
 
     Kyb::Config.stub(:project, { name: 'test', path: '/tmp/test-repo', base_branch: 'master' }) do
-      Open3.stub(:capture3, ->(*args) { args.join(' ').include?('did_parent') ? ["did-child\n", "", nil] : ["", "", nil] }) do
+      Kyb::Docker.stub(:did_children, ->(name) { ['did-child'] }) do
         Kyb::ExitFlow.stub(:system, system_stub) do
           Kyb::Docker.stub(:volume_rm, nil) do
             capture_io { Kyb::ExitFlow.perform_cleanup(CONTAINER, 'test', 'br') }

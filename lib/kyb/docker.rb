@@ -131,6 +131,16 @@ module Kyb::Docker
     end
   end
 
+  def ensure_volume(name)
+    return true if `docker volume ls -q --filter name=^#{name}$`.strip == name
+    system('docker', 'volume', 'create', name, out: File::NULL)
+  end
+
+  def did_children(name)
+    `docker ps -a --format '{{.Names}}' --filter label=did_parent=#{name} 2>/dev/null`
+      .lines.map(&:strip).reject(&:empty?)
+  end
+
   def volume_rm(volume)
     return unless system('docker', 'volume', 'ls', '-q', out: File::NULL) &&
                   `docker volume ls -q`.lines.map(&:strip).include?(volume)
@@ -247,7 +257,7 @@ module Kyb::Docker
     # volumes — first container gets a cold cache, subsequent ones are hot.
     # Volumes are global (never cleaned by kyb rm/prune).
     %w[kyb-gradle-cache kyb-maven-cache kyb-mise-cache kyb-pip-cache].each do |vol|
-      system('docker', 'volume', 'create', vol, out: File::NULL) || Kyb.die("failed to create volume '#{vol}'")
+      ensure_volume(vol) || Kyb.die("failed to create volume '#{vol}'")
     end
     args += ['-v', 'kyb-gradle-cache:/home/dev/.gradle']
     args += ['-v', 'kyb-maven-cache:/home/dev/.m2/repository']
