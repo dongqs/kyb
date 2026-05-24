@@ -45,7 +45,8 @@ module Kyb::Config
   def base_image_path
     path = load_config.dig('base', 'image')
     path = nil if path.is_a?(String) && path.empty?
-    File.expand_path(path || '~/.kyb')
+    default = File.exist?(File.expand_path('~/projects/kyb/Dockerfile')) ? '~/projects/kyb' : '~/.kyb'
+    File.expand_path(path || default)
   end
 
   def claude_default_model
