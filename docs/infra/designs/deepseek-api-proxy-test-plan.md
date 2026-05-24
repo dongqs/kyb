@@ -179,6 +179,30 @@ POST /__admin/reset
 }
 ```
 
+含 reasoning_content 的非 streaming 响应模板：
+
+```json
+{
+  "id": "msg_mock_002",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "This is a mock response from DeepSeek proxy test.",
+      "reasoning_content": "Let me think through this step by step. First, I need to understand the user's query about a test response, so I should provide a clear and concise answer. This reasoning demonstrates the model's internal thought process during inference."
+    }
+  ],
+  "model": "deepseek-reasoner",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 50
+  }
+}
+```
+
 Streaming chunk 模板：
 
 ```
@@ -299,7 +323,7 @@ Mock Server 启动
 | TC-N01 | 基本非 streaming 请求 | Mock 设为 `happy_path_non_stream` | POST `/v1/messages`，`stream: false` | 返回 200，body 为完整 Anthropic 格式 JSON |
 | TC-N02 | 非 streaming 命中等响应 | Mock 设为 `happy_path_non_stream` | 同上，验证 `response_delay_ms: 200` | 200，代理增加延迟 < 5ms（代理引入延迟） |
 | TC-N03 | 多轮对话非 streaming | Mock `happy_path_non_stream` | body 含 3 轮对话历史 | 200，返回完整响应 |
-| TC-N04 | 长 prompt（接近但未超限） | Mock `happy_path_non_stream` | prompt 约 60KB | 200，CK 记录完整，truncated=0 |
+| TC-N04 | 长 prompt（接近但未超限） | Mock `happy_path_non_stream` | prompt 约 60KB | 200，CK 记录完整，truncated_body=0，truncated_stream=0 |
 | TC-N05 | system prompt + user message | Mock `happy_path_non_stream` | body 含 system 和 messages | 200，正常转发 |
 | TC-N06 | 请求含自定义 anthropic-version | Mock `happy_path_non_stream` | header `anthropic-version: 2023-06-01` | 200，header 透传到上游 |
 | TC-N06b | x-api-key header 转发 | Mock `happy_path_non_stream` | header `x-api-key: sk-test-key-001`（Claude SDK 默认行为） | 200，x-api-key 正确透传到 Mock（通过 Mock /__admin/requests 验证 header 值） |
@@ -344,10 +368,10 @@ Mock Server 启动
 
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
-| TC-A01 | 连接超时（加速模式: CONNECT_TIMEOUT=3s） | iptables DROP 入站 SYN（模拟无响应，非 connection refused） | POST `/v1/messages` | 3s 后代理返回 504，error="connect_timeout" |
-| TC-A02 | Streaming 空闲超时（加速模式: IDLE_TIMEOUT=10s） | Mock `stall_after_first_chunk` | POST streaming 请求，首 chunk 后无数据 | 10s 后代理返回 504，error="idle_timeout" |
-| TC-A03 | 非 streaming 总超时（加速模式: TOTAL_TIMEOUT_NON_STREAMING=5s） | Mock `slow_response`，配置 `response_delay_ms: 7000`（超过 5s） | POST `/v1/messages`（非 streaming） | 5s 后代理返回 504，error="total_timeout" |
-| TC-A04 | Streaming 总超时（加速模式: TOTAL_TIMEOUT_STREAMING=30s） | Mock 配置 streaming 持续 35s | 持续接收并验证 | 30s 后代理停止转发，返回 504，已收 chunks 写入 CK |
+| TC-A01 | 连接超时（Chaos 测试，加速模式: CONNECT_TIMEOUT=3s） | iptables DROP 入站 SYN（模拟无响应，非 connection refused），需 cap_add: NET_ADMIN | POST `/v1/messages` | 3s 后代理返回 504，error="connect_timeout" |
+| TC-A02 | Streaming 空闲超时（TC-A02~A04 生产模式: IDLE_TIMEOUT=60s） | Mock `stall_after_first_chunk` | POST streaming 请求，首 chunk 后无数据 | 60s 后代理返回 504，error="idle_timeout"；CK 写入 truncated_stream=1（stream interrupted），response_body 仅含首 chunk 的 partial content |
+| TC-A03 | 非 streaming 总超时（TC-A02~A04 IDLE_TIMEOUT=60s；加速模式: TOTAL_TIMEOUT_NON_STREAMING=5s） | Mock `slow_response`，配置 `response_delay_ms: 7000`（超过 5s） | POST `/v1/messages`（非 streaming） | 5s 后代理返回 504，error="total_timeout" |
+| TC-A04 | Streaming 总超时（TC-A02~A04 IDLE_TIMEOUT=60s；加速模式: TOTAL_TIMEOUT_STREAMING=30s） | Mock 配置 streaming 持续 35s | 持续接收并验证 | 30s 后代理停止转发，返回 504，已收 chunks 写入 CK |
 | TC-A05 | DNS 解析失败 | 代理配置 `UPSTREAM_URL=https://invalid.example.com` | POST `/v1/messages` | 代理返回 502，error="dns_resolution_failed" |
 | TC-A06 | TLS 握手失败 | Mock 端口返回纯文本而非 TLS | POST 并通过代理转发 | 代理返回 502，error="tls_handshake_failed" |
 
@@ -376,7 +400,7 @@ Mock Server 启动
 
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
-| TC-A18 | SSE 中途断开 | Mock `partial_sse`（2 chunks 后断连） | POST streaming 请求 | 代理检测到连接断开，写入 CK，truncated=1，error="stream_interrupted" |
+| TC-A18 | SSE 中途断开 | Mock `partial_sse`（2 chunks 后断连） | POST streaming 请求 | 代理检测到连接断开，写入 CK，truncated_stream=1，error="stream_interrupted" |
 | TC-A19 | Streaming stall 后恢复（生产模式: IDLE_TIMEOUT=60s） | Mock `stall_mid_stream`（停 30s 后恢复） | POST streaming，等 60s | 代理在 idle_timeout（60s）内等待，30s 后恢复传输，请求完整完成 |
 | TC-A20 | 非法 SSE 格式 | Mock `invalid_sse_format` | POST streaming | 代理返回 502，error="sse_parse_error" |
 | TC-A21 | SSE data 非 JSON | Mock `invalid_sse_data` | POST streaming | 代理返回 502，error="sse_parse_error" |
@@ -386,7 +410,7 @@ Mock Server 启动
 | TC-A25 | 超大 delta chunk（> 64KB） | Mock `huge_delta_chunk`（500KB text） | POST streaming | bufio.Scanner 正常读取，转发成功，不截断 |
 | TC-A26 | 200 空 body | Mock `empty_body_200` | POST streaming | 代理返回 200 + 空 body（或 502 视实现而定） |
 | TC-A27 | 二进制 body | Mock `binary_body` | POST streaming | 代理不 crash，返回适当错误 |
-| TC-A28 | Streaming 无 message_stop | Mock `partial_sse`（不发 message_stop） | POST, 等待 idle_timeout | idle_timeout 后断开，已收 chunks 写入 CK（truncated=1） |
+| TC-A28 | Streaming 无 message_stop | Mock `partial_sse`（不发 message_stop） | POST, 等待 idle_timeout | idle_timeout 后断开，已收 chunks 写入 CK（truncated_stream=1） |
 | TC-A29 | 上游返回部分 header 后断连 | Mock `connection_drop_after_header` | POST streaming | 代理检测到上游连接异常断开，返回 502，error="upstream_disconnected" |
 
 #### 2.3.1 熔断触发
@@ -396,7 +420,7 @@ Mock Server 启动
 | TC-CB01 | 20% 失败率触发 OPEN（确定性） | Mock `pattern_errors`，预设模式：每 4 个请求返回 1 个 500（25% 失败率），连续 40 个请求 | 连续发 40 个请求 | 正好 10 个失败，失败率 25% > 20%，熔断器进入 OPEN |
 | TC-CB02 | 低于阈值不触发（确定性） | Mock `pattern_errors`，预设模式：每 10 个请求返回 1 个 500（10% 失败率），连续 50 个请求 | 连续发 50 个请求 | 正好 5 个失败，失败率 10% < 20%，熔断器保持 CLOSED |
 | TC-CB03 | 样本不足不触发 | 只发 5 个请求，3 个失败（60% > 20% 但 total < 10） | 发 5 个请求 | 熔断器保持 CLOSED（min_request_count=10） |
-| TC-CB04 | 滑动窗口过期重置（加速模式: CB_WINDOW_SIZE=30s） | 窗口内积累 8 个失败，等待 30s 后失败计数归零 | 等待 30s 后再发请求 | 失败率重新计算，熔断器不触发 |
+| TC-CB04 | 滑动窗口过期重置（加速模式: CB_WINDOW_SIZE=30s） | 发 9 个请求，其中 8 个失败（total=9 < min_request_count=10，熔断器保持 CLOSED）。等待 30s 后失败计数归零 | 等待 30s 后再发请求 | 失败率重新计算，熔断器保持 CLOSED |
 | TC-CB05 | 429 不计入失败率 | Mock 返回 10 次 429 + 10 次 200 | 连续发 20 个请求 | 熔断器不 OPEN（429 不计入失败计数） |
 | TC-CB06 | CK 写入失败不影响熔断 | 停掉 CK，Mock 正常返回 | 连续发请求 | 熔断器不 OPEN（CK 失败不计入熔断计数） |
 
@@ -426,7 +450,7 @@ Mock Server 启动
 |------|------|----------|------|----------|
 | TC-CK01 | 非 streaming 正常写入 CK | Mock `happy_path_non_stream` | POST 请求，等待 1s | CK infra.api_logs 有 1 条记录，status_code=200，streaming=0 |
 | TC-CK02 | Streaming 正常写入 CK | Mock `happy_path_stream` | POST streaming，等 message_stop | CK 有 1 条记录，streaming=1，response_body 完整 |
-| TC-CK03 | CK 写入含所有字段 | Mock `happy_path_non_stream` | 同上 | CK 记录含 timestamp, request_id, model, prompt_tokens, completion_tokens, latency_ms, status_code, request_body, response_body, streaming, truncated, error |
+| TC-CK03 | CK 写入含所有字段 | Mock `happy_path_non_stream` | 同上 | CK 记录含 timestamp, request_id, model, prompt_tokens, completion_tokens, latency_ms, status_code, request_body, response_body, streaming, truncated_body, truncated_stream, error |
 | TC-CK04 | api_key_prefix 正确提取 | Authorization: Bearer sk-abc123def456 | POST 请求 | CK 中 api_key_prefix="sk-abc12" |
 | TC-CK04a | api_key_prefix 从 x-api-key 提取 | header `x-api-key: sk-abc123def456`（无 Authorization header） | POST 请求 | CK 中 api_key_prefix="sk-abc12" |
 | TC-CK04b | x-api-key 优先于 Authorization | header `x-api-key: sk-xyz789...` + `Authorization: Bearer sk-abc123...` | POST 请求 | CK 中 api_key_prefix 从 x-api-key 提取（"sk-xyz78"），非 Authorization |
@@ -455,11 +479,16 @@ Mock Server 启动
 
 #### 2.4.4 buffer 超限截断
 
+**Buffer eviction 策略：**
+- **Eviction 算法：** FIFO 丢弃（先进先出）。当 buffer 达到上限（1000 条 / 64MB）时，丢弃最旧的记录。
+- **Max age（`max_age=60s`）：** 超过 60s 的 buffer 记录不再 flush，直接丢弃（避免 flush 过时数据造成 CK 写入混乱）。
+- **双 buffer 区分：** 分为 normal buffer（新请求写入）和 retry buffer（flush 失败的记录重试）。normal buffer 满时 FIFO 丢弃；retry buffer 独立于 normal buffer，不受 normal buffer 上限影响（retry buffer 上限为 500 条，满则 FIFO 丢弃）。
+
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
-| TC-CK17 | request_body 超过 64KB 截断 | 发送 > 64KB prompt | POST 请求 | CK 中 request_body 截断，前 32KB + 后 32KB，truncated=1 |
-| TC-CK18 | response_body 超过 128KB 截断（非 streaming） | Mock `huge_response`（> 128KB body） | POST 请求（非 streaming） | CK 中 response_body 截断，前 48KB + 后 48KB，truncated=1 |
-| TC-CK18b | response_body 超过 128KB 截断（streaming） | Mock 配置 200 个 chunks 总计 > 256KB text | POST streaming 请求 | 单个 chunk 不截断，写入 CK 时拼接后 response_body 总量超过 128KB 则截断，streaming truncated=1 |
+| TC-CK17 | request_body 超过 64KB 截断 | 发送 > 64KB prompt | POST 请求 | CK 中 request_body 截断，前 32KB + 后 32KB，truncated_body=1 |
+| TC-CK18 | response_body 超过 128KB 截断（非 streaming） | Mock `huge_response`（> 128KB body） | POST 请求（非 streaming） | CK 中 response_body 截断，前 48KB + 后 48KB，truncated_body=1 |
+| TC-CK18b | response_body 渐进式截断（streaming） | Mock 配置 200 个 chunks 总计 > 256KB text | POST streaming 请求 | 渐进式截断：保留前 48KB + 后 48KB，中间丢弃。单 chunk 超 128KB 则 truncated_body=1 但保留完整 chunk |
 | TC-CK19 | 刚好达到边界不截断 | Mock 返回 128KB 响应（阈值 > 128KB 才截断） | POST 请求 | 不截断（截断条件为 response_body 大小 > 128KB，128KB 刚好不超过阈值，应完整保留） |
 | TC-CK19b | UTF-8 字符边界截断 | 请求 body 含 4 字节 UTF-8 字符（如 emoji），总大小超过 64KB | POST 请求 | 截断在 UTF-8 字符边界，不产生乱码（截断点落在完整字符后） |
 | TC-CK20 | PII 脱敏 | 请求 body 含 `"api_key": "sk-secret123"` | POST 请求 | CK 中 `[REDACTED]`，转发响应不脱敏 |
@@ -564,9 +593,9 @@ Mock Server 启动
 
 | 编号 | 名称 | 前置条件 | 步骤 | 预期结果 |
 |------|------|----------|------|----------|
-| TC-DC01 | 客户端 Ctrl+C 中断 streaming | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 在收到 2 个 chunk 后客户端发送 SIGINT | 代理检测客户端断连，释放 goroutine 和连接资源，已收 chunks 写入 CK（truncated=1） |
+| TC-DC01 | 客户端 Ctrl+C 中断 streaming | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 在收到 2 个 chunk 后客户端发送 SIGINT | 代理检测客户端断连，释放 goroutine 和连接资源，已收 chunks 写入 CK（truncated_stream=1） |
 | TC-DC02 | 客户端终端关闭 | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 关闭客户端终端/Tab 页 | 代理在 TCP 连接 RST 后检测到断连，释放资源，已收 chunks 写入 CK |
-| TC-DC03 | 客户端网络闪断 | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 使用 `iptables -C OUTPUT -p tcp --dport 2082 -j DROP 2>/dev/null || iptables -A OUTPUT -p tcp --dport 2082 -j DROP` 模拟，t.Cleanup 中 `iptables -D OUTPUT -p tcp --dport 2082 -j DROP` | 代理在 TCP keepalive 超时或写入失败后检测到断连，释放资源，已收 chunks 写入 CK（truncated=1） |
+| TC-DC03 | 客户端网络闪断 | Mock `happy_path_stream`，客户端通过 streaming 接收中 | 使用 `iptables -C OUTPUT -p tcp --dport 2082 -j DROP 2>/dev/null || iptables -A OUTPUT -p tcp --dport 2082 -j DROP` 模拟，t.Cleanup 中 `iptables -D OUTPUT -p tcp --dport 2082 -j DROP` | 代理在 TCP keepalive 超时或写入失败后检测到断连，释放资源，已收 chunks 写入 CK（truncated_stream=1） |
 
 ---
 
@@ -696,10 +725,10 @@ services:
       - IDLE_TIMEOUT=10s
       - TOTAL_TIMEOUT_NON_STREAMING=5s
       - TOTAL_TIMEOUT_STREAMING=30s
-      - CB_WINDOW_SIZE=5m
+      - CB_WINDOW_SIZE=30s
       - CB_FAILURE_RATE=20
       - CB_MIN_REQUEST_COUNT=10
-      - CB_HALF_OPEN_TIMEOUT=30s
+      - CB_HALF_OPEN_TIMEOUT=10s
       - PII_MASK_ENABLED=true
       - PII_KEYWORDS=token,password,secret,key,credential,authorization
       - RATE_LIMIT_REQUESTS_PER_MIN=60
@@ -777,7 +806,8 @@ CREATE TABLE IF NOT EXISTS infra.api_logs (
     streaming           UInt8,
     request_body        String DEFAULT '',
     response_body       String DEFAULT '',
-    truncated           UInt8 DEFAULT 0,
+    truncated_body      UInt8 DEFAULT 0,
+    truncated_stream    UInt8 DEFAULT 0,
     error               String DEFAULT '',
     cached              UInt8 DEFAULT 0,
     retry_count         UInt8 DEFAULT 0
