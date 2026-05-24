@@ -170,7 +170,7 @@ module Kyb::Docker
 
   # ── run ──────────────────────────────────────────────────────────────
 
-  def run(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false, memory: nil)
+  def run(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false, memory: nil, docker_sock: false)
     puts "==> #{container.name}: starting (#{repo_path} -> /home/dev/projects/#{project_name})"
 
     args = build_run_args(
@@ -179,13 +179,13 @@ module Kyb::Docker
       ports: ports, symlinks: symlinks, mounts_rw: mounts_rw, mounts_ro: mounts_ro,
       model: model, timezone: timezone,
       kyb_proxy: kyb_proxy, kyb_no_proxy: kyb_no_proxy,
-      branch: branch, clone: clone, memory: memory
+      branch: branch, clone: clone, memory: memory, docker_sock: docker_sock
     )
 
     system(*args) || Kyb.die('docker run failed')
   end
 
-  def build_run_args(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false, memory: nil)
+  def build_run_args(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false, memory: nil, docker_sock: false)
     args = %w[docker run -d --init --restart on-failure:5]
     args += ['--name', container.name]
     args += ['--hostname', container.hostname]
@@ -200,7 +200,8 @@ module Kyb::Docker
     args += build_volume_args(
       container: container, repo_path: repo_path,
       project_name: project_name, project_path: project_path,
-      symlinks: symlinks, mounts_rw: mounts_rw, mounts_ro: mounts_ro, clone: clone
+      symlinks: symlinks, mounts_rw: mounts_rw, mounts_ro: mounts_ro, clone: clone,
+      docker_sock: docker_sock
     )
 
     ports.to_s.split(',').each do |p|
@@ -248,7 +249,7 @@ module Kyb::Docker
     args
   end
 
-  def build_volume_args(container:, repo_path:, project_name:, project_path:, symlinks:, mounts_rw:, mounts_ro:, clone:)
+  def build_volume_args(container:, repo_path:, project_name:, project_path:, symlinks:, mounts_rw:, mounts_ro:, clone:, docker_sock: false)
     args = []
     dind = Kyb.in_container?
     ssh_dir = File.expand_path('~/.ssh')
@@ -271,7 +272,9 @@ module Kyb::Docker
       args += ['-v', "#{agents}:/home/.agents:ro"] if File.directory?(agents)
     end
 
-    args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
+    if docker_sock
+      args += ['-v', '/var/run/docker.sock:/var/run/docker.sock']
+    end
     args += ['-v', "#{container.claude_volume}:/home/dev/.claude"]
     if dind
       args += ['-v', "#{container.name}-project:/home/dev/projects/#{project_name}"]
@@ -339,7 +342,7 @@ module Kyb::Docker
 
   # ── create_container ─────────────────────────────────────────────────
 
-  def create_container(project, branch, port_overrides = nil, model: nil, repo_root: nil)
+  def create_container(project, branch, port_overrides = nil, model: nil, repo_root: nil, docker_sock: false)
     Kyb::Config.load
 
     if %w[master main].include?(branch)
@@ -374,6 +377,8 @@ module Kyb::Docker
 
     FileUtils.mkdir_p(File.expand_path('~/.kimi'))
 
+    effective_docker_sock = docker_sock || proj[:docker_sock]
+
     repo_path = is_clone ? clone_target : path
     run(
       container: container,
@@ -391,7 +396,8 @@ module Kyb::Docker
       kyb_no_proxy: proj[:no_proxy],
       memory: proj[:memory],
       branch: branch,
-      clone: is_clone
+      clone: is_clone,
+      docker_sock: effective_docker_sock
     )
 
     wait_ready(container)

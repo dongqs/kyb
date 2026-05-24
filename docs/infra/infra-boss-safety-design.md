@@ -14,6 +14,7 @@
 | **容器自删** | `docker rm -f kyb-infra-boss` 从内部或外部执行 | 🔴 高 |
 | **网络自杀** | 改 sing-box 配置把自己代理搞断 | 🟡 中（有带外恢复） |
 | **隧道丢失** | kill autossh 或误操作导致 nuc8 隧道断 | 🟡 中（entrypoint 会自动重建） |
+| **隧道跟着 boss 陪葬** | 隧道跑在 boss 容器内，boss 被 kill 时隧道死 | 🔴 **高**（已修复 → 独立 nuc8-tunnel 容器） |
 | **配置污染** | 改 entrypoint.sh/settings.json 导致启动失败 | 🟢 低 |
 
 ---
@@ -111,7 +112,50 @@ fi
 
 这样即使 Claude 被 kill，10 秒后自动重新拉起。代价是多个 Claude 进程可能同时跑（需要处理老进程）。
 
-### 4. 改网络前的安全网（已有设计，确认落地）
+### 4. 不拿自己做实验（防验证事故）
+
+**原则：** 验证"防误删"要靠读代码和从外部容器 exec 测试，不是亲自下场试删自己。
+
+> 源自 npc/kyb-infra-boss.md 铁律第 6 条。
+
+**为什么：** infra-boss 有 docker.sock 最高权限。如果为了验证"清理脚本会不会删
+我自己"而真的在 boss 容器内跑一遍清理脚本，那就是作死。正确的验证方式：
+
+```bash
+# 从外部容器测试（不依赖 boss 自身）
+docker exec kyb-infra-sing-box sh -c '
+  docker ps --format "{{.Names}}" | grep -q "kyb-infra-boss" \
+    && echo "会匹配到 boss，危险！"
+'
+```
+
+**与 docker rm wrapper 结合：** entrypoint.sh 中的 docker wrapper 拦截
+`rm -f kyb-infra-boss` 从内部执行，即使"以身试法"也会被挡住。但不要依赖这个——
+真正的安全是根本不去试。
+
+### 5. 关键网络隧道必须独立部署（防陪葬事故）
+
+**教训：** 之前的 nuc8 SSH 隧道跑在 kyb-infra-boss 容器内部（PID 1 的 autossh
+进程）。当 boss 容器被 kill（清理脚本误操作），隧道也随之死亡。所有 nuc8-proxy
+出站流量（包括 GitLab）全部中断。
+
+**修复：** 2026-05-24 抽出独立容器 `kyb-infra-nuc8-tunnel`，使用
+`restart: always`。隧道生命周期与 agent 解耦。
+
+**原则：**
+- 关键网络隧道 → 独立容器 + `restart: always`
+- 管理 agent（boss）→ `restart: unless-stopped`，随用随建
+- 纯服务容器（sing-box、nuc8-tunnel）→ `restart: always`，Docker daemon 存活期间永远在线
+
+**当前满足此原则的容器：**
+
+| 容器 | 类型 | restart | 依赖 |
+|------|------|---------|------|
+| kyb-infra-sing-box | 纯服务 | always | 全集群网络 |
+| kyb-infra-nuc8-tunnel | 纯服务 | always | nuc8 出站通道 |
+| kyb-infra-boss | agent | unless-stopped | 管理能力 |
+
+### 6. 改网络前的安全网（已有设计，确认落地）
 
 kyb-infra-boss 设计文档已写了安全网，但需要确认实现：
 
@@ -130,7 +174,9 @@ kyb-infra-boss 设计文档已写了安全网，但需要确认实现：
 |--------|------|--------|------|
 | **P0** | `docker rm` wrapper 防自删 | ~5 行 entrypoint.sh | 阻止最直接的误操作 |
 | **P0** | `kyb infra down` 加确认 | ~3 行 infra.rb | 防止手滑删 boss |
+| **P0** | 隧道独立部署 | 已修复 → 抽出 kyb-infra-nuc8-tunnel | 防止 tunnel 随 boss 陪葬 |
 | **P1** | tmux session 加标记 + 清理脚本模板 | ~10 行 entrypoint.sh | 防止进程误杀（前任死因） |
+| **P1** | 不拿自己做实验 | 操作规范 + docker wrapper | 防止验证事故 |
 | **P2** | 进程自动恢复 | ~10 行 entrypoint.sh | 即使被杀了也能自动拉起来 |
 | **P2** | 网络操作安全网落地确认 | 操作流程文档 | 防止改配置把自己网搞断 |
 
@@ -138,9 +184,10 @@ kyb-infra-boss 设计文档已写了安全网，但需要确认实现：
 
 ## 结论
 
-**最痛的点只有两个：**
+**最痛的点有三个：**
 1. 清理脚本杀了自己的 Claude — 加 session 标记可以解决
 2. `docker rm -f` 删了自己 — docker wrapper 可以解决
+3. 隧道跟着 boss 陪葬（已发生） — 独立 nuc8-tunnel 容器已修复
 
 加起来大概 **20 行左右的改动**，但能堵住 90% 的自杀场景。
 
