@@ -68,6 +68,7 @@ module Kyb::CLI
     args += ['-e', 'KYB_PROJECT=kyb']
     args += ['-e', 'KYB_BRANCH=infra-boss']
     args += ['-e', 'TZ=Asia/Shanghai']
+    args += ['--memory', '2g', '--memory-swap', '2g']
 
     # Standard mounts (like kyb create)
     home = ENV['HOME']

@@ -143,7 +143,7 @@ module Kyb::Docker
     out.lines.map(&:strip).reject(&:empty?)
   end
 
-  def run(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false)
+  def run(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false, memory: nil)
     puts "==> #{container.name}: starting (#{repo_path} -> /home/dev/projects/#{project_name})"
 
     args = %w[docker run -d --init]
@@ -152,6 +152,8 @@ module Kyb::Docker
     args += ['--network', 'kyb-net']
     # Ensure kyb-net exists for container-to-container DNS resolution
     system('docker', 'network', 'create', 'kyb-net', out: File::NULL, err: File::NULL) || true
+    memory_value = memory || Kyb::Config.default_memory
+    args += ['--memory', memory_value, '--memory-swap', memory_value]
     args += ['-e', "HOST_UID=#{Process.uid}"]
     args += ['-e', "HOST_GID=#{Process.gid}"]
     args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"]
@@ -364,6 +366,7 @@ module Kyb::Docker
       timezone: proj[:timezone],
       kyb_proxy: proj[:proxy_in_container],
       kyb_no_proxy: proj[:no_proxy],
+      memory: proj[:memory],
       branch: branch,
       clone: is_clone
     )
