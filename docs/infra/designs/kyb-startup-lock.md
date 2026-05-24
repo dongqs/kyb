@@ -1,7 +1,7 @@
 # kyb 启动锁设计方案
 
 > Issue: https://git.leyantech.com/quick-n-dirty/kyb/-/issues/170
-> Status: Phase 0 — 设计方案审查
+> Status: Round 2 — 从方案 C 切换至方案 A'（交互式同意 + env bypass）
 > 等级: **L1**（单一开发者体验，出问题不影响生产环境）
 >
 > **铁律：本设计方案在 10 人审查通过前，任何人不得写任何代码。**
@@ -35,7 +35,7 @@ kyb 项目目前的状态：clone 下来后直接运行 `kyb` 即可使用所有
 
 ## 2. 方案对比
 
-### 方案 A：交互式同意（最简单）
+### 方案 A：纯交互式同意（基线方案）
 
 **原理**：首次运行时打印授权协议文本，要求用户输入 `yes` 确认。确认后在 `~/.config/kyb/.consent` 写入标记文件。后续运行检查该文件存在则跳过。
 
@@ -74,7 +74,7 @@ end
 - 无外部依赖
 
 **缺点**：
-- **容易被绕过** — 删除 `.consent` 文件即可重新触发，但也可通过 `echo yes | kyb` 跳过（实际上这意味着用户有意绕过，可接受）
+- **易被绕过** — 空文件（`touch .consent`）即可跳过
 - **非交互环境无法使用** — CI、管道、`kyb exec` 等场景无法输入 `yes`
 - **无团队管控能力** — 无法为团队统一配置跳过
 - **标记文件可被意外删除** — `kyb prune` 或其他清理操作可能误删
@@ -85,7 +85,7 @@ end
 
 ### 方案 B：解锁码
 
-**原理**：首次运行时要求输入解锁码。解锁码通过环境变量 `KYB_UNLOCK_KEY` 或在 `~/.config/kyb/config.yml` 中配置。匹配解锁码后生成 `.consent` 标记文件并通过。
+**原理**：首次运行时要求输入解锁码。解锁码通过环境变量或在 `~/.config/kyb/config.yml` 中配置。匹配后生成 `.consent` 标记文件。
 
 **流程**：
 
@@ -93,7 +93,7 @@ end
 # 首次运行（无解锁码）
 $ kyb
 ==> kyb 需要解锁码才能使用。
-==> 请输入解锁码（或设置 KYB_UNLOCK_KEY 环境变量）：
+==> 请输入解锁码：
 
 # 首次运行（有环境变量）
 $ KYB_UNLOCK_KEY=mykey kyb
@@ -109,7 +109,7 @@ def startup_lock
   return if File.exist?(consent_file)
 
   expected = ENV['KYB_UNLOCK_KEY'] || config.dig('startup_lock', 'unlock_key')
-  return unless expected  # 未配置解锁码时默认放行？还是阻止？
+  return unless expected
 
   print "==> 请输入解锁码："
   input = $stdin.gets&.strip
@@ -122,7 +122,7 @@ end
 ```
 
 **优点**：
-- 安全性最高（相比方案 A）
+- 安全性最高
 - 可控性强 — 可随时更换解锁码
 - 支持 CI/团队场景（环境变量传入）
 
@@ -136,14 +136,43 @@ end
 
 ---
 
-### 方案 C：混合模式（推荐）
+### 方案 A'：交互式同意 + 环境变量跳过（推荐）
 
-**原理**：结合方案 A 的交互式同意和方案 B 的解锁码机制，按优先级依次检查：
+**原理**：基于方案 A 的交互式同意，增加环境变量和配置跳过选项。不引入"解锁码"，用 `KYB_STARTUP_BYPASS=true` 布尔开关替代。与方案 C（Round 1 推荐）的关键区别：
 
-1. `~/.config/kyb/.consent` 存在 → 自动通过（已授权）
-2. `KYB_UNLOCK_KEY` 环境变量匹配 → 自动通过并写入 `.consent`（CI/团队场景）
-3. `~/.config/kyb/config.yml` 中 `startup_lock.enabled: false` → 自动通过（显式禁用）
-4. 以上都不满足 → 打印警告，要求输入 `yes` 确认
+- **`KYB_STARTUP_BYPASS` 替代 `KYB_UNLOCK_KEY`** — 布尔语义，任意非空值不保证放行（只认 `true`）
+- **`.consent` 内容校验** — 写入 `kyb-consent:v1` + 时间戳，空文件不可绕过
+- **非 TTY 自动跳过** — 不阻塞 cron/SSH exec/管道
+- **`--help`/`--version` 不触发的** — 新用户查看帮助不受阻碍
+- **版本锚定** — `.consent` 带版本号，支持未来升级时重新同意
+- **重试机制** — 输错不 exit，可重试
+
+**检查优先级**：
+
+```
+startup_lock()
+  │
+  ├─ [1] ~/.config/kyb/.consent 存在且内容合法?
+  │      ├─ yes → 静默通过
+  │      └─ no  → 继续
+  │
+  ├─ [2] ENV['KYB_STARTUP_BYPASS'] == 'true'?
+  │      ├─ yes → 写入 .consent → 静默通过
+  │      └─ no  → 继续
+  │
+  ├─ [3] config.yml startup_lock.enabled == false?
+  │      ├─ yes → 静默通过
+  │      └─ no  → 继续
+  │
+  ├─ [4] $stdin.tty? == false?
+  │      ├─ yes → 静默跳过（非交互式不阻塞）
+  │      └─ no  → 继续
+  │
+  └─ [5] 交互式提示
+         ├─ yes → 写入 .consent → 继续执行
+         ├─ 其他输入 → 重试提示（不 exit）
+         └─ EOF (Ctrl+D) → exit 1
+```
 
 **流程**：
 
@@ -164,144 +193,193 @@ $ kyb
 ║                                                          ║
 ║ 继续使用即表示您了解以上行为。                            ║
 ║                                                          ║
-║ 请输入 yes 确认（或设置 KYB_UNLOCK_KEY 跳过）：          ║
+║ 输入 yes 确认，或输入任意内容取消。                      ║
+║ 如需在 CI/非交互环境中跳过，设置环境变量：                ║
+║   export KYB_STARTUP_BYPASS=true                          ║
+║ 或通过配置文件永久禁用：                                  ║
+║   # ~/.config/kyb/config.yml                              ║
+║   startup_lock:                                           ║
+║     enabled: false                                        ║
 ╚══════════════════════════════════════════════════════════╝
 > yes
 ==> 感谢确认。继续执行...
 
-# 场景 3：CI 环境（环境变量）
-$ KYB_UNLOCK_KEY=xxx kyb build
+# 场景 3：CI 环境
+$ KYB_STARTUP_BYPASS=true kyb build
 （静默通过，并写入 .consent 供后续使用）
 
-# 场景 4：显式禁用启动锁
+# 场景 4：显式禁用
 $ cat ~/.config/kyb/config.yml
 startup_lock:
   enabled: false
 $ kyb
 （静默通过）
+
+# 场景 5：非 TTY（SSH exec/管道/cron）
+$ echo kyb ps | ssh server
+（自动跳过，不阻塞）
 ```
 
-**代码量**：约 40 行 Ruby
+**代码量**：约 50 行 Ruby
 
 ```ruby
-def startup_lock
-  consent_file = File.expand_path('~/.config/kyb/.consent')
+# 伪代码示意
+def self.check(consent_path:, input_io:, env:)
+  # [1] 已同意过（带内容校验）
+  return if valid_consent?(consent_path)
 
-  # 等级 1：已同意过
-  return if File.exist?(consent_file)
-
-  # 等级 2：解锁码匹配（自动同意并写入标记）
-  unlock_key = ENV['KYB_UNLOCK_KEY']
-  if unlock_key && !unlock_key.empty?
-    File.write(consent_file, "unlocked:#{unlock_key}\n#{Time.now.iso8601}")
+  # [2] 环境变量跳过（布尔开关）
+  if env['KYB_STARTUP_BYPASS'] == 'true'
+    write_consent(consent_path, 'bypass:env')
     return
   end
 
-  # 等级 3：配置中显式禁用
+  # [3] 配置中显式禁用
   config = Kyb::Config.load rescue {}
   return unless config.dig('startup_lock', 'enabled') != false
 
-  # 等级 4：交互式同意
+  # [4] 非 TTY 自动跳过（不阻塞 cron/SSH exec）
+  return unless input_io.tty?
+
+  # [5] 交互式同意（带重试）
   print_consent_notice
-  input = $stdin.gets&.strip
-  if input == 'yes'
-    File.write(consent_file, "consented:#{Time.now.iso8601}")
-  else
-    Kyb.die('启动确认失败。设置 KYB_UNLOCK_KEY 或输入 yes 以继续。')
+  loop do
+    print '> '
+    input = input_io.gets&.strip
+    if input == 'yes'
+      write_consent(consent_path, 'consented')
+      puts '==> 感谢确认。继续执行...'
+      return
+    elsif input.nil?
+      exit 1
+    else
+      puts '输入 yes 确认，或设置 KYB_STARTUP_BYPASS=true 跳过。'
+    end
   end
 end
 ```
 
 **优点**：
-- **覆盖所有场景** — 交互式 + CI + 团队，不留死角
-- **渐进式** — 个人用同意，团队用解锁码，不需要则禁用
-- **向后兼容** — 不配置任何东西的老用户不受影响（解锁码默认为空时只要求 `yes`）
-- **单文件标记** — `.consent` 文件是唯一状态，删除后重新同意即可
+- **覆盖所有场景** — 交互式 + CI + 非 TTY + 团队，不留死角
+- **不引入密钥管理** — 无解锁码，无分发/泄露风险
+- **`.consent` 防绕过** — 内容格式校验，空文件无效
+- **非 TTY 不阻塞** — 不影响管道/SSH exec/cron 工作流
+- **渐进式** — 个人用同意，CI 用环境变量，不需要则禁用
+- **向后兼容** — 不配置任何东西的老用户不受影响
 
 **缺点**：
-- 比方案 A 多 ~30 行代码
-- 需要协调三个检查维度的优先级（但逻辑清晰，容易理解）
+- 比方案 A 多 ~40 行代码
+- 环境变量跳过无认证（团队场景需配合其他管控）
 
 ---
 
 ### 2.1 方案综合对比
 
-| 维度 | 方案 A（交互式同意） | 方案 B（解锁码） | 方案 C（混合模式） |
+| 维度 | 方案 A（纯交互式） | 方案 B（解锁码） | 方案 A'（推荐） |
 |------|:---:|:---:|:---:|
-| 代码量 | ~10 行 | ~30 行 | ~40 行 |
+| 代码量 | ~10 行 | ~30 行 | ~50 行 |
 | 实现难度 | ★☆☆ | ★★☆ | ★★☆ |
-| 安全性 | ★☆☆（信任标记文件） | ★★★（需知解锁码） | ★★☆（标记文件 + 可选解锁码） |
-| 用户体验 | ★★☆（首次需交互） | ★☆☆（需要找码） | ★★★（按场景自适应） |
-| CI 兼容性 | ★☆☆（需 echo yes 管道） | ★★★（环境变量） | ★★★（优先级 2 自动过） |
-| 团队管控 | ★☆☆（无管控） | ★★★（可统一配码） | ★★☆（可选解锁码） |
-| 维护成本 | ★☆☆（几乎零维护） | ★★★（需管理密钥） | ★★☆（解锁码可选） |
-| 绕过难度 | ★☆☆（delete .consent） | ★★★（需知码） | ★★☆（介于 A/B 之间） |
+| 安全性 | ★☆☆（空文件绕过） | ★★★（需知码） | ★★☆（内容校验） |
+| 用户体验 | ★★☆ | ★☆☆ | ★★★ |
+| CI 兼容性 | ★☆☆ | ★★★ | ★★★ |
+| 非 TTY 兼容 | ★☆☆ | ★★★ | ★★★ |
+| 团队管控 | ★☆☆ | ★★★ | ★☆☆（无认证） |
+| 维护成本 | ★☆☆ | ★★★ | ★★☆ |
 
 ---
 
-## 3. 推荐方案：方案 C 详细设计
+## 3. 推荐方案：方案 A' 详细设计
 
-### 3.1 检查优先级
+### 3.1 `.consent` 文件格式与校验
 
-```
-startup_lock()
-  │
-  ├─ [1] ~/.config/kyb/.consent 存在?
-  │      ├─ yes → return（静默通过）
-  │      └─ no  → 继续
-  │
-  ├─ [2] ENV['KYB_UNLOCK_KEY'] 非空?
-  │      ├─ yes → 写入 .consent → return（静默通过）
-  │      └─ no  → 继续
-  │
-  ├─ [3] config.yml startup_lock.enabled == false?
-  │      ├─ yes → return（静默通过）
-  │      └─ no  → 继续
-  │
-  └─ [4] 交互式提示
-         ├─ yes → 写入 .consent → return（继续执行）
-         └─ 其他 → exit 1（退出）
-```
-
-### 3.2 `.consent` 文件格式
+**写入格式**（两行）：
 
 ```
+kyb-consent:v1
 consented:2026-05-25T10:30:00+08:00
 ```
 
-或（通过解锁码自动同意时）：
+第一行是版本标识，固定为 `kyb-consent:v1`。
+第二行是同意类型和时间戳：
+- `consented:2026-05-25T10:30:00+08:00` — 交互式同意
+- `bypass:env` — 通过环境变量 `KYB_STARTUP_BYPASS` 跳过
+- `bypass:config` — 通过配置 `startup_lock.enabled: false` 跳过
 
-```
-unlocked:xxxx
-2026-05-25T10:30:00+08:00
-```
+**读取校验**：
 
-文件位置：`~/.config/kyb/.consent`
-- 纯文本，一行或两行
-- 第一行是标记类型 + 时间戳/解锁码摘要
-- 不存储完整解锁码（避免泄露）
-- 文件存在即视为已同意，**不校验内容**（简化逻辑，避免内容损坏导致锁死）
+```ruby
+CONSENT_VERSION = 'v1'
 
-### 3.3 只在 `kyb` 主入口执行
-
-启动锁只插入在 **顶层 CLI dispatch 入口**（`Kyb::CLI.dispatch`），具体位置：
-
-```
-Kyb::CLI.dispatch(argv)
-  │
-  ├─ startup_lock()  ← 在这里插入
-  │
-  ├─ ...原有 dispatch 逻辑...
-  └─ ...
+def self.valid_consent?(path)
+  return false unless File.exist?(path)
+  content = File.read(path)
+  first_line = content.lines.first&.strip
+  first_line == "kyb-consent:#{CONSENT_VERSION}"
+rescue StandardError
+  false  # 文件损坏/不可读 → 视为未同意
+end
 ```
 
-- `kyb --help` / `kyb help` — **需要触发**（新用户首先会看 help）
-- `kyb --version` — **需要触发**（确认版本前先确认授权）
-- `kyb init` — **需要触发**（首次配置 kyb 时正好顺便同意）
-- `kyb onboard` — **需要触发**（引导流程中自带说明，启动锁作为前置）
+**设计理由**：
+- 防止空文件绕过（`touch ~/.config/kyb/.consent` 无效）
+- 版本锚定（`v1`）：未来 kyb 增加危险能力时，切换到 `v2` 要求用户重新同意
+- 两行格式简洁，兼容性好
+- 文件损坏时 fail-open（视为未同意，降级到后续检查项）
 
-**不触发启动锁的命令**（白名单）：
-- 无（所有命令都经过 dispatch，统一检查）
+### 3.2 非交互式工作流保护
+
+| 场景 | 行为 | 说明 |
+|------|------|------|
+| `kyb --help` / `kyb -h` | 不触发启动锁 | 新用户查看帮助不受阻碍 |
+| `kyb --version` / `kyb -v` | 不触发启动锁 | 版本查询始终可用 |
+| `kyb <subcommand>` | 正常触发 | 标准流程 |
+| 非 TTY（管道/SSH exec/cron） | 自动跳过 | `$stdin.tty?` 为 false 时不阻塞 |
+| CI 环境 | 跳过（推荐设 `KYB_STARTUP_BYPASS=true`） | 显式确认 |
+
+**非 TTY 跳过理由**：非交互式场景下无法展示同意提示，直接阻断会破坏 cron/CI/远程执行。跳过不等于放弃同意——CI 应通过环境变量显式确认。
+
+**实现位置**：启动锁在 `Kyb::CLI.dispatch` 入口插入，但 `--help`/`--version` 不经过锁。
+
+```ruby
+def self.dispatch(argv)
+  # --help 和 --version 不触发启动锁
+  if argv.any? { |a| ['--help', '-h', '--version', '-v'].include?(a) }
+    return super
+  end
+
+  Kyb::StartupLock.check
+  super
+end
+```
+
+### 3.3 同意文案
+
+```
+╔══════════════════════════════════════════════════════════╗
+║                    kyb 启动确认                          ║
+╠══════════════════════════════════════════════════════════╣
+║ kyb 是一个 Docker 沙箱管理工具，可以：                    ║
+║  • 创建/删除 Docker 容器                                 ║
+║  • 在容器中执行命令                                      ║
+║  • 管理容器生命周期（启动/停止/删除）                     ║
+║                                                          ║
+║ 继续使用即表示您了解以上行为。                            ║
+║                                                          ║
+║ 输入 yes 确认，或输入任意内容取消。                      ║
+║ 如需在 CI/非交互环境中跳过，设置环境变量：                ║
+║   export KYB_STARTUP_BYPASS=true                          ║
+║ 或通过配置文件永久禁用：                                  ║
+║   # ~/.config/kyb/config.yml                              ║
+║   startup_lock:                                           ║
+║     enabled: false                                        ║
+╚══════════════════════════════════════════════════════════╝
+```
+
+**交互行为**：
+- 输入 `yes` → 写入 `.consent`，继续执行
+- 输入其他内容（如 `no`、`n`） → 不退出，提示重试
+- Ctrl+D (EOF) → exit 1（用户放弃）
+- 提示中包含 `KYB_STARTUP_BYPASS` 和 `config.yml` 禁用方法
 
 ### 3.4 配置项
 
@@ -314,26 +392,58 @@ startup_lock:
                          # 不配置此字段 = 默认启用
 ```
 
-`KYB_UNLOCK_KEY` 环境变量：
-- 设置后自动通过启动锁（并写入 `.consent`）
+`KYB_STARTUP_BYPASS` 环境变量：
+- 设为 `true` 时自动通过启动锁（并写入 `.consent`）
+- 严格布尔语义：只有 `KYB_STARTUP_BYPASS=true` 才放行（空值/`false`/其他值无效）
 - 在 CI 环境中最有用
-- 不需要在 config.yml 中配置解锁码（避免密钥落入版本控制）
+- 单次生效：自动写入 `.consent` 后，后续运行无需再设置
 
 ### 3.5 不自毁原则
 
 启动锁代码必须遵循以下约束（参考 infra-boss P0 自保机制）：
 
-1. **不修改原有业务逻辑** — `startup_lock()` 只有 return 和 die 两种出口，不改变任何全局状态
+1. **不修改原有业务逻辑** — `startup_lock()` 只有 return 和 exit 两种出口，不改变任何全局状态
 2. **异常安全** — 如果 `.consent` 文件读取失败（权限问题等），**放行而非阻止**（fail open）。kyb 的功能完整性优先于启动锁
 3. **不依赖外部服务** — 启动锁只检查本地文件和环境变量，不请求网络
 4. **不自锁** — 如果 `startup_lock` 代码本身抛出异常，捕获后放行。不能因为启动锁 bug 导致 kyb 完全不可用
 
 ```ruby
-def startup_lock
-  startup_lock_impl
+def self.check
+  check_impl
 rescue StandardError => e
   $stderr.puts "kyb: warning: startup lock check failed (#{e.message}), proceeding anyway"
   # fail open — 启动锁故障不阻塞 kyb 使用
+end
+```
+
+### 3.6 测试隔离：依赖注入
+
+所有函数使用依赖注入参数，避免测试污染真实 home 目录和环境：
+
+```ruby
+# 方法签名
+def self.check(
+  consent_path: File.expand_path('~/.config/kyb/.consent'),
+  input_io: $stdin,
+  env: ENV
+)
+```
+
+```ruby
+# 测试示例
+def test_consent_file_exists
+  Dir.mktmpdir do |tmpdir|
+    consent_file = File.join(tmpdir, '.consent')
+    File.write(consent_file, "kyb-consent:v1\nconsented:2026-05-25T00:00:00+00:00")
+
+    result = Kyb::StartupLock.check(
+      consent_path: consent_file,
+      input_io: StringIO.new,
+      env: {}
+    )
+
+    assert result  # 静默通过
+  end
 end
 ```
 
@@ -345,17 +455,20 @@ end
 
 在 `test/` 下新增 `test_startup_lock.rb`：
 
-| # | 测试场景 | 前置条件 | 期望行为 |
+| # | 测试场景 | 注入参数 | 期望行为 |
 |---|---------|---------|---------|
-| 1 | `.consent` 存在 | 创建 `.consent` 文件 | 静默通过 |
-| 2 | `.consent` 不存在，无交互 | 无 `.consent`，`$stdin` 返回 nil | 退出码非 0，打印提示 |
-| 3 | `.consent` 不存在，输入 yes | 无 `.consent`，`$stdin` 返回 "yes\n" | 创建 `.consent`，继续执行 |
-| 4 | `.consent` 不存在，输入 no | 无 `.consent`，`$stdin` 返回 "no\n" | 退出码非 0 |
-| 5 | `KYB_UNLOCK_KEY` 匹配 | 设置环境变量 | 静默通过，写入 `.consent` |
-| 6 | `config.yml` 禁用 | `startup_lock.enabled: false` | 静默通过 |
-| 7 | 异常安全 | `.consent` 目录不可写 | 打印警告，放行 |
-| 8 | 空 `KYB_UNLOCK_KEY` | `KYB_UNLOCK_KEY=""` | 降级到交互式提示 |
-| 9 | `--help` 触发启动锁 | 无 `.consent`，`kyb help` | 要求确认后再显示 help |
+| 1 | `.consent` 存在且内容合法 | `consent_path` → 合法 `.consent` | 通过 |
+| 2 | `.consent` 存在但内容为空 | `consent_path` → 空文件 | 降级到下一步 |
+| 3 | `.consent` 存在但版本不匹配 | `consent_path` → v2 文件 | 降级到下一步 |
+| 4 | `.consent` 不存在，`KYB_STARTUP_BYPASS=true` | `env: { 'KYB_STARTUP_BYPASS' => 'true' }` | 写入 `.consent`，通过 |
+| 5 | `.consent` 不存在，`KYB_STARTUP_BYPASS=false` | `env: { 'KYB_STARTUP_BYPASS' => 'false' }` | 降级到下一步 |
+| 6 | `.consent` 不存在，config 禁用 | `config_loader` → `{ 'enabled' => false }` | 通过 |
+| 7 | `.consent` 不存在，非 TTY | `input_io: StringIO.new` | 自动跳过，通过 |
+| 8 | `.consent` 不存在，输入 yes | `input_io` (tty, 回复 "yes") | 写入 `.consent`，通过 |
+| 9 | `.consent` 不存在，输入 no | `input_io` (tty, 回复 "no") | 提示重试，不 exit |
+| 10 | `.consent` 不存在，Ctrl+D | `input_io` (tty, gets → nil) | exit 1 |
+| 11 | `--help` 不触发启动锁 | `argv: ['--help']` | 不调 startup_lock |
+| 12 | `--version` 不触发启动锁 | `argv: ['--version']` | 不调 startup_lock |
 
 ### 4.2 集成测试
 
@@ -363,8 +476,9 @@ end
 |---|---------|------|---------|
 | 1 | 全新环境 | `kyb ps` | 打印启动确认提示 |
 | 2 | 同意后 | `kyb ps`（第二次） | 直接显示容器列表 |
-| 3 | CI 环境 | `KYB_UNLOCK_KEY=x kyb build` | 不提示，直接执行 |
+| 3 | CI 环境 | `KYB_STARTUP_BYPASS=true kyb build` | 不提示，直接执行 |
 | 4 | 禁用启动锁 | 配置 `enabled: false` | 不提示，直接执行 |
+| 5 | 非 TTY | `echo "kyb ps" \| ssh server` | 不阻塞，直接执行 |
 
 ### 4.3 测试命令
 
@@ -384,52 +498,69 @@ rm -f ~/.config/kyb/.consent
 
 | 文件 | 操作 | 说明 |
 |------|------|------|
-| `lib/kyb/startup_lock.rb` | **新增** | 启动锁模块，包含 `startup_lock` 方法 |
-| `lib/kyb/cli.rb` | **修改** | 在 `dispatch` 方法开头调用 `Kyb::StartupLock.check` |
-| `test/test_startup_lock.rb` | **新增** | 启动锁测试 |
-| `docs/infra/designs/kyb-startup-lock.md` | 本文件 | 设计方案（审查中） |
+| `lib/kyb/startup_lock.rb` | **新增** | 启动锁模块，包含 `check` 方法 |
+| `lib/kyb/cli.rb` | **修改** | 在 `dispatch` 调用 `Kyb::StartupLock.check`，排除 `--help`/`--version` |
+| `test/test_startup_lock.rb` | **新增** | 启动锁测试（依赖注入，不写真实 home） |
+| `docs/infra/designs/kyb-startup-lock.md` | 本文件 | 设计方案（Round 2） |
+| `README.md` | **修改** | 新增 "First Run Consent" 小节 |
 
 ### 5.2 实施步骤
 
 1. 设计方案 10 人审查通过后合并
 2. 实现 `lib/kyb/startup_lock.rb`
-3. 在 `lib/kyb/cli.rb` 中插入调用
-4. 编写测试，覆盖所有场景
+3. 在 `lib/kyb/cli.rb` 中插入调用（排除 `--help`/`--version`）
+4. 编写测试，覆盖所有场景（依赖注入，不写真实 home）
 5. 手动测试：清理 `.consent` 后运行 `kyb ps` 验证
-6. MR → CI 绿 → 合入 master
+6. 更新 README.md 添加 "First Run Consent" 小节
+7. MR → CI 绿 → 合入 master
 
-### 5.3  向后兼容
+### 5.3 向后兼容
 
 - 已在使用 kyb 的用户：升级后首次运行会触发同意提示，同意后生成 `.consent`，后续无变化
 - `.consent` 文件不纳入版本控制（在 `~/.config/kyb/` 下，不在项目目录内）
 - 不改变任何现有命令的行为逻辑
-- kyb 的 `--help` 输出在同意后正常显示
+- `kyb --help` 和 `kyb --version` 在未同意时也可使用
+- 非 TTY 环境自动跳过，不影响 cron/SSH exec 工作流
 
 ---
 
-## 6. 审查重点
+## 6. Documentation
 
-10 人审查时请重点关注：
+### 6.1 README 更新
 
-1. **优先级顺序是否合理** — 等级 1（`.consent`） vs 等级 2（环境变量） vs 等级 3（配置禁用） vs 等级 4（交互）的顺序是否覆盖所有场景？
-2. **fail open 原则是否安全** — 异常时放行是否会降低启动锁的价值？（权衡：启动锁故障不应该阻塞生产环境使用）
-3. **解锁码方案是否过度设计** — 对于 kyb 这样的开发者工具，是否需要解锁码？还是纯交互式同意就足够了？
-4. **`.consent` 文件路径** — `~/.config/kyb/.consent` 是否是最合适的位置？是否需要考虑 XDG 规范？
-5. **不自毁约束是否充分** — 还有哪些边缘情况可能导致启动锁自毁？
+在 `README.md` 中新增 "First Run Consent" 小节，包含：
+
+- 启动锁的目的说明（意外执行保护）
+- 首次运行时的交互流程
+- 如何通过环境变量 `KYB_STARTUP_BYPASS=true` 在 CI 中跳过
+- 如何通过 `~/.config/kyb/config.yml` 永久禁用
+
+```yaml
+# ~/.config/kyb/config.yml
+startup_lock:
+  enabled: false
+```
+
+- 非 TTY 自动跳过行为说明
+- `.consent` 文件位置和管理（`~/.config/kyb/.consent`）
 
 ---
 
-## 附录 A：与 Issue #169 流程对比
+## 7. 审查重点
 
-| 阶段 | #169（DeepSeek 代理） | #170（启动锁） |
-|------|----------------------|---------------|
-| 等级 | META-INFRA（所有人断网） | L1（单一开发者） |
-| 方案数量 | 5 个 | 3 个 |
-| 审查轮次 | 4 轮 | 待定 |
-| 代码量 | ~500 行 Go | ~40 行 Ruby |
-| 风险等级 | 高 | 低 |
+Round 2 审查时请重点关注：
 
-## 附录 B：相关 Issue
+1. **方案 A' 是否覆盖所有场景** — 交互式 + env bypass + config disable + 非 TTY 自动跳过
+2. **`.consent` 内容校验是否充分** — `kyb-consent:v1` 格式 + 版本锚定，防止空文件绕过
+3. **`KYB_STARTUP_BYPASS` 布尔语义** — 只认 `true` 还是任意非空值放行？（当前：只认 `true`）
+4. **非 TTY 跳过是否安全** — 自动跳过会不会引入安全隐患？（权衡：阻止 > 放行？）
+5. **依赖注入设计是否合理** — `consent_path:`、`input_io:`、`env:` 参数签名是否覆盖测试需求？
+6. **版本锚定策略** — `v1` 硬编码 vs 动态读取，未来升级路径
+7. **`--help`/`--version` 排除** — 这两个命令排除后，用户能否绕过启动锁查看敏感信息？（只输出 CLI 使用说明，无敏感信息）
+
+---
+
+## 附录 A：相关 Issue
 
 - [#169 DeepSeek API 代理设计](https://git.leyantech.com/quick-n-dirty/kyb/-/issues/169) — 参考流程
 - [#170 kyb 启动锁](https://git.leyantech.com/quick-n-dirty/kyb/-/issues/170) — 本文对应 issue
