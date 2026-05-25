@@ -1,0 +1,42 @@
+{
+  "created": "2026-05-26T04:30:00+08:00",
+  "region": "cn-beijing",
+  "zone": "cn-beijing-a",
+  "vpc": {
+    "id": "vpc-1v5exepf3k0051j8e6ddnr9h",
+    "name": "kyb-infra",
+    "cidr": "10.0.0.0/16"
+  },
+  "subnet": {
+    "id": "subnet-1c0xfl0ig0d8g5e8j70uud3hv",
+    "name": "kyb-infra-subnet",
+    "cidr": "10.0.1.0/24"
+  },
+  "security_group": {
+    "id": "sg-1v5h6gw4ophc51j8e7c178ig",
+    "name": "kyb-infra-sg",
+    "rules": ["SSH(22)", "sing-box(2080)", "HTTP(80)", "HTTPS(443)", "ICMP", "VPC-Internal(1-65535)"]
+  },
+  "ecs_instance": {
+    "id": "i-yen06zbshswh2yo5wy6w",
+    "name": "kyb-infra",
+    "type": "ecs.g4il.xlarge",
+    "spec": "4C16G",
+    "image": "Ubuntu 24.04 64 bit",
+    "status": "RUNNING",
+    "private_ip": "10.0.1.163",
+    "public_ip": null,
+    "eip_status": "NOT_ALLOCATED (account balance < 100 yuan)",
+    "ssh_user": "root",
+    "ssh_password": "KybInfra2026!"
+  },
+  "next_steps": [
+    "1. 充值火山云账户（余额需 >= 100 元）以分配 EIP",
+    "2. 分配 EIP 后通过 SSH 连接：ssh root@<public_ip>",
+    "3. 在 ECS 上安装 Docker",
+    "4. 部署 sing-box 容器",
+    "5. 部署 nuc8-tunnel 容器",
+    "6. 部署 infra-boss",
+    "7. 验证网络连通性"
+  ]
+}
