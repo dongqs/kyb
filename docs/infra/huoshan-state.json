@@ -1,7 +1,7 @@
 {
   "created": "2026-05-26T04:30:00+08:00",
-  "region": "cn-beijing",
-  "zone": "cn-beijing-a",
+  "region": "cn-shanghai",
+  "zone": "cn-shanghai-a",
   "vpc": {
     "id": "vpc-1v5exepf3k0051j8e6ddnr9h",
     "name": "kyb-infra",

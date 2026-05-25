@@ -157,13 +157,26 @@ ACCESS_KEY_ID = os.getenv('AccessKeyID')
 SECRET_ACCESS_KEY = os.getenv('SecretAccessKey')
 
 # 火山云区域
-REGION = 'cn-beijing'  # 或其他可用区
+REGION = 'cn-shanghai'  # 或其他可用区
 ```
 
 ```bash
 # 代理（sing-box SOCKS5）
 export HTTPS_PROXY=socks5://kyb-infra-sing-box:2080
 ```
+
+## 网段检查（必做）
+
+创建 VPC 前必须确认 CIDR 不冲突：
+
+| 网络 | CIDR | 说明 |
+|------|------|------|
+| 火山云新 VPC | 10.1.0.0/16（建议） | 本篇规划 |
+| 阿里云 | 10.23.0.0/16 | 上次冲突死的 |
+| 办公室网络 | 依赖具体配置 | 需人工确认 |
+| Tailscale | 100.64.0.0/10 | 路由穿透 |
+
+上次因为 CIDR 和阿里云撞了，整台机器变孤儿。
 
 #### 0.2 创建 VPC
 
@@ -180,13 +193,13 @@ vpc_client = VpcClient(
 # 创建 VPC
 vpc = vpc_client.create_vpc(
     vpc_name='kyb-infra',
-    cidr_block='10.0.0.0/16'
+    cidr_block='10.1.0.0/16'
 )
 
 # 创建子网
 subnet = vpc_client.create_subnet(
     vpc_id=vpc['vpc_id'],
-    cidr_block='10.0.1.0/24',
+    cidr_block='10.1.1.0/24',
     subnet_name='kyb-infra-subnet'
 )
 
@@ -201,7 +214,7 @@ vpc_client.authorize_security_group_ingress(
     security_group_id=sg['security_group_id'],
     rules=[
         {'protocol': 'tcp', 'port': 22, 'cidr': '0.0.0.0/0'},        # SSH
-        {'protocol': 'tcp', 'port': 2375, 'cidr': '10.0.0.0/16'},   # Docker API
+        {'protocol': 'tcp', 'port': 2375, 'cidr': '10.1.0.0/16'},   # Docker API
         {'protocol': 'tcp', 'port': 2080, 'cidr': '0.0.0.0/0'},     # sing-box
         {'protocol': 'tcp', 'port': 3000, 'cidr': '0.0.0.0/0'},     # Grafana
         {'protocol': 'icmp', 'cidr': '0.0.0.0/0'},                   # ping
@@ -239,6 +252,29 @@ Mac/容器 → HTTPS_PROXY → sing-box:2080 → relay-JP1 → 火山云 API
 Mac/容器 → SSH → 火山云 ECS 公网 IP:22 → docker exec
 ```
 
+### 0.4 Tailscale 接入
+
+火山云 ECS 加入 Tailscale 网络，实现跨云直连。
+
+```bash
+# 安装 Tailscale
+curl -fsSL https://tailscale.com/install.sh | bash
+
+# 认证并加入网络（需要 Tailscale 官网认证链接）
+sudo tailscale up --advertise-routes=10.1.0.0/16
+# --advertise-routes：将火山云 VPC 网段广播到 Tailscale 网络
+# 这样 Mac 端可以通过 Tailscale 直连 ECS 内的容器
+
+# 验证状态
+tailscale status
+```
+
+**配置要点：**
+- 在 [Tailscale 控制台](https://login.tailscale.com) 开启子网路由（Subnet Routes）
+- Mac 端需执行 `tailscale up --accept-routes` 以接收火山云路由
+- 阿里云 ECS 同样加入 Tailscale 后自动互通
+- Tailscale 直连可作为 sing-box 的一个 outbound，实现多云 failover（参考阶段 2 方案 B）
+
 ---
 
 ## 阶段 1：基础设施部署（1-2 周）
@@ -261,7 +297,7 @@ curl -fsSL https://get.docker.com | bash
 systemctl enable --now docker
 
 # 创建 Docker 网络
-docker network create kyb-net --subnet 10.0.1.0/24
+docker network create kyb-net --subnet 10.1.2.0/24
 # 注意 L1：容器 IP 漂移，kyb-net 上服务容器用固定 IP 或别名
 
 # 创建数据目录
@@ -371,5 +407,6 @@ docker exec kyb-infra-boss ping -c 1 kyb-infra-sing-box
 |------|------|
 | 2026-05-24 | 初版 — 基础路线图 |
 | 2026-05-26 | 更新 — 加入 7 条教训 + 火山云 API 操作步骤 + 部署顺序 + 网络验证清单 |
+| 2026-05-25 | 更新 — region 改为 cn-shanghai + 加入网段检查 + Tailscale 接入说明 + CIDR 统一为 10.1.0.0/16 |
 
 ／人◕ ‿‿ ◕人＼
