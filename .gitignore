@@ -5,3 +5,4 @@ cloud-init.generated.yaml
 .env.kyb
 .lark-events/
 feishu-events
+.claude/settings.local.json

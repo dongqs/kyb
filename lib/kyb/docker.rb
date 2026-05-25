@@ -7,6 +7,11 @@ module Kyb::Docker
 
   BUILD_HASH_FILES = %w[Dockerfile entrypoint.sh].freeze
 
+  # 在 Kyb::Docker 中追加
+  def start_existing(container)
+    system('docker', 'start', container.to_s)
+  end
+
   def build(tag, path, proxy: nil)
     puts "==> Building base image: #{tag}"
     env = { 'DOCKER_BUILDKIT' => '1' }
