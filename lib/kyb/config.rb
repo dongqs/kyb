@@ -15,7 +15,7 @@ module Kyb::Config
     'localhost', '127.0.0.1'
   ].freeze
 
-  DEFAULT_NO_PROXY = '.leyantech.com,git.leyantech.com,nexus.leyantech.com,.deepseek.com,localhost,127.0.0.1,host.orb.internal,192.168.0.0/16,100.64.0.0/10,.kyb-net,.internal,.local,kyb-infra-sing-box,kyb-infra-boss,kyb-infra-*'.freeze
+  DEFAULT_NO_PROXY = '.deepseek.com,localhost,127.0.0.1,host.orb.internal,192.168.0.0/16,100.64.0.0/10,.kyb-net,.internal,.local,kyb-infra-sing-box,kyb-infra-boss,kyb-infra-*'.freeze
   DEFAULT_MEMORY = '8g'.freeze
 
   module_function

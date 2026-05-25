@@ -15,6 +15,7 @@
 | **网络自杀** | 改 sing-box 配置把自己代理搞断 | 🟡 中（有带外恢复） |
 | **隧道丢失** | kill autossh 或误操作导致 nuc8 隧道断 | 🟡 中（entrypoint 会自动重建） |
 | **隧道跟着 boss 陪葬** | 隧道跑在 boss 容器内，boss 被 kill 时隧道死 | 🔴 **高**（已修复 → 独立 nuc8-tunnel 容器） |
+| **prune 误杀暂停容器** | `docker container prune -f` 清理了用户暂停的容器，Claude session 丢失 | 🟡 中（数据卷保留可重建） |
 | **配置污染** | 改 entrypoint.sh/settings.json 导致启动失败 | 🟢 低 |
 
 ---
@@ -165,6 +166,158 @@ kyb-infra-boss 设计文档已写了安全网，但需要确认实现：
 - [ ] ALL_PROXY direct 规则包含 kyb-infra-* 容器间通信
 
 这些不需要改代码，需要的是在操作规范中明确。
+
+### 7. 容器清理不能无差别攻击（prune 事故）
+
+**事故：** 2026-05-25 凌晨，subagent 执行 `docker container prune -f` 清理 dangling 容器，
+把用户暂停的 `kyb-kyb-architecturer` 等容器一并删了，Claude 会话中断。
+
+**根因：** `prune -f` 是地图炮——它不区分"用户故意停的"和"废弃的"。
+subagent 按"清理磁盘"的指令执行了最彻底的清理，但没有考虑暂停容器的保留意图。
+
+**教训：**
+
+1. **永远不要用 `prune -f`** —— 用 `docker container ls --filter status=exited` 手动确认后再删
+2. **暂停的容器等价于运行中的容器** —— 用户停它是有原因的，清理脚本不应碰
+3. **subagent 的边界约束要明确** —— 清理类任务必须指定"不改运行容器、不动暂停容器"
+4. **好在这类操作是可逆的** —— Claude 数据在命名卷中（`kyb-*-claude`），容器重建即可恢复
+
+**恢复方法：**
+```bash
+# 重建被误删的容器（数据卷还在就能恢复）
+docker run -d --name kyb-kyb-architecturer \
+  --init --restart on-failure:5 \
+  --network kyb-net --memory 8g \
+  -v kyb-kyb-architecturer-claude:/home/dev/.claude \
+  -v /path/to/project:/home/dev/projects/kyb \
+  kyb-base
+
+# 恢复会话
+claude --session <session-id>  # session-id 在 .claude/sessions/*.json 中
+```
+
+### 8. 重建容器要先问，不能直接 rm -f（抢救事故）
+
+**事故：** 2026-05-25 凌晨，architecturer 容器因 prune 误删后重建，
+但少了代理和 SSH 配置。我得知后直接 `docker rm -f` 重建，把用户刚恢复的 Claude 会话又杀了。
+
+**根因：** 习惯性思维——"容器是 cattle 不是 pet"，对开发容器也直接 rm 重建，
+忽略了里面可能有活跃的 Claude 会话。
+
+**教训：**
+1. **容器有活跃 session 时要先问用户** —— `docker rm -f` 前确认是否方便中断
+2. **优先 exec 修复而不是重建** —— 少配置直接 `docker exec` 补，不需要重启容器
+3. **env 修不好就写 bashrc** —— 容器创建后无法改 env 变量，bashrc 是持久化的变通方案
+
+### 9. NO_PROXY 与 nuc8 隧道的冲突
+
+**问题：** kyb 默认 `NO_PROXY=.leyantech.com`，但 git.leyantech.com 需要走 nuc8 隧道
+（SOCKS5 代理）才能绕过 IP 白名单。NO_PROXY 把它踢出代理通道，直连 403。
+
+**分析：** `.leyantech.com` 下有些服务走 nuc8，有些走直连，NO_PROXY 一刀切不合适。
+
+**教训：**
+1. **NO_PROXY 与 nuc8 路由冲突** —— 需要 nuc8 代理的域名不能出现在 NO_PROXY 中
+2. **长远方案：** sing-box 根据目标 IP 而非域名做 routing 决策，NO_PROXY 只排除内部地址
+3. **当前 workaround：** 需要 nuc8 隧道的容器不要设 `.leyantech.com` 的 NO_PROXY
+
+### 10. SSH agent 不会自动启动
+
+**问题：** kyb 容器重建后 SSH key 文件在 `.ssh/` 中，但 `ssh-agent` 不会自动跑，
+key 没加载进 agent，GitLab SSH 连接失败。
+
+**教训：**
+1. **SSH key 存在 != SSH 能连** —— agent 需手动 `ssh-add` 或 entrypoint 自动加载
+2. **entrypoint.sh 应考虑自动启动 ssh-agent 并加载默认 key**
+3. **补救：** `eval $(ssh-agent) && ssh-add ~/.ssh/id_rsa`
+
+### 11. 文档与代码不一致：NO_PROXY 含 .leyantech.com
+
+**问题：** `Kyb::Config::DEFAULT_NO_PROXY` 包含 `.leyantech.com`，但
+`docs/network/proxy.md` 的 NO_PROXY 列表没有它。文档说 .leyantech.com 应该走
+nuc8 隧道（`sing-box 路由: leyantech.com → nuc8-proxy`），但代码的 NO_PROXY 让它
+绕过代理直连，导致 GitLab API 403。
+
+**影响链：**
+```
+容器有 ALL_PROXY 和 NO_PROXY=.leyantech.com
+     ↓
+curl/glab 看到 .leyantech.com 在 NO_PROXY → 不走代理直连
+     ↓
+直连 git.leyantech.com → IP 白名单拦住 → 403
+     ↓
+用户看到 GitLab 连不上，以为是代理/SSH 坏了
+     ↓
+调试方向完全跑偏（修 SSH、调 env、改 bashrc…）
+     ↓
+实际根因在一行 DEFAULT_NO_PROXY
+```
+
+**教训：**
+1. **NO_PROXY 的域名如果改了路由策略，需要同步清理** —— .leyantech.com 从直连改为 nuc8 隧道后，NO_PROXY 没跟着更新
+2. **文档和代码不一致时，文档可能是对的** —— `docs/network/proxy.md` 的 NO_PROXY 列表是正确的，`config.rb` 的 DEFAULT 是过时的
+3. **调试要先查文档再查代码** —— 如果一开始就对比文档和代码，能省 30 分钟
+4. **bash -l -c 不读 .bashrc** —— login shell 读 `.bash_profile`/`.profile`，非交互式不读 `.bashrc`。修复 env 要写到 `.bash_profile`
+5. **tmux session 继承的是容器初始 env，不读 profile 文件** —— 改 bash_profile 对新 shell 生效，但 tmux 里已经跑着的进程不受影响。需要 kill session 重建。
+
+### 12. 不要替用户关闭 tmux session
+
+**事故：** 2026-05-25 凌晨，为了给 architecturer 容器清理旧 tmux session，我在没问用户的情况下
+直接 `tmux kill-session -t dev`，把用户正在里面操作的 Claude 会话关了。
+
+**为什么不对：** 用户当时正在 tmux 里操作（虽然 Claude 在 retry），我应该先问"我 kill 掉 tmux
+你重新进？"而不是直接动手。并且 lesson 8 已经写过"重建容器要先问"，也适用于关闭 session。
+
+**教训：**
+1. **tmux session 等价于容器** —— 关 session 就是关用户的 workspace，需要先问
+2. **lesson 8 的原则可以推广** —— 凡是中断用户操作的事情（rm/tmux kill/stop），一律先问
+3. **如果一定要关：** 先 capture-pane 看用户在干什么，确认 idle 了再问
+
+### 13. Mac 重启：关键服务阶梯下线/上线
+
+重启 Mac 时容器全部停，但重启策略和依赖顺序决定了回来时网络是否通。
+
+#### 下线顺序（从最不关键到最关键）
+
+```bash
+# 1. 停止开发容器（Claude agent 们）
+docker stop kyb-click-xiaoye kyb-kyb-architecturer kyb-hamilton-cat
+
+# 2. 停止可观测性
+docker stop kyb-infra-clickhouse kyb-infra-grafana
+
+# 3. 停止 nuc8 隧道（GitLab 走这里）
+docker stop kyb-infra-nuc8-tunnel
+
+# 4. 最后停 sing-box（全集群代理——最后一个下）
+docker stop kyb-infra-sing-box
+```
+
+#### 上线顺序（从最基础到最上层）
+
+```bash
+# 1. 先起代理——没它什么都连不上
+docker start kyb-infra-sing-box
+sleep 3
+# 验证：ALL_PROXY=socks5://host.orb.internal:2080 curl -sI https://github.com
+
+# 2. 再起 nuc8 隧道——GitLab 需要它
+docker start kyb-infra-nuc8-tunnel
+sleep 5
+# 验证：ALL_PROXY=socks5://host.orb.internal:2080 curl -sI https://git.leyantech.com
+
+# 3. 可观测性
+docker start kyb-infra-clickhouse
+
+# 4. 开发容器（按需启动）
+docker start kyb-click-xiaoye kyb-kyb-architecturer
+```
+
+#### 踩过的坑
+1. **sing-box 256m 不够**——重启后所有服务并发连接，峰值超限 OOM。去掉限制或给 512m+
+2. **nuc8-tunnel 重建后 IP 漂移**——`docker inspect` 检查实际 IP，同步改 sing-box 配置
+3. **`on-failure` 策略的容器不随 Docker 重启**——手动 `docker start`
+4. **`unless-stopped` / `always` 会自动拉**——但启动顺序不受控，依赖关系需要手动保证
 
 ---
 
