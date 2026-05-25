@@ -273,6 +273,52 @@ curl/glab 看到 .leyantech.com 在 NO_PROXY → 不走代理直连
 2. **lesson 8 的原则可以推广** —— 凡是中断用户操作的事情（rm/tmux kill/stop），一律先问
 3. **如果一定要关：** 先 capture-pane 看用户在干什么，确认 idle 了再问
 
+### 13. Mac 重启：关键服务阶梯下线/上线
+
+重启 Mac 时容器全部停，但重启策略和依赖顺序决定了回来时网络是否通。
+
+#### 下线顺序（从最不关键到最关键）
+
+```bash
+# 1. 停止开发容器（Claude agent 们）
+docker stop kyb-click-xiaoye kyb-kyb-architecturer kyb-hamilton-cat
+
+# 2. 停止可观测性
+docker stop kyb-infra-clickhouse kyb-infra-grafana
+
+# 3. 停止 nuc8 隧道（GitLab 走这里）
+docker stop kyb-infra-nuc8-tunnel
+
+# 4. 最后停 sing-box（全集群代理——最后一个下）
+docker stop kyb-infra-sing-box
+```
+
+#### 上线顺序（从最基础到最上层）
+
+```bash
+# 1. 先起代理——没它什么都连不上
+docker start kyb-infra-sing-box
+sleep 3
+# 验证：ALL_PROXY=socks5://host.orb.internal:2080 curl -sI https://github.com
+
+# 2. 再起 nuc8 隧道——GitLab 需要它
+docker start kyb-infra-nuc8-tunnel
+sleep 5
+# 验证：ALL_PROXY=socks5://host.orb.internal:2080 curl -sI https://git.leyantech.com
+
+# 3. 可观测性
+docker start kyb-infra-clickhouse
+
+# 4. 开发容器（按需启动）
+docker start kyb-click-xiaoye kyb-kyb-architecturer
+```
+
+#### 踩过的坑
+1. **sing-box 256m 不够**——重启后所有服务并发连接，峰值超限 OOM。去掉限制或给 512m+
+2. **nuc8-tunnel 重建后 IP 漂移**——`docker inspect` 检查实际 IP，同步改 sing-box 配置
+3. **`on-failure` 策略的容器不随 Docker 重启**——手动 `docker start`
+4. **`unless-stopped` / `always` 会自动拉**——但启动顺序不受控，依赖关系需要手动保证
+
 ---
 
 ## 建议优先级
