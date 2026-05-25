@@ -67,6 +67,8 @@ module Kyb::CLI
     args += ['-e', "GITLAB_TOKEN=#{ENV['GITLAB_TOKEN']}"] if ENV['GITLAB_TOKEN']
     args += ['-e', "ALL_PROXY=socks5://kyb-infra-sing-box:2080"]
     args += ['-e', "NO_PROXY=#{Kyb::Config.no_proxy}"]
+    args += ['-e', "no_proxy=#{Kyb::Config.no_proxy}"]
+    args += ['-e', "KYB_NO_PROXY=#{Kyb::Config.no_proxy}"]
     args += ['-e', 'KYB_PROJECT=kyb']
     args += ['-e', 'KYB_BRANCH=infra-boss']
     args += ['-e', 'TZ=Asia/Shanghai']

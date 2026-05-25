@@ -240,10 +240,14 @@ module Kyb::Docker
       args += ['-e', "https_proxy=#{kyb_proxy_translated}"]
       args += ['-e', "HTTP_PROXY=#{kyb_proxy_translated}"]
       args += ['-e', "http_proxy=#{kyb_proxy_translated}"]
-      no_proxy_val = Kyb::Config.no_proxy
-      args += ['-e', "NO_PROXY=#{no_proxy_val}"]
-      args += ['-e', "no_proxy=#{no_proxy_val}"]
     end
+    # Always set NO_PROXY when a value is available, not just when proxy is enabled.
+    # This protects internal traffic even when no explicit proxy is configured,
+    # and ensures docker exec processes inherit the correct bypass rules.
+    no_proxy_val = kyb_no_proxy || Kyb::Config.no_proxy
+    args += ['-e', "NO_PROXY=#{no_proxy_val}"]
+    args += ['-e', "no_proxy=#{no_proxy_val}"]
+    # KYB_NO_PROXY is redundant now but kept for backward compat / entrypoint.sh
     args += ['-e', "KYB_NO_PROXY=#{kyb_no_proxy}"] if kyb_no_proxy
     args += ['-e', "KYB_BRANCH=#{branch}"] if branch
     args
