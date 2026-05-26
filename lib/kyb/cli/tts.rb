@@ -116,5 +116,10 @@ module Kyb::CLI
               end
       pings.times { tts_ping }
     end
+
+    # 如果配置了 DingTalk token，同时推送到钉钉
+    if ENV['DINGTALK_BOT_TOKEN'] && !ENV['DINGTALK_BOT_TOKEN'].empty?
+      Kyb::DingtalkBot.notify(level, message)
+    end
   end
 end
