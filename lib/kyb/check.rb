@@ -173,7 +173,7 @@ module Kyb::Check
   end
 
   def check_disk
-    out, _stderr, status = Open3.capture3('df', '-BG', '/')
+    out, _stderr, status = Open3.capture3('df', '-h', '/')
     line = status.success? ? out.lines[1] : nil
     if line
       avail = line.split[3]
