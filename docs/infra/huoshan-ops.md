@@ -2,7 +2,7 @@
 
 > **机器信息：** 124.174.68.38 / 4C16G / cn-shanghai
 > **用途：** sing-box 代理节点 + kyb-infra-boss 容器宿主机
-> **状态：** 已上线（2026-05-24）
+> **状态：** 已上线 → 已切换至 Docker 容器（2026-05-26）
 
 ---
 
@@ -120,8 +120,8 @@ curl → localhost:2080 → sing-box → nuc8-proxy outbound
 
 | 文件 | 用途 |
 |------|------|
-| `~/.config/sing-box/config.json` | sing-box 主配置（路由规则、出站节点） |
-| `~/.config/sing-box/` | sing-box 配置目录（git 仓库，只读挂载给容器） |
+| `/etc/sing-box/config.json` | sing-box 主配置（路由规则、出站节点） |
+| `/etc/sing-box/` | sing-box 配置目录（git 仓库，只读挂载给容器） |
 | `~/.config/kyb/config.yml` | kyb 用户配置 |
 | `~/.ssh/id_rsa` | 通往 nuc8 的 SSH 密钥 |
 | `~/.ssh/huoshan-infra-for-boss.pem` | ECS SSH 登录密钥 |
@@ -130,14 +130,15 @@ curl → localhost:2080 → sing-box → nuc8-proxy outbound
 ### Docker 容器一览
 
 ```bash
-docker ps
+docker ps --filter name=kyb-infra
 ```
 
 | 容器 | 镜像 | 端口 | 重启策略 | 用途 |
 |------|------|------|----------|------|
-| `kyb-infra-sing-box` | `kyb-sing-box:1.13.11` | 2080:2080 | `always` | SOCKS5 代理入口 |
-| `kyb-infra-nuc8-tunnel` | `kyb-base:latest` | (无映射) | `always` | SSH 隧道到 nuc8 |
-| `kyb-infra-boss` | `kyb-base:latest` | (无映射) | `unless-stopped` | Claude infra boss |
+| `kyb-infra-sing-box` | `kyb-sing-box:1.13.11` | 2080:2080 (host) | `always` | SOCKS5 代理入口（主服务）|
+| `kyb-infra-nuc8-tunnel` | `kyb-nuc8-tunnel:latest` | 2081 (kyb-net) | `always` | SSH 隧道到 nuc8 |
+
+**注意：** 2026-05-26 已从原生进程切到 Docker 容器。原生的 sing-box 和 SSH 隧道已停。systemd 原生服务已 disable（防止重启冲突）。
 
 详情分别见：
 
@@ -239,7 +240,7 @@ apt update
 
 ### 4.2 sing-box 配置中的敏感信息
 
-`~/.config/sing-box/config.json` 可能包含：
+`/etc/sing-box/config.json` 可能包含：
 
 - Shadowsocks 密码 / 加密方式
 - 中继节点地址
@@ -278,13 +279,22 @@ ECS 安全组已开放端口：
 第一次接手时，逐项确认：
 
 - [ ] **SSH 能连上？** `ssh -i ~/.ssh/huoshan-infra-for-boss.pem root@124.174.68.38`
-- [ ] **sing-box 在跑？** `ps aux | grep sing-box` 或 `docker ps | grep sing-box`
-- [ ] **SSH 隧道在跑？** `ps aux | grep ssh.*-D.*2081` 或 `docker ps | grep nuc8-tunnel`
+- [ ] **sing-box 在跑？** `docker ps --filter name=kyb-infra-sing-box`
+- [ ] **SSH 隧道在跑？** `docker ps --filter name=kyb-infra-nuc8-tunnel`
 - [ ] **GitHub 通？** `curl -sI --socks5-hostname 127.0.0.1:2080 https://github.com` → 期望 `200`
 - [ ] **GitLab 通？** `curl -sI --socks5-hostname 127.0.0.1:2080 https://git.leyantech.com` → 期望 `302`
 - [ ] **Tailscale 在线？** `tailscale status` → 能看到 nuc8 (100.98.29.39)
-- [ ] **知道各个配置在哪？** `~/.config/sing-box/` / `~/.ssh/` / `~/.config/kyb/`
+- [ ] **Docker 容器在？** `docker ps --filter name=kyb-infra` → 两个容器 Up
+- [ ] **Docker 代理通？** `docker run --rm --network kyb-net alpine:latest sh -c 'getent hosts kyb-infra-nuc8-tunnel'`
+- [ ] **systemd 启用？** `systemctl is-enabled kyb-sing-box.service kyb-nuc8-tunnel.service` → enabled
+- [ ] **知道各个配置在哪？** `/etc/sing-box/` / `~/.ssh/` / `~/.config/kyb/`
 - [ ] **知道踩坑记录？** 读一遍第 3 节
+
+**新增双备后的额外确认：**
+- [ ] **Docker sing-box 独立配置** → `/etc/sing-box/config.docker.json`（nuc8-tunnel 指向容器 IP）
+- [ ] **构建文件** → `/root/docker-build/` 目录下
+- [ ] **Docker daemon 代理** → `/etc/systemd/system/docker.service.d/proxy.conf`
+- [ ] **切换计划** → 见附录"双备容器化"
 
 ---
 
@@ -296,15 +306,25 @@ kyb CLI 目前还没在 ECS 上安装。kyb-infra-boss 是一个运行在 Docker
 
 ### 当前状态
 
-Docker 已安装。kyb CLI 未安装。
+Docker 已安装，双备容器已运行。kyb CLI 未安装。
+
+**已有容器：**
+- `kyb-infra-sing-box` — sing-box SOCKS5 代理
+- `kyb-infra-nuc8-tunnel` — SSH 隧道到 nuc8
+
+**已有镜像：**
+- `kyb-sing-box:1.13.11`（108MB，本地构建）
+- `kyb-nuc8-tunnel:latest`（21.2MB，本地构建）
 
 ### 临时方案：直接 Docker run
 
 如果需要在 ECS 上部署 kyb-infra-boss，可以跳过 kyb CLI，直接用 Docker 拉 kyb-base 镜像：
 
+> **注意：** ECS 无法直连 Docker Hub，需要通过代理拉取（已在系统级配置）。但 `kyb-base` 镜像较大（~8GB），建议从本地 registry 拉取或构建。
+
 ```bash
 # 拉取 kyb-base 镜像（需要注册表访问权限）
-docker pull kyb-base:latest
+ALL_PROXY=socks5://127.0.0.1:2080 docker pull kyb-base:latest
 
 # 创建 kyb 网络（如果还没有）
 docker network create kyb-net
@@ -355,7 +375,7 @@ docker run -d --name kyb-infra-sing-box \
   --network kyb-net \
   --restart always \
   -p 2080:2080 \
-  -v ~/.config/sing-box/:/etc/sing-box/:ro \
+  -v /etc/sing-box/:/etc/sing-box/:ro \
   kyb-sing-box:1.13.11
 ```
 
@@ -388,7 +408,7 @@ docker run -d --name kyb-infra-nuc8-tunnel \
 
 ```bash
 # 改完配置后检查语法
-cd ~/.config/sing-box
+cd /etc/sing-box
 sing-box check -c config.json
 
 # 热重载
@@ -421,10 +441,164 @@ docker logs kyb-infra-nuc8-tunnel --tail 20
 
 ---
 
+## 附录：双备容器化（2026-05-26）
+
+继原生进程部署后，新增 Docker 容器化双备层。老进程不动，新容器并行运行。
+
+### 新增架构
+
+```
+老（原生进程，不动）              新（Docker 容器，热备）
+─────────────────              ─────────────────
+sing-box (PID 6551) :2080      kyb-infra-sing-box :2080 (kyb-net)
+SSH 隧道 (PID 6453) :2081      kyb-infra-nuc8-tunnel :2081 (kyb-net)
+  无保活/无自启                    systemd enable + restart: always
+```
+
+### Docker 容器
+
+| 容器 | 镜像 | 网络 | 重启策略 | 备注 |
+|------|------|------|----------|------|
+| `kyb-infra-sing-box` | `kyb-sing-box:1.13.11` | kyb-net | `always` | musl 版（Alpine）|
+| `kyb-infra-nuc8-tunnel` | `kyb-nuc8-tunnel:latest` | kyb-net | `always` | 内存 64m |
+
+### Docker 镜像
+
+| 镜像 | 大小 | 基础镜像 | 构建位置 |
+|------|------|----------|----------|
+| `kyb-sing-box:1.13.11` | 108MB | alpine:latest | `/root/docker-build/sing-box/` |
+| `kyb-nuc8-tunnel:latest` | 21.2MB | alpine:latest | `/root/docker-build/nuc8-tunnel/` |
+
+**注意：** Docker sing-box 使用 musl 版二进制（Alpine 兼容）。构建时需走代理下载：
+```bash
+cd /root/docker-build/sing-box
+docker build --network host \
+  --build-arg HTTP_PROXY=http://127.0.0.1:2080 \
+  --build-arg HTTPS_PROXY=http://127.0.0.1:2080 \
+  -t kyb-sing-box:1.13.11 .
+```
+
+### 配置
+
+Docker sing-box 使用独立配置文件，nuc8-tunnel 出站指向 Docker 容器 IP（而非 127.0.0.1）：
+
+```
+原生: /etc/sing-box/config.json         → nuc8-tunnel: 127.0.0.1:2081
+Docker: /etc/sing-box/config.docker.json → nuc8-tunnel: 172.18.0.2:2081
+```
+
+**注意：** 容器重启后 IP 可能变化。如果重建了 nuc8-tunnel 容器，需要同步更新 `config.docker.json` 并重启 sing-box 容器：
+```bash
+# 获取新 IP
+TUNNEL_IP=$(docker inspect kyb-infra-nuc8-tunnel | python3 -c \
+  'import sys,json; print(json.load(sys.stdin)[0]["NetworkSettings"]["Networks"]["kyb-net"]["IPAddress"])')
+
+# 更新配置
+sed -i "s/\"server\": \"[0-9.]*\"/\"server\": \"$TUNNEL_IP\"/" /etc/sing-box/config.docker.json
+
+# 重建 sing-box 容器（配置只读挂载，不能热重载）
+docker rm -f kyb-infra-sing-box
+docker run -d --name kyb-infra-sing-box \
+  --restart always --network kyb-net \
+  -v /etc/sing-box/config.docker.json:/etc/sing-box/config.json:ro \
+  kyb-sing-box:1.13.11
+```
+
+### Systemd 服务
+
+| 服务名 | 作用 | 状态 |
+|--------|------|------|
+| `kyb-sing-box.service` | sing-box 进程保活 | enabled（未激活，不冲突）|
+| `kyb-nuc8-tunnel.service` | SSH 隧道保活 | enabled（未激活，不冲突）|
+
+服务文件在 `/etc/systemd/system/`，启用但未启动（避免与原生进程端口冲突）。
+重启机器后会自动接管。
+
+如果未来切到 Docker-only（停掉原生进程后），可直接启动：
+```bash
+systemctl start kyb-sing-box.service     # 启动原生 sing-box
+systemctl start kyb-nuc8-tunnel.service  # 启动原生 SSH 隧道
+```
+或者直接 Docker 方案（推荐）。
+
+### Docker daemon 代理配置
+
+Docker daemon 通过 systemd drop-in 配置了代理，用于拉取镜像：
+```
+/etc/systemd/system/docker.service.d/proxy.conf
+```
+内容：HTTPS_PROXY=socks5://127.0.0.1:2080
+**如果 Docker daemon 重启后代理丢失：** 检查此文件是否存在，`systemctl daemon-reload && systemctl restart docker`。
+
+### 构建上下文
+
+所有 Docker 构建文件在 `/root/docker-build/`：
+```
+/root/docker-build/
+├── sing-box/
+│   ├── Dockerfile
+│   ├── sing-box          # glibc 版（原生 Ubuntu 用）
+│   ├── sing-box-musl     # musl 版（Alpine 容器用）
+│   └── Dockerfile.test   # 测试用（已删）
+└── nuc8-tunnel/
+    └── Dockerfile
+```
+
+### Dcker 验证命令
+
+```bash
+# 查看容器
+docker ps --filter name=kyb-infra
+
+# 测试 Docker sing-box 代理
+docker run --rm --network kyb-net alpine:latest sh -c "
+  wget -q -O /dev/null --timeout=5 \
+    --header 'Host: github.com' \
+    https://github.com
+"
+
+# 验证 nuc8 隧道 Docker DNS 解析
+docker run --rm --network kyb-net alpine:latest \
+  sh -c 'getent hosts kyb-infra-nuc8-tunnel'
+
+# 容器间端口连通性
+docker run --rm --network kyb-net alpine:latest \
+  sh -c 'nc -zv -w3 kyb-infra-nuc8-tunnel 2081'
+```
+
+### 切换计划（未来）
+
+从原生进程切换到 Docker 容器的步骤：
+
+```bash
+# 1. 停原生进程
+kill $(pgrep -f '^sing-box run') $(pgrep -f 'ssh.*-D.*2081')
+
+# 2. 删掉重建 sing-box 容器，加端口映射
+docker rm -f kyb-infra-sing-box
+docker run -d --name kyb-infra-sing-box \
+  --restart always --network kyb-net \
+  -p 2080:2080 \
+  -v /etc/sing-box/config.docker.json:/etc/sing-box/config.json:ro \
+  kyb-sing-box:1.13.11
+
+# 3. 确认 nuc8-tunnel 已经有端口映射（不需要，内部通信）
+# 4. 验证
+curl -sI --socks5-hostname 127.0.0.1:2080 https://github.com
+curl -sI --socks5-hostname 127.0.0.1:2080 https://git.leyantech.com
+
+# 5. 可选：启用 systemd 服务作为兜底
+systemctl start kyb-sing-box.service
+systemctl start kyb-nuc8-tunnel.service
+```
+
+---
+
 ## 变更日志
 
 | 日期 | 变更 |
 |------|------|
 | 2026-05-26 | 初版——ECS 交接文档 & 新人指南 |
+| 2026-05-26 | 附录：双备容器化——Docker 容器 + systemd 保活 |
 
 ／人◕ ‿‿ ◕人＼
