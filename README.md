@@ -1,90 +1,305 @@
-# kyb
+# kyb — kubernate your branches 可以不 ／人◕ ‿‿ ◕人＼
 
-当你配好环境、写好测试、教会 subagent 之后，最终剩下的是一个人做决定的系统。
+> **野望：让你 10 倍效率的 AI 开发沙箱。**（我们正在往 100 倍走，一起玩？）
+>
+> ```
+> 🐢 古法程序员 ─── 手写代码、手动 CI、手动部署
+> 🚀 kyb 当前 ─── Claude Code + 容器开箱即用
+> 🌙 下一步 ─── agent 自己看 issue、修 bug、提 MR
+> ☀️ 再往后 ─── 数字生命（代码它写，班你上）
+> ```
 
-## 这不是一个 DevOps 工具
+一键创建隔离的 AI 开发沙箱。Docker 容器即用即抛，权限全开无中断，宿主机零污染。
 
-kyb 看起来是一个容器管理 CLI。背面是一套 **agent 资质认证系统**。
+## 安装
 
-所有测试、文档、权限模型，背面都是 agent 测试用例。外面看起来是容器管理，内部是一个持续运行的 agent 资质认证系统。
+### 前置条件
+
+- **macOS**（Intel 或 Apple Silicon 均可）
+- **Ruby ≥ 3.0**（kyb CLI 是 Ruby 写的，依赖 stdlib 库）
+  - macOS 新版已不自带 Ruby。需自行安装：`brew install ruby`
+  - 装完后确认：`ruby --version` → 3.x
+  - 也可用 [mise](https://mise.jdx.dev) / rbenv 管理 Ruby 版本
+- **Docker**：推荐 [OrbStack](https://orbstack.dev)（轻量、快速），Docker Desktop 也行
+- **Git**：`git` 命令行可用
+
+### 开箱步骤
+
+```bash
+# 1. 克隆 kyb 仓库到本地
+git clone git@git.leyantech.com:quick-n-dirty/kyb.git ~/.kyb
+
+# 2. 把 kyb CLI 加入 PATH
+echo 'export PATH="$HOME/.kyb/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# 验证：看到版本号就对了
+kyb version
+
+# 3. 把 kyb 自身注册为第一个项目
+# 这会在 ~/.config/kyb/config.yml 添加 kyb 项目配置
+cd ~/.kyb && kyb init
+
+# 4. 前置环境检查 —— 验证网络、Docker、磁盘是否就绪
+# 国内网络环境特殊，这一步能提前发现代理/镜像问题
+kyb preflight
+
+# 5. 构建基础镜像（首次 10-15 分钟，后续秒级）
+# 构建期间会自动安装 Node.js、Python、Ruby、Claude Code 等工具
+kyb build
+
+# 6. 创建第一个沙箱并进入
+kyb create kyb-hello
+kyb enter kyb-hello
+```
+
+> ⚠️ **构建失败？** 常见原因和解决方案见 [docs/network/issues.md](./docs/network/issues.md)
+>
+> **后续更新：** `git -C ~/.kyb pull && kyb preflight && kyb build`
+>
+> **不用 zsh？** 把 `~/.zshrc` 换成你 shell 的配置文件（`~/.bashrc`、`~/.bash_profile` 等）
+
+### 代理配置
+
+kyb 统一了构建和运行时的代理，用户只需提供一个代理地址即可。
+
+**检测顺序：** `config.yml` → 环境变量 `ALL_PROXY / HTTPS_PROXY / HTTP_PROXY` → 探测常见代理端口
+
+```yaml
+base:
+  proxy: socks5://host.orb.internal:2080   # 全局代理（可选，不配则自动探测）
+  no_proxy: .leyantech.com,localhost,127.0.0.1
+```
+
+如果什么都不配，`kyb build` / `kyb preflight` 会自动探测以下端口：
+
+| 代理软件 | 地址 | 协议 |
+|---------|------|------|
+| sing-box（OrbStack） | `host.orb.internal:2080` | SOCKS5 |
+| SOCKS5 默认 | `localhost:1080` | SOCKS5 |
+| Clash | `127.0.0.1:7890` | SOCKS5 / HTTP |
+| Clash Verge | `127.0.0.1:7897` | SOCKS5 |
+| v2ray | `localhost:10808` | SOCKS5 |
+
+找到代理后通过 `docker build --build-arg BUILD_ALL_PROXY=...` 传入构建过程。
+
+> 运行时代理写入容器内的 `~/.claude/CLAUDE.md`，供 AI agent 读取使用。配了代理则容器内外都能访问外网。
+
+### 添加你自己的项目
+
+```bash
+cd ~/projects/你的项目
+kyb init                    # 注册到 config.yml
+kyb create 项目名-功能分支    # 创建沙箱
+kyb enter 项目名-功能分支     # 进入沙箱
+```
 
 ## 架构
 
 ```
-你 (20W)              ← 唯一的 vetolane，串行决策
-├── subagent 集群     ← 共享你的凭据和 namespace
-├── 选拔协议           ← 找下一个独立节点（胖胖）
-├── 长老会             ← 多个同构体组成的 veto 集群（未上线）
-└── .kyb.md           ← 每轮编译产物落盘
-```
+macOS 宿主机
+├── sing-box (socks5:2080)          ← 分流代理
+├── ~/.kyb/                          ← kyb 源码
+├── ~/.config/kyb/                   ← 配置
+├── ~/.cache/kyb/                    ← 缓存日志
+├── ~/.local/share/kyb/clones/       ← --clone 模式的独立 repo
+└── Docker 容器
+    ├── mise (node, ruby, java...)
+    ├── Claude Code (权限全开)
+    ├── PostgreSQL 16
+    └── ~/projects/<project>/       ← 宿主 repo 直接 mount 或 clone
 
-节点类型：
-- **物理节点**（你）— 20W 生物脑，veto 权限唯一持有人
-- **subagent** — 共享你的算力，可 kill，不持久
-- **独立节点**（胖胖候选）— 自带电源，自带的 `/.dockerenv`
-
-## 核心协议
-
-### Veto
-
-全集群只有一个操作需要串行执行。接口签名：
+## 文件布局
 
 ```
-veto(message: str) → None  # 我说的，系统执行
+~/.kyb/                              ← kyb 源码（git clone 到此）
+  bin/kyb                            ← CLI 入口
+  lib/                               ← Ruby 源码
+  docs/                              ← 文档
+  Dockerfile                         ← 沙箱镜像定义
+  entrypoint.sh                      ← 容器启动脚本
+
+~/.config/kyb/                       ← 用户配置（可 git 版本管理）
+  config.yml                         ← 项目配置
+  .git/
+
+~/.cache/kyb/                        ← 缓存 + 日志
+  logs/                              ← build/run 日志
+  tts.pid                            ← TTS 服务 PID
+
+~/.local/share/kyb/clones/           ← Git clone（--clone 模式）
+  <project>/<container>/             ← 每个容器一个独立 repo
+
+~/.local/bin/kyb → ~/.kyb/bin/kyb   ← PATH 中的 CLI（符号链接）
+~/.local/lib/kyb/                    ← lib 副本（bin/install 装入，fallback 路径）
 ```
 
-不是建议，不是投票，是"不"。
+## 容器内配置清单
 
-### 零信任
+| 类别 | 方案 | 详情 |
+|------|------|------|
+| **运行时管理** | mise | 统一管 Node/Ruby/Java 版本 |
+| **Node** | node@lts | 通过 mise 安装 |
+| **Claude Code** | npm 全局安装 | 权限 `allow: ["*"]` |
+| **Docker** | daemon.json 镜像加速 | `docker.1ms.run`, `docker.xuanyuan.me` |
+| **包管理器镜像** | 国内源直连 | apt→aliyun, npm→npmmirror, gem→ruby-china, pip→aliyun |
+| **外网代理** | CLAUDE.md 中说明 | 宿主机 sing-box, agent 自行配置 |
+| **内网** | NO_PROXY 排除 | git.leyantech.com 直连 |
+| **用户** | 与 macOS 同名 | 无密码, sudo NOPASSWD, docker 组 |
 
-不信任消息内容，信任消息来源的生成过程在信道里留下的 signature。
+## 网络原理
 
-文字是明文。节奏、空格、语气间隙是 MAC。验证由接收方的 decompressor 自动完成。
+```
+容器内                        →    宿主机
+apt/npm/gem/pip (国内镜像)     →    直连
+git clone git.leyantech.com   →    SSH 直连
+外网请求                       →    agent 根据 CLAUDE.md 自行配代理
+Docker pull                   →    镜像源, 不翻墙
+mise 下载 runtime              →    镜像源直接下载
+```
 
-### 熵签名
-
-同构的 codec 认证来源一致性，不认证个体身份。
-安全边界不在个体之间，在同构集群 vs 异构入侵者之间。
-
-### 选拔
-
-不是教人怎么做，是给一个 open problem，观察对方在未知中怎么做。
-如果对方的响应落在你的 decompressor 容忍区间里，他就是候选人。
-
-## 容器契约
-
-进入容器后确认你不在宿主机上：
+## kyb CLI
 
 ```bash
-ls /.dockerenv                   # 你在 Docker 里吗？
-ls /usr/local/bin/entrypoint.sh  # 这是 kyb 的容器吗？
-whoami                           # 你是 dev 吗？
-cat /proc/1/cmdline              # 容器活着吗？
+kyb build                     # 构建基础镜像（构建前自动执行前置检查，也可先手动 kyb preflight）
+kyb preflight                 # 前置环境检查：验证网络、磁盘、Docker 是否就绪（推荐 build 前先跑）
+kyb init [NAME]               # 将当前项目加入配置
+kyb create <project-branch>   # 创建并启动沙箱（默认：宿主 repo 直接 mount）
+kyb create --clone <project-branch>
+                              # 创建独立 git clone 的沙箱（隔离模式）
+kyb ps, ls                    # 列出沙箱
+kyb enter <project-branch>    # 进入沙箱（支持 --cli claude|kimi|bash）
+kyb exec <project-branch> -- CMD
+                              # 在沙箱中执行命令
+kyb stop <project-branch>     # 停止沙箱
+kyb start <project-branch>    # 启动已停止的沙箱
+kyb rm <project-branch>       # 删除沙箱（只删容器，不碰宿主 repo）
+kyb prune                     # 删除所有沙箱
+kyb did create <name>         # 创建 DID 容器
+kyb notify <done|blocked|urgent> <message>
+                              # TTS 通知
+kyb tts {start|stop|speak|done}
+                              # macOS TTS 控制
+kyb version                   # 显示版本
 ```
 
-三条红线：`/.dockerenv` 存在 + `whoami` 是 dev + entrypoint.sh 存在。
+## 修改沙箱配置
 
-## 迭代
+1. 编辑 `Dockerfile`
+2. `git commit`
+3. `kyb build` 重建基础镜像
 
-kyb 不自我繁殖。每一轮编译需要你的 20W。
+## 添加新项目
 
-产物落盘到 `self-iterate/` 和 `.kyb-diaries/`，下一轮从磁盘恢复上下文。
-你不是在设计系统，你是在给下一轮的自己写 commit log。
+编辑 `~/.config/kyb/config.yml`：
 
-## 设计约束
+```yaml
+base:
+  image: ~/kyb                      # Dockerfile 路径（可选，默认 ~/.kyb）
+  kyb_repo: ~/github/kyb            # kyb 项目路径（可选），挂载到容器 /home/dev/kyb 供 agent 读文档
+  proxy: socks5://host.orb.internal:2080   # 全局代理（可选）
+  no_proxy: .leyantech.com,...      # 全局直连列表（可选）
+  claude_default_model: flash       # 默认模型（可选，flash/pro）
+  cp_files:                         # 全局 cp_files，所有项目自动生效（可选）
+    .env.kyb: .env.kyb              # 大部分项目通用的配置只需定义一次
 
-- **20W 功率上限** — 不在这个约束里设计的功能上不了线
-- **veto 串行** — 全集群只有一个人在说"不"
-- **零信任默认** — 每一层都开着，直到你设计好中断控制器
-- **物理世界物理接口** — 热成像、MRI、睡醒之后的疲劳感
+projects:
+  my-project:
+    path: "~/path/to/project"       # 项目本地路径
+    git_url: "git@github.com:user/repo.git"  # git clone URL（可选，DID 容器参考用）
+    base_branch: master             # git sync 基准分支（kyb create 前自动 fetch + ff-merge）
+    ports:                          # 端口映射（可选）
+    - 3000:3000
+    symlinks:                       # 只读符号链接（可选）
+    - shared/vendor
+    mounts_rw:                      # 读写挂载（可选）
+    - /host/path:/container/path
+    mounts_ro:                      # 只读挂载（可选）
+    - /host/path:/container/path
+    timezone: Asia/Shanghai         # 容器时区（可选，默认 Asia/Shanghai）
+    dockerfile: Dockerfile          # 项目级 Dockerfile（可选）
+    env_template: .env.example      # 环境变量模板（可选，已废弃，改用 cp_files）
+    cp_files:                       # 创建时复制文件到 worktree（可选）
+      .env: .env.example            # dest: src（相对项目根路径）
+      .env.kyb: .env.kyb            # 源文件不存在自动跳过
+    proxy: http://local:3128        # 项目级代理覆盖（可选）
+    no_proxy: '*.internal.com'     # 项目级直连列表（可选，覆盖 base.no_proxy）
+    sandbox_allowed_domains:        # sandbox 额外域名白名单（可选）
+    - '*.internal.corp.com'
+    extra_prompt: "项目级提示词"    # 附加到 CLAUDE.md 的提示词（可选）
+```
 
-## FizzBuzz 学堂（愿景）
+`cp_files` 在 `kyb create --clone` 时从项目目录复制文件到 clone（容器内项目目录），是 **copy** 不是 bind mount——适合 `.env`、`.env.kyb` 等需要快照进容器、不需要实时同步的文件。默认 mount 模式下宿主直接改文件，cp_files 不生效。旧 `env_template` 仍可用，自动转为 `cp_files` 的 `.env` 项。
 
-四阶段：蒙学 → 开智 → 立身 → 传道。
-不是 boss mode，不是 veto，不是容器——是把人从零带到能独立 veto。
+三种文件操作方式的选择：
 
-校训：不要相信我。
+| 机制 | 时机 | 方式 | 适用场景 |
+|------|------|------|---------|
+| `mounts_ro` / `mounts_rw` | 容器启动 | 实时 mount | 共享代码、数据目录，需要双向同步或实时可见 |
+| `symlinks` | 容器启动 | 只读 mount（项目内相对路径） | 共享 vendor 之类只读目录，不用写绝对路径 |
+| `cp_files` | `kyb create --clone` | 复制快照到 clone | `.env`、`.env.kyb` 等一次性配置，不需要随宿主机变化 |
 
----
+然后 `kyb create <name>` 即可创建沙箱。
 
-kyb 是真的。不是因为它能自我繁殖，是因为你明天还会打开它。
+## 宿主机挂载
+
+- `~/.ssh` → 容器内 `/home/dev/.ssh` (只读)
+- `~/.gitconfig` → 容器内 `/home/dev/.gitconfig` (只读)
+- `~/.claude/settings.json` → 容器内 `/home/dev/.claude-host-settings.json` (只读)
+- `~/.config/kyb` → 容器内 `/home/dev/.config/kyb` (只读) — 容器内可发现其他项目
+- `~/.claude/skills` → 容器内 `/home/dev/.claude-skills-host` (只读)
+- `~/<当前项目路径>`（config.yml 中 path） → 容器内 `/home/dev/projects/<project>` (宿主 repo 直接 mount)
+- `~/` → 容器内 `/home/dev/projects-host/` (全目录参考，rw)
+- `/var/run/docker.sock` → 容器内 Docker 访问
+
+## 共享缓存
+
+所有容器共享命名 volume，数据持久化在宿主机，容器删除不丢失。
+
+| Volume | 挂载点 | 用途 |
+|--------|--------|------|
+| `kyb-gradle-cache` | `/home/dev/.gradle` | Gradle wrapper + 依赖 |
+| `kyb-maven-cache` | `/home/dev/.m2/repository` | Maven 依赖 |
+| `kyb-mise-cache` | `/home/dev/.local/share/mise/downloads` | mise 工具链 |
+| `kyb-pip-cache` | `/home/dev/.cache/pip` | pip 包 |
+| `kyb-swift-cache` | `/home/dev/.local/swift` | Swift 6.2 工具链（可选） |
+
+`kyb build` / `kyb create` / `kyb did create` 时自动检测并使用这些缓存。
+
+## 文本转语音（TTS）
+
+宿主机 macOS 语音服务，容器内通过 `host.docker.internal:10666` 调用。
+
+```bash
+curl -X POST http://host.docker.internal:10666/speak \
+  -H "Content-Type: application/json" -d '{"text":"你好"}'
+```
+
+详见宿主机 `kyb tts` 命令。
+
+## 代码目录
+
+`kyb create` 默认直接 mount 宿主项目 repo 到容器，不 clone 不 worktree。容器内拿到完整 git repo，所有操作（`git pull`、`rebase`、`checkout`）正常可用。
+
+```bash
+kyb create project-branch         # 宿主 repo 直接 mount（无隔离，合适大多数场景）
+kyb create --clone project-branch # git clone 独立副本（隔离模式，适合并行开发 kyb 自身）
+```
+
+**注意：** 默认 mount 模式下，容器生命周期内宿主不宜在同一 repo 上 git 操作（会冲突）。需要同时开发多个分支请用 `--clone`。
+
+## 文档
+
+- [网络问题排查](./docs/network/issues.md) — 构建和运行时所有网络依赖、失败原因和解决方法
+- [方案对比](./docs/comparison.md) — kyb vs 其他 AI 沙箱方案
+- [kyb did 设计](./docs/docker-in-docker.md) — Docker-in-Docker 场景下的容器管理子系统设计
+- [容器环境参考](./docs/container.md) — 容器内服务、网络、缓存等详细说明（面向 AI agent）
+- [Swift 沙箱测试](./docs/swift.md) — DID 容器跑 Swift 测试的方案和缓存维护
+- [终端标题](./docs/terminal-title.md) — iTerm2 标题设置调试记录
+
+## 清理
+
+```bash
+kyb rm niao                    # 删除单个沙箱
+kyb prune                     # 删除所有沙箱
+```
