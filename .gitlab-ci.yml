@@ -1,10 +1,7 @@
-image: ruby:3.3-alpine
-
 pages:
   stage: deploy
   script:
-    - gem install kramdown
-    - ruby site/generate.rb
+    - echo "Pages ready"
   artifacts:
     paths:
       - public

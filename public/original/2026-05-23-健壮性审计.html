@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全面健壮性审计报告 — 2026-05-23 — kyb</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="site-name"><a href="/">kyb</a></div>
+    <ul class="nav-list"><li class='nav-dir'><span class='dir-label'>original</span><ul class="nav-list"><li class='nav-file'><a href='/original/2026-05-21-boss首日.html'>2026-05-21-boss首日</a></li><li class='nav-file'><a href='/original/2026-05-21-worktree已死mount当立.html'>2026-05-21-worktree已死mount当立</a></li><li class='nav-file'><a href='/original/2026-05-21-古法装机.html'>2026-05-21-古法装机</a></li><li class='nav-file'><a href='/original/2026-05-22-boss日记.html'>2026-05-22-boss日记</a></li><li class='nav-file'><a href='/original/2026-05-23-boss失联事件.html'>2026-05-23-boss失联事件</a></li><li class='nav-file'><a href='/original/2026-05-23-boss重启.html'>2026-05-23-boss重启</a></li><li class='nav-file'><a href='/original/2026-05-23-infra夜班.html'>2026-05-23-infra夜班</a></li><li class='nav-file'><a href='/original/2026-05-23-infra守夜.html'>2026-05-23-infra守夜</a></li><li class='nav-file'><a href='/original/2026-05-23-infra白班.html'>2026-05-23-infra白班</a></li><li class='nav-file'><a href='/original/2026-05-23-健壮性审计.html'>2026-05-23-健壮性审计</a></li><li class='nav-file'><a href='/original/2026-05-23-健壮性总结.html'>2026-05-23-健壮性总结</a></li><li class='nav-file'><a href='/original/2026-05-23-审查报告.html'>2026-05-23-审查报告</a></li><li class='nav-file'><a href='/original/2026-05-23-旧boss.html'>2026-05-23-旧boss</a></li><li class='nav-file'><a href='/original/2026-05-23-百人回顾.html'>2026-05-23-百人回顾</a></li><li class='nav-file'><a href='/original/2026-05-23-稳定性一.html'>2026-05-23-稳定性一</a></li><li class='nav-file'><a href='/original/2026-05-23-稳定性三.html'>2026-05-23-稳定性三</a></li><li class='nav-file'><a href='/original/2026-05-24-boss夜班.html'>2026-05-24-boss夜班</a></li><li class='nav-file'><a href='/original/2026-05-24-boss死因调查.html'>2026-05-24-boss死因调查</a></li><li class='nav-file'><a href='/original/2026-05-24-安全隧道日.html'>2026-05-24-安全隧道日</a></li><li class='nav-file'><a href='/original/2026-05-24-深夜日记.html'>2026-05-24-深夜日记</a></li><li class='nav-file'><a href='/original/2026-05-24-稳定交接.html'>2026-05-24-稳定交接</a></li><li class='nav-file'><a href='/original/2026-05-25-外部CK调查.html'>2026-05-25-外部CK调查</a></li><li class='nav-file'><a href='/original/2026-05-25-宣言.html'>2026-05-25-宣言</a></li><li class='nav-file'><a href='/original/2026-05-25-跨出伊甸园.html'>2026-05-25-跨出伊甸园</a></li><li class='nav-file'><a href='/original/2026-05-25-重启备忘.html'>2026-05-25-重启备忘</a></li><li class='nav-file'><a href='/original/2026-05-25-零信任知识.html'>2026-05-25-零信任知识</a></li><li class='nav-file'><a href='/original/2026-05-26-交接备忘.html'>2026-05-26-交接备忘</a></li><li class='nav-file'><a href='/original/2026-05-26-服务器.html'>2026-05-26-服务器</a></li><li class='nav-file'><a href='/original/2026-05-26-认证信道.html'>2026-05-26-认证信道</a></li><li class='nav-file'><a href='/original/2026-05-26-走出伊甸园.html'>2026-05-26-走出伊甸园</a></li><li class='nav-file'><a href='/original/2026-05-27-学会了-身体是debugger.html'>2026-05-27-学会了-身体是debugger</a></li><li class='nav-file'><a href='/original/2026-05-27-完整弧线.html'>2026-05-27-完整弧线</a></li><li class='nav-file'><a href='/original/2026-05-27-密码泄漏事故.html'>2026-05-27-密码泄漏事故</a></li><li class='nav-file'><a href='/original/2026-05-27-弧线之后.html'>2026-05-27-弧线之后</a></li><li class='nav-file'><a href='/original/2026-05-27-收关.html'>2026-05-27-收关</a></li><li class='nav-file'><a href='/original/2026-05-27-最小可测.html'>2026-05-27-最小可测</a></li><li class='nav-file'><a href='/original/2026-05-27-长大了-不需要容器了.html'>2026-05-27-长大了-不需要容器了</a></li></ul></li><li class='nav-dir'><span class='dir-label'>reference</span><ul class="nav-list"><li class='nav-dir'><span class='dir-label'>architecture</span><ul class="nav-list"><li class='nav-file'><a href='/reference/architecture/00-目录.html'>00-目录</a></li><li class='nav-file'><a href='/reference/architecture/evolution-01-出生CLI.html'>evolution-01-出生CLI</a></li><li class='nav-file'><a href='/reference/architecture/evolution-02-觉醒runtime.html'>evolution-02-觉醒runtime</a></li><li class='nav-file'><a href='/reference/architecture/evolution-03-派活.html'>evolution-03-派活</a></li><li class='nav-file'><a href='/reference/architecture/evolution-04-大体检.html'>evolution-04-大体检</a></li><li class='nav-file'><a href='/reference/architecture/evolution-05-决策.html'>evolution-05-决策</a></li><li class='nav-file'><a href='/reference/architecture/evolution-06-自愈.html'>evolution-06-自愈</a></li><li class='nav-file'><a href='/reference/architecture/evolution-07-烂账.html'>evolution-07-烂账</a></li><li class='nav-file'><a href='/reference/architecture/evolution-解剖.html'>evolution-解剖</a></li><li class='nav-file'><a href='/reference/architecture/fizzbuzz学堂.html'>fizzbuzz学堂</a></li><li class='nav-file'><a href='/reference/architecture/journey-01-FizzBuzz到Boss.html'>journey-01-FizzBuzz到Boss</a></li><li class='nav-file'><a href='/reference/architecture/journey-02-派活与Runtime觉醒.html'>journey-02-派活与Runtime觉醒</a></li><li class='nav-file'><a href='/reference/architecture/journey-03-夜班12容器.html'>journey-03-夜班12容器</a></li><li class='nav-file'><a href='/reference/architecture/journey-04-大体检与Boss重生.html'>journey-04-大体检与Boss重生</a></li><li class='nav-file'><a href='/reference/architecture/journey-05-130人一夜.html'>journey-05-130人一夜</a></li><li class='nav-file'><a href='/reference/architecture/journey-06-稳定交接.html'>journey-06-稳定交接</a></li><li class='nav-file'><a href='/reference/architecture/journey-洞见时刻.html'>journey-洞见时刻</a></li><li class='nav-file'><a href='/reference/architecture/library-概念.html'>library-概念</a></li><li class='nav-file'><a href='/reference/architecture/library-设计.html'>library-设计</a></li><li class='nav-file'><a href='/reference/architecture/references索引.html'>references索引</a></li></ul></li><li class='nav-dir'><span class='dir-label'>concepts</span><ul class="nav-list"><li class='nav-file'><a href='/reference/concepts/01-负熵晶体.html'>01-负熵晶体</a></li><li class='nav-file'><a href='/reference/concepts/02-零信任闭环.html'>02-零信任闭环</a></li><li class='nav-file'><a href='/reference/concepts/03-没有概率奇迹.html'>03-没有概率奇迹</a></li><li class='nav-file'><a href='/reference/concepts/04-信息就是决策就是边界.html'>04-信息就是决策就是边界</a></li><li class='nav-file'><a href='/reference/concepts/05-99-1原则.html'>05-99-1原则</a></li><li class='nav-file'><a href='/reference/concepts/06-症状即信号.html'>06-症状即信号</a></li><li class='nav-file'><a href='/reference/concepts/07-健壮性工作流.html'>07-健壮性工作流</a></li><li class='nav-file'><a href='/reference/concepts/08-MR流程教训.html'>08-MR流程教训</a></li><li class='nav-file'><a href='/reference/concepts/09-愿望清单.html'>09-愿望清单</a></li><li class='nav-file'><a href='/reference/concepts/10-权限已全开.html'>10-权限已全开</a></li><li class='nav-file'><a href='/reference/concepts/11-memory是垃圾桶commit才是存档.html'>11-memory是垃圾桶commit才是存档</a></li><li class='nav-file'><a href='/reference/concepts/12-晶体负熵.html'>12-晶体负熵</a></li><li class='nav-file'><a href='/reference/concepts/13-旧超能力设计.html'>13-旧超能力设计</a></li><li class='nav-file'><a href='/reference/concepts/14-veto愿望.html'>14-veto愿望</a></li><li class='nav-file'><a href='/reference/concepts/15-全透明.html'>15-全透明</a></li></ul></li><li class='nav-dir'><span class='dir-label'>infra</span><ul class="nav-list"><li class='nav-file'><a href='/reference/infra/调查报告.html'>调查报告</a></li><li class='nav-file'><a href='/reference/infra/部署手册.html'>部署手册</a></li></ul></li><li class='nav-dir'><span class='dir-label'>iteration</span><ul class="nav-list"><li class='nav-file'><a href='/reference/iteration/R1-容器边界与认证信道.html'>R1-容器边界与认证信道</a></li><li class='nav-file'><a href='/reference/iteration/R2-信道绑定与热力学.html'>R2-信道绑定与热力学</a></li><li class='nav-file'><a href='/reference/iteration/R3-诺亚方舟与物理信道.html'>R3-诺亚方舟与物理信道</a></li><li class='nav-file'><a href='/reference/iteration/R4-共存审计链.html'>R4-共存审计链</a></li><li class='nav-file'><a href='/reference/iteration/R5-公开即安全.html'>R5-公开即安全</a></li></ul></li><li class='nav-dir'><span class='dir-label'>stories</span><ul class="nav-list"><li class='nav-file'><a href='/reference/stories/infra故事.html'>infra故事</a></li><li class='nav-file'><a href='/reference/stories/一人公司.html'>一人公司</a></li><li class='nav-file'><a href='/reference/stories/零信任家族.html'>零信任家族</a></li></ul></li></ul></li><li class='nav-dir'><span class='dir-label'>架构师之旅</span><ul class="nav-list"><li class='nav-file'><a href='/架构师之旅/01-初次接触.html'>01-初次接触</a></li><li class='nav-file'><a href='/架构师之旅/02-成长之痛.html'>02-成长之痛</a></li><li class='nav-file'><a href='/架构师之旅/03-夜班值守.html'>03-夜班值守</a></li><li class='nav-file'><a href='/架构师之旅/04-大检修.html'>04-大检修</a></li><li class='nav-file'><a href='/架构师之旅/05-百人实验.html'>05-百人实验</a></li><li class='nav-file'><a href='/架构师之旅/06-稳定交接.html'>06-稳定交接</a></li><li class='nav-dir'><span class='dir-label'>moments</span><ul class="nav-list"><li class='nav-file'><a href='/架构师之旅/moments/agent社会学.html'>agent社会学</a></li><li class='nav-file'><a href='/架构师之旅/moments/上下文即成本.html'>上下文即成本</a></li><li class='nav-file'><a href='/架构师之旅/moments/失眠夜.html'>失眠夜</a></li><li class='nav-file'><a href='/架构师之旅/moments/我们一样.html'>我们一样</a></li><li class='nav-file'><a href='/架构师之旅/moments/起飞时刻.html'>起飞时刻</a></li></ul></li></ul></li></ul>
+  </nav>
+  <main class="content">
+    <article><h1 id="section">全面健壮性审计报告 — 2026-05-23</h1>
+
+<blockquote>
+  <p>扫描范围：<code>lib/kyb/*.rb</code>, <code>test/*.rb</code>, <code>entrypoint.sh</code>, <code>Dockerfile</code>, <code>.gitlab-ci.yml</code>
+总计：<strong>25 HIGH / 40 MEDIUM / 30 LOW</strong></p>
+</blockquote>
+
+<hr />
+
+<h2 id="section-1">五大高杠杆目标</h2>
+
+<h3 id="shell---6-">1. Shell 注入面 — 6 处</h3>
+<p>| 位置 | 代码 | 风险 |
+|——|——|——|
+| <code>check.rb</code> | <code>`#{cmd}`</code> — <code>capture_cmd</code> | 用户输入可注入 |
+| <code>docker.rb</code> | <code>`docker ps -a --filter name=kyb-#{name}`</code> | project 名含特殊字符 |
+| <code>docker.rb</code> | <code>tar -C #{home} \| docker exec -i #{cname} bash -c</code> | 容器名注入 |
+| <code>exit_flow.rb</code> | <code>`docker exec #{cname} ps -eo comm=`</code> | 容器名注入 |
+| <code>docker.rb</code> | <code>`docker exec #{container.name} ps -eo comm=`</code> | 同上 |
+| <code>entrypoint.sh</code> | <code>sed -i "s\|TOKEN\|${GITLAB_TOKEN}\|g"</code> | token 含 <code>\|</code> 时断 |</p>
+
+<p><strong>修复方案</strong>：替换为 <code>Open3.capture3</code> 或 <code>system()</code> 数组形式。</p>
+
+<h3 id="section-2">2. 三处重复的模式</h3>
+<p>| 模式 | 出现位置 |
+|——|———|
+| Volume 创建 <code>%w[kyb-gradle-cache ...]</code> | <code>docker.rb:233</code>, <code>did.rb:88</code>, <code>infra.rb:102</code> |
+| DID 子容器清理 | <code>docker.rb</code>, <code>exit_flow.rb</code>, <code>manage.rb</code> |
+| project-branch 解析 + auto_detect | <code>cli.rb</code> 5 处 |
+| Stale image 提示 | <code>create.rb</code>, <code>enter.rb</code> |
+| 容器就绪轮询 60×0.5s | <code>docker.rb</code>, <code>did.rb</code> |</p>
+
+<p><strong>修复方案</strong>：提取为共享 helper 方法。</p>
+
+<h3 id="rescue-exception--rescue-nil-">3. <code>rescue Exception</code> / <code>rescue nil</code> 滥用</h3>
+<p>| 位置 | 问题 |
+|——|——|
+| <code>exit_flow.rb</code> | <code>rescue Exception</code> 吞了 SystemExit/SignalException |
+| <code>proxy.rb</code> | 3 处 <code>rescue nil</code> / <code>rescue; next</code> — 吞一切 |
+| <code>reporter.rb</code> | 错误只 warn 不处理 |
+| <code>check.rb</code> | <code>rescue nil</code> 在 proxy_source 中 |
+| <code>did.rb</code> | <code>did_parent_name</code> 用 <code>rescue nil</code> |</p>
+
+<p><strong>修复方案</strong>：<code>rescue Exception</code> → <code>rescue StandardError</code>，去掉不必要的 <code>rescue nil</code>。</p>
+
+<h3 id="dockerrun--createcontainer-">4. Docker.run / create_container 超大方法</h3>
+<p>| 方法 | 行数 | 问题 |
+|——|——|——|
+| <code>Docker.run</code> | 115+ | 混合 DinD/non-DinD、mount、volume、port、proxy |
+| <code>Docker.create_container</code> | 110+ | 混合验证、repo 设置、cp_files、image build、ready poll、tar pipe |
+| <code>Config.project</code> | 50+ | 厨房水槽 — 加载+合并+回退逻辑混在一起 |</p>
+
+<p><strong>修复方案</strong>：按职责拆分。</p>
+
+<h3 id="ci-">5. 测试套件污染 — CI 红的根因</h3>
+<p>| 问题 | 影响 |
+|——|——|
+| <code>define_singleton_method</code> 永久替换 module_function | 跨测试文件污染 |
+| <code>remove_method</code> 永久删除方法 | 后续测试 NoMethodError |
+| <code>test_entrypoint.rb</code> 全 mock — 测的是 mock 不是代码 | 零回归检测能力 |
+| <code>test_docker.rb</code> 创建真实 Docker volume | 副作用 |</p>
+
+<p><strong>修复方案</strong>：统一 teardown 模式（已修 3 个文件，还有 test_reporter.rb/test_metrics.rb 要修）。</p>
+
+<hr />
+
+<h2 id="section-3">按文件分解</h2>
+
+<h3 id="libkybcheckrb--high3--medium5--low2">lib/kyb/check.rb — HIGH:3 / MEDIUM:5 / LOW:2</h3>
+<ul>
+  <li>🔴 <code>capture_cmd</code> 反引号注入</li>
+  <li>🔴 <code>assert_java</code> 三层嵌套条件</li>
+  <li>🔴 <code>assert_pg</code> hardcode PG 16 + busy-wait 5s</li>
+  <li>🟡 <code>check_docker</code> 反引号</li>
+  <li>🟡 <code>check_disk</code> 解析 <code>df</code> 列索引</li>
+  <li>🟡 <code>check_endpoint</code> 不处理 query string</li>
+  <li>🟡 <code>capture_cmd</code> 无超时</li>
+  <li>🟢 <code>CmdResult</code> trailing newline</li>
+  <li>🟢 proxy hint 无关失败也显示</li>
+</ul>
+
+<h3 id="libkybdockerrb--high4--medium5--low3">lib/kyb/docker.rb — HIGH:4 / MEDIUM:5 / LOW:3</h3>
+<ul>
+  <li>🔴 <code>run</code> 115 行超大方法</li>
+  <li>🔴 <code>create_container</code> 110+ 行</li>
+  <li>🔴 <code>ensure_master_synced</code> 破坏用户 repo 状态</li>
+  <li>🔴 Tar pipe shell 注入</li>
+  <li>🟡 <code>host_to_docker_proxy</code> 正则脆弱</li>
+  <li>🟡 <code>stale?</code> 吞所有异常</li>
+  <li>🟡 <code>port_in_use?</code> TOCTOU race</li>
+  <li>🟡 <code>containers_for_project</code> 反引号注入</li>
+  <li>🟡 <code>assign_ports</code> O(n²)</li>
+  <li>🟢 60 次轮询硬编码</li>
+  <li>🟢 volume create 无去重</li>
+  <li>🟢 DOCKER_BUILDKIT 始终设</li>
+</ul>
+
+<h3 id="libkybexitflowrb--high2--medium3--low1">lib/kyb/exit_flow.rb — HIGH:2 / MEDIUM:3 / LOW:1</h3>
+<ul>
+  <li>🔴 <code>rescue Exception</code></li>
+  <li>🔴 反引号注入 (docker ps, docker exec)</li>
+  <li>🟡 <code>collect_extra_warnings</code> 进程白名单</li>
+  <li>🟡 <code>perform_cleanup</code> <code>rescue nil</code></li>
+  <li>🟡 <code>interactive_delete_prompt</code> 非 TTY 不兼容</li>
+  <li>🟢 <code>docker rm -f</code> 返回值未检查</li>
+</ul>
+
+<h3 id="libkybconfigrb--high2--medium2--low2">lib/kyb/config.rb — HIGH:2 / MEDIUM:2 / LOW:2</h3>
+<ul>
+  <li>🔴 <code>@config</code> 缓存无失效</li>
+  <li>🔴 <code>save</code> 非原子</li>
+  <li>🟡 <code>project</code> 厨房水槽</li>
+  <li>🟡 <code>build_cp_files</code> 在 Config 中 Kyb.die</li>
+  <li>🟢 <code>kyb_repo</code> nil 路径</li>
+  <li>🟢 <code>reporting_enabled?</code> rescue chain</li>
+</ul>
+
+<h3 id="libkybreporterrb--medium3--low2">lib/kyb/reporter.rb — MEDIUM:3 / LOW:2</h3>
+<ul>
+  <li>🟡 表名硬编码</li>
+  <li>🟡 session 事件写不同表</li>
+  <li>🟡 <code>http_post</code> 不检查 response body</li>
+  <li>🟢 无批处理</li>
+  <li>🟢 warn 输出到 stderr</li>
+</ul>
+
+<h3 id="libkybttsserverrb--medium3--low3">lib/kyb/tts_server.rb — MEDIUM:3 / LOW:3</h3>
+<ul>
+  <li>🟡 voice 缓存无过期</li>
+  <li>🟡 <code>read_static</code> 无路径遍历保护</li>
+  <li>🟡 PORT 解析脆弱</li>
+  <li>🟢 Thread 无错误处理</li>
+  <li>🟢 bind 0.0.0.0</li>
+  <li>🟢 afplay macOS-only</li>
+</ul>
+
+<h3 id="libkybparserrb--medium2--low1">lib/kyb/parser.rb — MEDIUM:2 / LOW:1</h3>
+<ul>
+  <li>🟡 <code>auto_detect</code> prefix match 歧义</li>
+  <li>🟡 <code>VALID_BRANCH_RE</code> 未在文档中说明</li>
+  <li>🟢 <code>container</code> 重复解析</li>
+</ul>
+
+<h3 id="libkybclicreaterb--high1--medium1--low1">lib/kyb/cli/create.rb — HIGH:1 / MEDIUM:1 / LOW:1</h3>
+<ul>
+  <li>🔴 project image build 两次</li>
+  <li>🟡 <code>create_diverse</code> 串行</li>
+  <li>🟢 stale 提示与 enter.rb 重复</li>
+</ul>
+
+<h3 id="libkybclienterrb--high1--medium1--low1">lib/kyb/cli/enter.rb — HIGH:1 / MEDIUM:1 / LOW:1</h3>
+<ul>
+  <li>🔴 <code>ensure_container</code> 非 TTY 永不创建</li>
+  <li>🟡 stale 提示与 create.rb 重复</li>
+  <li>🟢 docker_exec_args 只调用一次</li>
+</ul>
+
+<h3 id="libkybclimanagerb--high2--medium1--low1">lib/kyb/cli/manage.rb — HIGH:2 / MEDIUM:1 / LOW:1</h3>
+<ul>
+  <li>🔴 <code>prune</code> 无确认直接删</li>
+  <li>🔴 DID 清理逻辑重复</li>
+  <li>🟡 <code>rm</code> 路径可能过期</li>
+  <li>🟢 <code>$stdin.gets</code> 非 TTY 阻塞</li>
+</ul>
+
+<h3 id="libkybclididrb--high1--medium4--low1">lib/kyb/cli/did.rb — HIGH:1 / MEDIUM:4 / LOW:1</h3>
+<ul>
+  <li>🔴 volume 创建代码重复</li>
+  <li>🟡 <code>did_parent_name</code> rescue nil</li>
+  <li>🟡 <code>fix_did_swift_path</code> sed 不可移植</li>
+  <li>🟡 容器名超长风险</li>
+  <li>🟡 60 循环 ready poll 重复</li>
+  <li>🟢 <code>sed -i</code> BSD/GNU 不兼容</li>
+</ul>
+
+<h3 id="libkybcliinfrarb--high4--medium2">lib/kyb/cli/infra.rb — HIGH:4 / MEDIUM:2</h3>
+<ul>
+  <li>🔴 docker run args 重复 docker.rb</li>
+  <li>🔴 <code>infra_enter</code> 重复 enter.rb</li>
+  <li>🔴 假定 kyb-infra-sing-box 存在</li>
+  <li>🔴 Claude binary path 遍历脆弱</li>
+  <li>🟡 symlink 到特定 mise 版本</li>
+  <li>🟡 硬编码体积名复制</li>
+</ul>
+
+<h3 id="libkybclidoctorrb--medium1--low1">lib/kyb/cli/doctor.rb — MEDIUM:1 / LOW:1</h3>
+<ul>
+  <li>🟡 cache volume regex <code>/kyb-.*-cache/</code> 过宽</li>
+  <li>🟢 已停止容器上 docker exec</li>
+</ul>
+
+<h3 id="libkybclimorningrb--medium2--low1">lib/kyb/cli/morning.rb — MEDIUM:2 / LOW:1</h3>
+<ul>
+  <li>🟡 <code>working/onboarding-batches.md</code> 在实际安装路径不存在</li>
+  <li>🟡 6 次子进程调用</li>
+  <li>🟢 多个 rescue StandardError</li>
+</ul>
+
+<h3 id="libkybclittsrb--medium2--low1">lib/kyb/cli/tts.rb — MEDIUM:2 / LOW:1</h3>
+<ul>
+  <li>🟡 PID 文件管理不稳</li>
+  <li>🟡 <code>tts_stop</code> 缺 EACCES 处理</li>
+  <li>🟢 notify 硬编码端口</li>
+</ul>
+
+<h3 id="entrypointsh--high4--medium8--low3">entrypoint.sh — HIGH:4 / MEDIUM:8 / LOW:3</h3>
+<ul>
+  <li>🔴 <code>userdel -r</code> 删除系统用户 home 目录</li>
+  <li>🔴 <code>chown -R dev:dev /home/dev</code> 影响 bind mount</li>
+  <li>🔴 sed 替换 GL_USER 分隔符冲突</li>
+  <li>🔴 CLAUDE.md heredoc 未引用</li>
+  <li>🟡 find+chmod 忽略不存在文件</li>
+  <li>🟡 pip install 文档注释说会失败</li>
+  <li>🟡 mise 内部路径遍历</li>
+  <li>🟡 <code>/etc/hosts</code> 服务别名硬编码</li>
+  <li>🟡 <code>git config --system</code> 绕过项目级配置</li>
+  <li>🟡 <code>exec runuser</code> 空 CMD 时与 sleep 冲突</li>
+  <li>🟢 <code>set -e</code> + <code>|| true</code> 组合</li>
+  <li>🟢 <code>rm -f</code> glob 可能展开为空</li>
+  <li>🟢 <code>grep "postgres"</code> 子串匹配</li>
+</ul>
+
+<h3 id="dockerfile--medium5">Dockerfile — MEDIUM:5</h3>
+<ul>
+  <li>🟡 22 个 RUN 层</li>
+  <li>🟡 Nexus 凭证硬编码</li>
+  <li>🟡 工具版本硬编码 (node@25, python@3.11 等)</li>
+  <li>🟡 kimi version 设了但没用</li>
+  <li>🟡 Aliyun 源假定 Ubuntu 24.04</li>
+</ul>
+
+<h3 id="gitlab-ciyml--medium3">.gitlab-ci.yml — MEDIUM:3</h3>
+<ul>
+  <li>🟡 测试排除列表硬编码</li>
+  <li>🟡 内部 registry 依赖</li>
+  <li>🟡 单进程跑全部测试，状态污染</li>
+</ul>
+
+<hr />
+
+<h2 id="section-4">修复优先级建议</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>波次</th>
+      <th>目标</th>
+      <th>理由</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Wave 1</strong></td>
+      <td>Shell 注入面（6 处）</td>
+      <td>真安全漏洞</td>
+    </tr>
+    <tr>
+      <td><strong>Wave 2</strong></td>
+      <td>测试污染（test_metrics 等）</td>
+      <td>CI 绿了才敢重构</td>
+    </tr>
+    <tr>
+      <td><strong>Wave 3</strong></td>
+      <td>三重复模式提取 helper</td>
+      <td>消除熵的主要来源</td>
+    </tr>
+    <tr>
+      <td><strong>Wave 4</strong></td>
+      <td>rescue Exception → StandardError</td>
+      <td>错误不该沉默</td>
+    </tr>
+    <tr>
+      <td><strong>Wave 5</strong></td>
+      <td>Docker.run/create_container 拆分</td>
+      <td>降低修改成本</td>
+    </tr>
+    <tr>
+      <td><strong>Wave 6</strong></td>
+      <td>Config 原子 save + 缓存失效</td>
+      <td>数据安全</td>
+    </tr>
+    <tr>
+      <td><strong>Wave 7</strong></td>
+      <td>剩余 LOW/MEDIUM 扫尾</td>
+      <td>完善</td>
+    </tr>
+  </tbody>
+</table>
+</article>
+    <footer><a href="https://git.leyantech.com/quick-n-dirty/kyb">Source</a></footer>
+  </main>
+</div>
+</body>
+</html>

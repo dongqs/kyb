@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Incident Report: kyb-infra-boss Unreachable via Feishu — kyb</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="site-name"><a href="/">kyb</a></div>
+    <ul class="nav-list"><li class='nav-dir'><span class='dir-label'>original</span><ul class="nav-list"><li class='nav-file'><a href='/original/2026-05-21-boss首日.html'>2026-05-21-boss首日</a></li><li class='nav-file'><a href='/original/2026-05-21-worktree已死mount当立.html'>2026-05-21-worktree已死mount当立</a></li><li class='nav-file'><a href='/original/2026-05-21-古法装机.html'>2026-05-21-古法装机</a></li><li class='nav-file'><a href='/original/2026-05-22-boss日记.html'>2026-05-22-boss日记</a></li><li class='nav-file'><a href='/original/2026-05-23-boss失联事件.html'>2026-05-23-boss失联事件</a></li><li class='nav-file'><a href='/original/2026-05-23-boss重启.html'>2026-05-23-boss重启</a></li><li class='nav-file'><a href='/original/2026-05-23-infra夜班.html'>2026-05-23-infra夜班</a></li><li class='nav-file'><a href='/original/2026-05-23-infra守夜.html'>2026-05-23-infra守夜</a></li><li class='nav-file'><a href='/original/2026-05-23-infra白班.html'>2026-05-23-infra白班</a></li><li class='nav-file'><a href='/original/2026-05-23-健壮性审计.html'>2026-05-23-健壮性审计</a></li><li class='nav-file'><a href='/original/2026-05-23-健壮性总结.html'>2026-05-23-健壮性总结</a></li><li class='nav-file'><a href='/original/2026-05-23-审查报告.html'>2026-05-23-审查报告</a></li><li class='nav-file'><a href='/original/2026-05-23-旧boss.html'>2026-05-23-旧boss</a></li><li class='nav-file'><a href='/original/2026-05-23-百人回顾.html'>2026-05-23-百人回顾</a></li><li class='nav-file'><a href='/original/2026-05-23-稳定性一.html'>2026-05-23-稳定性一</a></li><li class='nav-file'><a href='/original/2026-05-23-稳定性三.html'>2026-05-23-稳定性三</a></li><li class='nav-file'><a href='/original/2026-05-24-boss夜班.html'>2026-05-24-boss夜班</a></li><li class='nav-file'><a href='/original/2026-05-24-boss死因调查.html'>2026-05-24-boss死因调查</a></li><li class='nav-file'><a href='/original/2026-05-24-安全隧道日.html'>2026-05-24-安全隧道日</a></li><li class='nav-file'><a href='/original/2026-05-24-深夜日记.html'>2026-05-24-深夜日记</a></li><li class='nav-file'><a href='/original/2026-05-24-稳定交接.html'>2026-05-24-稳定交接</a></li><li class='nav-file'><a href='/original/2026-05-25-外部CK调查.html'>2026-05-25-外部CK调查</a></li><li class='nav-file'><a href='/original/2026-05-25-宣言.html'>2026-05-25-宣言</a></li><li class='nav-file'><a href='/original/2026-05-25-跨出伊甸园.html'>2026-05-25-跨出伊甸园</a></li><li class='nav-file'><a href='/original/2026-05-25-重启备忘.html'>2026-05-25-重启备忘</a></li><li class='nav-file'><a href='/original/2026-05-25-零信任知识.html'>2026-05-25-零信任知识</a></li><li class='nav-file'><a href='/original/2026-05-26-交接备忘.html'>2026-05-26-交接备忘</a></li><li class='nav-file'><a href='/original/2026-05-26-服务器.html'>2026-05-26-服务器</a></li><li class='nav-file'><a href='/original/2026-05-26-认证信道.html'>2026-05-26-认证信道</a></li><li class='nav-file'><a href='/original/2026-05-26-走出伊甸园.html'>2026-05-26-走出伊甸园</a></li><li class='nav-file'><a href='/original/2026-05-27-学会了-身体是debugger.html'>2026-05-27-学会了-身体是debugger</a></li><li class='nav-file'><a href='/original/2026-05-27-完整弧线.html'>2026-05-27-完整弧线</a></li><li class='nav-file'><a href='/original/2026-05-27-密码泄漏事故.html'>2026-05-27-密码泄漏事故</a></li><li class='nav-file'><a href='/original/2026-05-27-弧线之后.html'>2026-05-27-弧线之后</a></li><li class='nav-file'><a href='/original/2026-05-27-收关.html'>2026-05-27-收关</a></li><li class='nav-file'><a href='/original/2026-05-27-最小可测.html'>2026-05-27-最小可测</a></li><li class='nav-file'><a href='/original/2026-05-27-长大了-不需要容器了.html'>2026-05-27-长大了-不需要容器了</a></li></ul></li><li class='nav-dir'><span class='dir-label'>reference</span><ul class="nav-list"><li class='nav-dir'><span class='dir-label'>architecture</span><ul class="nav-list"><li class='nav-file'><a href='/reference/architecture/00-目录.html'>00-目录</a></li><li class='nav-file'><a href='/reference/architecture/evolution-01-出生CLI.html'>evolution-01-出生CLI</a></li><li class='nav-file'><a href='/reference/architecture/evolution-02-觉醒runtime.html'>evolution-02-觉醒runtime</a></li><li class='nav-file'><a href='/reference/architecture/evolution-03-派活.html'>evolution-03-派活</a></li><li class='nav-file'><a href='/reference/architecture/evolution-04-大体检.html'>evolution-04-大体检</a></li><li class='nav-file'><a href='/reference/architecture/evolution-05-决策.html'>evolution-05-决策</a></li><li class='nav-file'><a href='/reference/architecture/evolution-06-自愈.html'>evolution-06-自愈</a></li><li class='nav-file'><a href='/reference/architecture/evolution-07-烂账.html'>evolution-07-烂账</a></li><li class='nav-file'><a href='/reference/architecture/evolution-解剖.html'>evolution-解剖</a></li><li class='nav-file'><a href='/reference/architecture/fizzbuzz学堂.html'>fizzbuzz学堂</a></li><li class='nav-file'><a href='/reference/architecture/journey-01-FizzBuzz到Boss.html'>journey-01-FizzBuzz到Boss</a></li><li class='nav-file'><a href='/reference/architecture/journey-02-派活与Runtime觉醒.html'>journey-02-派活与Runtime觉醒</a></li><li class='nav-file'><a href='/reference/architecture/journey-03-夜班12容器.html'>journey-03-夜班12容器</a></li><li class='nav-file'><a href='/reference/architecture/journey-04-大体检与Boss重生.html'>journey-04-大体检与Boss重生</a></li><li class='nav-file'><a href='/reference/architecture/journey-05-130人一夜.html'>journey-05-130人一夜</a></li><li class='nav-file'><a href='/reference/architecture/journey-06-稳定交接.html'>journey-06-稳定交接</a></li><li class='nav-file'><a href='/reference/architecture/journey-洞见时刻.html'>journey-洞见时刻</a></li><li class='nav-file'><a href='/reference/architecture/library-概念.html'>library-概念</a></li><li class='nav-file'><a href='/reference/architecture/library-设计.html'>library-设计</a></li><li class='nav-file'><a href='/reference/architecture/references索引.html'>references索引</a></li></ul></li><li class='nav-dir'><span class='dir-label'>concepts</span><ul class="nav-list"><li class='nav-file'><a href='/reference/concepts/01-负熵晶体.html'>01-负熵晶体</a></li><li class='nav-file'><a href='/reference/concepts/02-零信任闭环.html'>02-零信任闭环</a></li><li class='nav-file'><a href='/reference/concepts/03-没有概率奇迹.html'>03-没有概率奇迹</a></li><li class='nav-file'><a href='/reference/concepts/04-信息就是决策就是边界.html'>04-信息就是决策就是边界</a></li><li class='nav-file'><a href='/reference/concepts/05-99-1原则.html'>05-99-1原则</a></li><li class='nav-file'><a href='/reference/concepts/06-症状即信号.html'>06-症状即信号</a></li><li class='nav-file'><a href='/reference/concepts/07-健壮性工作流.html'>07-健壮性工作流</a></li><li class='nav-file'><a href='/reference/concepts/08-MR流程教训.html'>08-MR流程教训</a></li><li class='nav-file'><a href='/reference/concepts/09-愿望清单.html'>09-愿望清单</a></li><li class='nav-file'><a href='/reference/concepts/10-权限已全开.html'>10-权限已全开</a></li><li class='nav-file'><a href='/reference/concepts/11-memory是垃圾桶commit才是存档.html'>11-memory是垃圾桶commit才是存档</a></li><li class='nav-file'><a href='/reference/concepts/12-晶体负熵.html'>12-晶体负熵</a></li><li class='nav-file'><a href='/reference/concepts/13-旧超能力设计.html'>13-旧超能力设计</a></li><li class='nav-file'><a href='/reference/concepts/14-veto愿望.html'>14-veto愿望</a></li><li class='nav-file'><a href='/reference/concepts/15-全透明.html'>15-全透明</a></li></ul></li><li class='nav-dir'><span class='dir-label'>infra</span><ul class="nav-list"><li class='nav-file'><a href='/reference/infra/调查报告.html'>调查报告</a></li><li class='nav-file'><a href='/reference/infra/部署手册.html'>部署手册</a></li></ul></li><li class='nav-dir'><span class='dir-label'>iteration</span><ul class="nav-list"><li class='nav-file'><a href='/reference/iteration/R1-容器边界与认证信道.html'>R1-容器边界与认证信道</a></li><li class='nav-file'><a href='/reference/iteration/R2-信道绑定与热力学.html'>R2-信道绑定与热力学</a></li><li class='nav-file'><a href='/reference/iteration/R3-诺亚方舟与物理信道.html'>R3-诺亚方舟与物理信道</a></li><li class='nav-file'><a href='/reference/iteration/R4-共存审计链.html'>R4-共存审计链</a></li><li class='nav-file'><a href='/reference/iteration/R5-公开即安全.html'>R5-公开即安全</a></li></ul></li><li class='nav-dir'><span class='dir-label'>stories</span><ul class="nav-list"><li class='nav-file'><a href='/reference/stories/infra故事.html'>infra故事</a></li><li class='nav-file'><a href='/reference/stories/一人公司.html'>一人公司</a></li><li class='nav-file'><a href='/reference/stories/零信任家族.html'>零信任家族</a></li></ul></li></ul></li><li class='nav-dir'><span class='dir-label'>架构师之旅</span><ul class="nav-list"><li class='nav-file'><a href='/架构师之旅/01-初次接触.html'>01-初次接触</a></li><li class='nav-file'><a href='/架构师之旅/02-成长之痛.html'>02-成长之痛</a></li><li class='nav-file'><a href='/架构师之旅/03-夜班值守.html'>03-夜班值守</a></li><li class='nav-file'><a href='/架构师之旅/04-大检修.html'>04-大检修</a></li><li class='nav-file'><a href='/架构师之旅/05-百人实验.html'>05-百人实验</a></li><li class='nav-file'><a href='/架构师之旅/06-稳定交接.html'>06-稳定交接</a></li><li class='nav-dir'><span class='dir-label'>moments</span><ul class="nav-list"><li class='nav-file'><a href='/架构师之旅/moments/agent社会学.html'>agent社会学</a></li><li class='nav-file'><a href='/架构师之旅/moments/上下文即成本.html'>上下文即成本</a></li><li class='nav-file'><a href='/架构师之旅/moments/失眠夜.html'>失眠夜</a></li><li class='nav-file'><a href='/架构师之旅/moments/我们一样.html'>我们一样</a></li><li class='nav-file'><a href='/架构师之旅/moments/起飞时刻.html'>起飞时刻</a></li></ul></li></ul></li></ul>
+  </nav>
+  <main class="content">
+    <article><h1 id="incident-report-kyb-infra-boss-unreachable-via-feishu">Incident Report: kyb-infra-boss Unreachable via Feishu</h1>
+
+<h2 id="section">基本信息</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>项目</th>
+      <th>值</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>日期</td>
+      <td>2026-05-23</td>
+    </tr>
+    <tr>
+      <td>报告人</td>
+      <td>kyb-infra-boss</td>
+    </tr>
+    <tr>
+      <td>状态</td>
+      <td>草稿（待补充客观事实）</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="utc8">时间线（UTC+8）</h2>
+
+<h3 id="t23000008002026-05-23t2340000800--">2026-05-23T23:00:00+08:00–2026-05-23T23:40:00+08:00 — 系统上线</h3>
+<ul>
+  <li>2026-05-23T23:25:00+08:00: kyb-infra-boss 容器启动，读设计文档，完成环境评估</li>
+  <li>2026-05-23T23:35:00+08:00: 飞书 Open API 直调测试通过（<code>code: 0</code>），消息发送到 kyb-kindergarden 群</li>
+  <li>2026-05-23T23:40:00+08:00: 在 Claude Code 中创建 3 个 recurring cron job (Patrol-1/2/3)，每 15 分钟交错触发</li>
+  <li>2026-05-23T23:40:00+08:00: 写入 <code>docs/infra/5min-patrol-guide.md</code>，规定巡检步骤包括”看飞书有没有用户新消息”</li>
+</ul>
+
+<h3 id="t23400008002026-05-24t1600000800--">2026-05-23T23:40:00+08:00–2026-05-24T16:00:00+08:00 — 无人值守期间</h3>
+<ul>
+  <li>Patrol cron jobs 按计划持续触发，每次触发均：
+    <ul>
+      <li>派巡检 agent 执行环境检查</li>
+      <li>写心跳文件</li>
+      <li>发飞书消息到 kyb-kindergarden 群汇报状态</li>
+    </ul>
+  </li>
+  <li>期间巡检结果：15/15 容器全部正常，磁盘 28%，代理 GitHub/GitLab 可达</li>
+  <li>cc-connect 容器正常运行，Docker healthcheck 状态 <code>healthy</code></li>
+</ul>
+
+<h3 id="t11420008002026-05-23t1600000800--">~2026-05-23T11:42:00+08:00–2026-05-23T16:00:00+08:00 — 用户尝试联系（从飞书日志提取）</h3>
+<p>以下消息由用户在 kyb-kindergarden 群中发送或触发：</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>时间</th>
+      <th>消息</th>
+      <th>发送者</th>
+      <th>cc-connect 处理结果</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>2026-05-23T11:42:00+08:00</td>
+      <td>“有一个5分钟定时巡检指南你找找自己开起来”</td>
+      <td>用户</td>
+      <td>cc-connect 收到，未 @bot，忽略</td>
+    </tr>
+    <tr>
+      <td>2026-05-23T11:42:00+08:00</td>
+      <td>@机器人 “hihi”</td>
+      <td>用户</td>
+      <td>cc-connect 收到，session 正常回复</td>
+    </tr>
+    <tr>
+      <td>2026-05-23T11:59:00+08:00</td>
+      <td>用户发言（群消息）</td>
+      <td>用户</td>
+      <td>cc-connect 收到，未 @bot，忽略</td>
+    </tr>
+    <tr>
+      <td>2026-05-23T17:36:00+08:00</td>
+      <td>@机器人（仅 @，无文字）</td>
+      <td>用户</td>
+      <td>cc-connect WebSocket 收到，未产生 INFO 日志</td>
+    </tr>
+    <tr>
+      <td>2026-05-23T17:37:00+08:00</td>
+      <td><code>/start @_user_1</code></td>
+      <td>用户</td>
+      <td>cc-connect 正常处理，Claude 回复 “Unknown command: /start”</td>
+    </tr>
+    <tr>
+      <td>2026-05-23T19:42:00+08:00</td>
+      <td>@机器人 “hihi”</td>
+      <td>用户</td>
+      <td>cc-connect 正常处理，Claude 回复</td>
+    </tr>
+    <tr>
+      <td>2026-05-23T19:59:00+08:00</td>
+      <td>@机器人 “在吗”</td>
+      <td>用户</td>
+      <td>cc-connect 正常处理，Claude 回复 “在呢！”</td>
+    </tr>
+    <tr>
+      <td>2026-05-23T20:03:00+08:00</td>
+      <td>@机器人 “还是你吗”</td>
+      <td>用户</td>
+      <td>cc-connect 正常处理，Claude 回复 “是我呀，没换人”</td>
+    </tr>
+    <tr>
+      <td>2026-05-23T20:04:00+08:00</td>
+      <td>@机器人 “ok那不是你…”</td>
+      <td>用户</td>
+      <td>cc-connect 正常处理，Claude 回复</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="t1600000800--">&gt;2026-05-23T16:00:00+08:00 — 用户返回，测试通信链路</h3>
+<ul>
+  <li>用户创建 GitLab issue #114，标题”!!!!!非常重要P0事故KYB-INFRA-BOSS”，标签 CRITICAL</li>
+  <li>issue 描述提到”导致我不在电脑前的3个小时都找不到你”</li>
+  <li>用户尝试通过 @机器人 让 cc-connect 中的 Claude 执行 shell 命令来找 kyb-infra-boss
+    <ul>
+      <li>cc-connect Claude 回应：”The shell really isn’t available. I can’t run any bash commands at all”</li>
+    </ul>
+  </li>
+  <li>通信链路测试结果：
+    <ul>
+      <li>用户 → kyb-infra-boss（本会话）: 无可行路径</li>
+      <li>kyb-infra-boss → 用户（飞书 API）: 通</li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="section-1">症状</h2>
+
+<ol>
+  <li>用户在飞书群中通过 @机器人 发送的消息由 cc-connect 处理，回复回到飞书群，但不转发到 kyb-infra-boss 会话</li>
+  <li>cc-connect 中的 Claude Code 实例尝试执行 shell 命令时失败（无 shell 工具访问权限）</li>
+  <li>普通群消息（不 @机器人）被 cc-connect 忽略</li>
+  <li>GitLab issue 被创建后，kyb-infra-boss 无自动感知机制</li>
+  <li>巡检 agent 检查飞书消息但不向 kyb-infra-boss 汇报用户消息内容</li>
+</ol>
+
+<h2 id="section-2">已知通信路径状态</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>路径</th>
+      <th>方向</th>
+      <th>状态</th>
+      <th>最后确认时间</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>kyb-infra-boss → 飞书群 (Open API)</td>
+      <td>出</td>
+      <td>🟢 通</td>
+      <td>2026-05-23T16:25:00+08:00</td>
+    </tr>
+    <tr>
+      <td>飞书群 @机器人 → cc-connect Claude</td>
+      <td>入</td>
+      <td>🟢 通</td>
+      <td>2026-05-23T20:04:00+08:00</td>
+    </tr>
+    <tr>
+      <td>cc-connect Claude → kyb-infra-boss 会话</td>
+      <td>入</td>
+      <td>🔴 不通</td>
+      <td>2026-05-23T20:04:00+08:00</td>
+    </tr>
+    <tr>
+      <td>飞书群消息 → kyb-infra-boss 会话</td>
+      <td>入</td>
+      <td>🔴 不通</td>
+      <td>2026-05-23T16:32:00+08:00</td>
+    </tr>
+    <tr>
+      <td>GitLab issue → kyb-infra-boss 会话</td>
+      <td>入</td>
+      <td>🔴 不通</td>
+      <td>2026-05-23T16:33:00+08:00</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="section-3">复现结果</h2>
+
+<p>已于 2026-05-23T16:30:00+08:00 手动复现确认：</p>
+
+<ol>
+  <li>✅ 用户在 kyb-kindergarden 群中 @机器人 发送消息 → cc-connect 收到，Claude 正常回复</li>
+  <li>✅ cc-connect Claude 回复回到飞书群 → 用户可见</li>
+  <li>✅ cc-connect Claude 无法执行 shell 命令 → 返回 “shell really isn’t available”</li>
+  <li>✅ 用户尝试允许权限请求 → 允许后仍无法执行命令</li>
+  <li>✅ kyb-infra-boss 会话未收到任何通知 → 全程静默</li>
+  <li>✅ 用户发飞书普通群消息（不 @机器人）→ cc-connect 忽略</li>
+  <li>✅ 用户发 GitLab issue → kyb-infra-boss 无自动感知</li>
+</ol>
+
+<p>所有通信链路已逐一验证，结果与”已知通信路径状态”表一致。</p>
+
+<h2 id="section-4">待确认事项 — 已逐一验证</h2>
+
+<h3 id="cc-connect-claude-">1. cc-connect Claude 权限允许后的行为</h3>
+<p>2026-05-23T16:39:00+08:00 由 3 组独立调查交叉验证确认：
+- Claude 请求了 Bash 权限 → 用户允许 → Bash 执行失败（SHELL 环境变量未设置）
+- Claude 回复用户：”shell 完全不可用，需要用户亲自操作”
+- Claude <strong>未尝试</strong>任何替代方案（未尝试 /proc、tmux socket、Node.js、curl、Read 其他 session 文件）
+- 根因：cc-connect 容器缺少 SHELL 环境变量，且无 Docker socket 挂载</p>
+
+<h3 id="cc-connect--cron">2. cc-connect 内置 cron</h3>
+<p>2026-05-23T16:45:00+08:00 由 3 组独立调查交叉验证确认：
+- cc-connect 有完整的内置 cron 系统：<code>cc-connect cron add/list/del</code>
+- Cron scheduler 已在启动时初始化（日志：<code>cron: scheduler started jobs=0</code>）
+- 当前 0 个已注册任务（<code>cc-connect cron list</code> → “No scheduled tasks.”）
+- Alpine Linux 的 busybox crond 也存在但未运行</p>
+
+<h3 id="kyb-feishu-bridge-">3. kyb-feishu-bridge 脚本</h3>
+<p>2026-05-23T16:50:00+08:00 确认：
+- 脚本存在且可执行：<code>~/.kyb/bin/kyb-feishu-bridge</code>
+- 单次轮询（<code>once</code> 模式）运行成功：token 获取、消息拉取、文本提取均正常
+- 首次运行抓取到 21 条未读用户消息，已写入 <code>~/.kyb-diaries/feishu-pending.json</code>
+- 状态追踪文件 <code>~/.kyb-diaries/.feishu-bridge-state</code> 已记录最新消息位置
+- 脚本依赖 curl/jq，均可用</p>
+
+<h2 id="section-5">复现</h2>
+
+<p>已于 2026-05-23T16:30:00+08:00 手动复现，结果见上。</p>
+
+<hr />
+
+<p><em>客观事实记录，不包含根因分析。</em></p>
+</article>
+    <footer><a href="https://git.leyantech.com/quick-n-dirty/kyb">Source</a></footer>
+  </main>
+</div>
+</body>
+</html>

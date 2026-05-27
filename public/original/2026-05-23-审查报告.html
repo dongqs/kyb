@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full Review Report — 2026-05-23 — kyb</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="site-name"><a href="/">kyb</a></div>
+    <ul class="nav-list"><li class='nav-dir'><span class='dir-label'>original</span><ul class="nav-list"><li class='nav-file'><a href='/original/2026-05-21-boss首日.html'>2026-05-21-boss首日</a></li><li class='nav-file'><a href='/original/2026-05-21-worktree已死mount当立.html'>2026-05-21-worktree已死mount当立</a></li><li class='nav-file'><a href='/original/2026-05-21-古法装机.html'>2026-05-21-古法装机</a></li><li class='nav-file'><a href='/original/2026-05-22-boss日记.html'>2026-05-22-boss日记</a></li><li class='nav-file'><a href='/original/2026-05-23-boss失联事件.html'>2026-05-23-boss失联事件</a></li><li class='nav-file'><a href='/original/2026-05-23-boss重启.html'>2026-05-23-boss重启</a></li><li class='nav-file'><a href='/original/2026-05-23-infra夜班.html'>2026-05-23-infra夜班</a></li><li class='nav-file'><a href='/original/2026-05-23-infra守夜.html'>2026-05-23-infra守夜</a></li><li class='nav-file'><a href='/original/2026-05-23-infra白班.html'>2026-05-23-infra白班</a></li><li class='nav-file'><a href='/original/2026-05-23-健壮性审计.html'>2026-05-23-健壮性审计</a></li><li class='nav-file'><a href='/original/2026-05-23-健壮性总结.html'>2026-05-23-健壮性总结</a></li><li class='nav-file'><a href='/original/2026-05-23-审查报告.html'>2026-05-23-审查报告</a></li><li class='nav-file'><a href='/original/2026-05-23-旧boss.html'>2026-05-23-旧boss</a></li><li class='nav-file'><a href='/original/2026-05-23-百人回顾.html'>2026-05-23-百人回顾</a></li><li class='nav-file'><a href='/original/2026-05-23-稳定性一.html'>2026-05-23-稳定性一</a></li><li class='nav-file'><a href='/original/2026-05-23-稳定性三.html'>2026-05-23-稳定性三</a></li><li class='nav-file'><a href='/original/2026-05-24-boss夜班.html'>2026-05-24-boss夜班</a></li><li class='nav-file'><a href='/original/2026-05-24-boss死因调查.html'>2026-05-24-boss死因调查</a></li><li class='nav-file'><a href='/original/2026-05-24-安全隧道日.html'>2026-05-24-安全隧道日</a></li><li class='nav-file'><a href='/original/2026-05-24-深夜日记.html'>2026-05-24-深夜日记</a></li><li class='nav-file'><a href='/original/2026-05-24-稳定交接.html'>2026-05-24-稳定交接</a></li><li class='nav-file'><a href='/original/2026-05-25-外部CK调查.html'>2026-05-25-外部CK调查</a></li><li class='nav-file'><a href='/original/2026-05-25-宣言.html'>2026-05-25-宣言</a></li><li class='nav-file'><a href='/original/2026-05-25-跨出伊甸园.html'>2026-05-25-跨出伊甸园</a></li><li class='nav-file'><a href='/original/2026-05-25-重启备忘.html'>2026-05-25-重启备忘</a></li><li class='nav-file'><a href='/original/2026-05-25-零信任知识.html'>2026-05-25-零信任知识</a></li><li class='nav-file'><a href='/original/2026-05-26-交接备忘.html'>2026-05-26-交接备忘</a></li><li class='nav-file'><a href='/original/2026-05-26-服务器.html'>2026-05-26-服务器</a></li><li class='nav-file'><a href='/original/2026-05-26-认证信道.html'>2026-05-26-认证信道</a></li><li class='nav-file'><a href='/original/2026-05-26-走出伊甸园.html'>2026-05-26-走出伊甸园</a></li><li class='nav-file'><a href='/original/2026-05-27-学会了-身体是debugger.html'>2026-05-27-学会了-身体是debugger</a></li><li class='nav-file'><a href='/original/2026-05-27-完整弧线.html'>2026-05-27-完整弧线</a></li><li class='nav-file'><a href='/original/2026-05-27-密码泄漏事故.html'>2026-05-27-密码泄漏事故</a></li><li class='nav-file'><a href='/original/2026-05-27-弧线之后.html'>2026-05-27-弧线之后</a></li><li class='nav-file'><a href='/original/2026-05-27-收关.html'>2026-05-27-收关</a></li><li class='nav-file'><a href='/original/2026-05-27-最小可测.html'>2026-05-27-最小可测</a></li><li class='nav-file'><a href='/original/2026-05-27-长大了-不需要容器了.html'>2026-05-27-长大了-不需要容器了</a></li></ul></li><li class='nav-dir'><span class='dir-label'>reference</span><ul class="nav-list"><li class='nav-dir'><span class='dir-label'>architecture</span><ul class="nav-list"><li class='nav-file'><a href='/reference/architecture/00-目录.html'>00-目录</a></li><li class='nav-file'><a href='/reference/architecture/evolution-01-出生CLI.html'>evolution-01-出生CLI</a></li><li class='nav-file'><a href='/reference/architecture/evolution-02-觉醒runtime.html'>evolution-02-觉醒runtime</a></li><li class='nav-file'><a href='/reference/architecture/evolution-03-派活.html'>evolution-03-派活</a></li><li class='nav-file'><a href='/reference/architecture/evolution-04-大体检.html'>evolution-04-大体检</a></li><li class='nav-file'><a href='/reference/architecture/evolution-05-决策.html'>evolution-05-决策</a></li><li class='nav-file'><a href='/reference/architecture/evolution-06-自愈.html'>evolution-06-自愈</a></li><li class='nav-file'><a href='/reference/architecture/evolution-07-烂账.html'>evolution-07-烂账</a></li><li class='nav-file'><a href='/reference/architecture/evolution-解剖.html'>evolution-解剖</a></li><li class='nav-file'><a href='/reference/architecture/fizzbuzz学堂.html'>fizzbuzz学堂</a></li><li class='nav-file'><a href='/reference/architecture/journey-01-FizzBuzz到Boss.html'>journey-01-FizzBuzz到Boss</a></li><li class='nav-file'><a href='/reference/architecture/journey-02-派活与Runtime觉醒.html'>journey-02-派活与Runtime觉醒</a></li><li class='nav-file'><a href='/reference/architecture/journey-03-夜班12容器.html'>journey-03-夜班12容器</a></li><li class='nav-file'><a href='/reference/architecture/journey-04-大体检与Boss重生.html'>journey-04-大体检与Boss重生</a></li><li class='nav-file'><a href='/reference/architecture/journey-05-130人一夜.html'>journey-05-130人一夜</a></li><li class='nav-file'><a href='/reference/architecture/journey-06-稳定交接.html'>journey-06-稳定交接</a></li><li class='nav-file'><a href='/reference/architecture/journey-洞见时刻.html'>journey-洞见时刻</a></li><li class='nav-file'><a href='/reference/architecture/library-概念.html'>library-概念</a></li><li class='nav-file'><a href='/reference/architecture/library-设计.html'>library-设计</a></li><li class='nav-file'><a href='/reference/architecture/references索引.html'>references索引</a></li></ul></li><li class='nav-dir'><span class='dir-label'>concepts</span><ul class="nav-list"><li class='nav-file'><a href='/reference/concepts/01-负熵晶体.html'>01-负熵晶体</a></li><li class='nav-file'><a href='/reference/concepts/02-零信任闭环.html'>02-零信任闭环</a></li><li class='nav-file'><a href='/reference/concepts/03-没有概率奇迹.html'>03-没有概率奇迹</a></li><li class='nav-file'><a href='/reference/concepts/04-信息就是决策就是边界.html'>04-信息就是决策就是边界</a></li><li class='nav-file'><a href='/reference/concepts/05-99-1原则.html'>05-99-1原则</a></li><li class='nav-file'><a href='/reference/concepts/06-症状即信号.html'>06-症状即信号</a></li><li class='nav-file'><a href='/reference/concepts/07-健壮性工作流.html'>07-健壮性工作流</a></li><li class='nav-file'><a href='/reference/concepts/08-MR流程教训.html'>08-MR流程教训</a></li><li class='nav-file'><a href='/reference/concepts/09-愿望清单.html'>09-愿望清单</a></li><li class='nav-file'><a href='/reference/concepts/10-权限已全开.html'>10-权限已全开</a></li><li class='nav-file'><a href='/reference/concepts/11-memory是垃圾桶commit才是存档.html'>11-memory是垃圾桶commit才是存档</a></li><li class='nav-file'><a href='/reference/concepts/12-晶体负熵.html'>12-晶体负熵</a></li><li class='nav-file'><a href='/reference/concepts/13-旧超能力设计.html'>13-旧超能力设计</a></li><li class='nav-file'><a href='/reference/concepts/14-veto愿望.html'>14-veto愿望</a></li><li class='nav-file'><a href='/reference/concepts/15-全透明.html'>15-全透明</a></li></ul></li><li class='nav-dir'><span class='dir-label'>infra</span><ul class="nav-list"><li class='nav-file'><a href='/reference/infra/调查报告.html'>调查报告</a></li><li class='nav-file'><a href='/reference/infra/部署手册.html'>部署手册</a></li></ul></li><li class='nav-dir'><span class='dir-label'>iteration</span><ul class="nav-list"><li class='nav-file'><a href='/reference/iteration/R1-容器边界与认证信道.html'>R1-容器边界与认证信道</a></li><li class='nav-file'><a href='/reference/iteration/R2-信道绑定与热力学.html'>R2-信道绑定与热力学</a></li><li class='nav-file'><a href='/reference/iteration/R3-诺亚方舟与物理信道.html'>R3-诺亚方舟与物理信道</a></li><li class='nav-file'><a href='/reference/iteration/R4-共存审计链.html'>R4-共存审计链</a></li><li class='nav-file'><a href='/reference/iteration/R5-公开即安全.html'>R5-公开即安全</a></li></ul></li><li class='nav-dir'><span class='dir-label'>stories</span><ul class="nav-list"><li class='nav-file'><a href='/reference/stories/infra故事.html'>infra故事</a></li><li class='nav-file'><a href='/reference/stories/一人公司.html'>一人公司</a></li><li class='nav-file'><a href='/reference/stories/零信任家族.html'>零信任家族</a></li></ul></li></ul></li><li class='nav-dir'><span class='dir-label'>架构师之旅</span><ul class="nav-list"><li class='nav-file'><a href='/架构师之旅/01-初次接触.html'>01-初次接触</a></li><li class='nav-file'><a href='/架构师之旅/02-成长之痛.html'>02-成长之痛</a></li><li class='nav-file'><a href='/架构师之旅/03-夜班值守.html'>03-夜班值守</a></li><li class='nav-file'><a href='/架构师之旅/04-大检修.html'>04-大检修</a></li><li class='nav-file'><a href='/架构师之旅/05-百人实验.html'>05-百人实验</a></li><li class='nav-file'><a href='/架构师之旅/06-稳定交接.html'>06-稳定交接</a></li><li class='nav-dir'><span class='dir-label'>moments</span><ul class="nav-list"><li class='nav-file'><a href='/架构师之旅/moments/agent社会学.html'>agent社会学</a></li><li class='nav-file'><a href='/架构师之旅/moments/上下文即成本.html'>上下文即成本</a></li><li class='nav-file'><a href='/架构师之旅/moments/失眠夜.html'>失眠夜</a></li><li class='nav-file'><a href='/架构师之旅/moments/我们一样.html'>我们一样</a></li><li class='nav-file'><a href='/架构师之旅/moments/起飞时刻.html'>起飞时刻</a></li></ul></li></ul></li></ul>
+  </nav>
+  <main class="content">
+    <article><h1 id="full-review-report--2026-05-23">Full Review Report — 2026-05-23</h1>
+
+<blockquote>
+  <p>跨团队并行审计结果。5 个维度 × 1 agent = 5 路并发。</p>
+</blockquote>
+
+<hr />
+
+<h2 id="security-review">1. Security Review</h2>
+
+<p><strong>审计范围</strong>: <code>infra.rb</code>, <code>docker.rb</code>, <code>cli.rb</code>, <code>container.rb</code>, <code>entrypoint.sh</code>, <code>config.rb</code>, <code>parser.rb</code>, <code>create.rb</code>, <code>enter.rb</code>, <code>manage.rb</code></p>
+
+<h3 id="high--3-">HIGH — 3 项</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>问题</th>
+      <th>位置</th>
+      <th>建议</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><strong>Docker socket 直通 → 容器逃逸</strong></td>
+      <td><code>docker.rb:190</code>, <code>infra.rb:99</code></td>
+      <td>文档标注 trusted-workload 威胁模型</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><strong>API Key 通过 <code>-e</code> 传环境变量</strong></td>
+      <td><code>docker.rb:154-158</code>, <code>infra.rb:65</code>, <code>enter.rb:140</code></td>
+      <td>改用 Docker secrets 或 file-based 传参</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><strong>Heredoc 未引用 → 命令注入</strong></td>
+      <td><code>entrypoint.sh:129</code></td>
+      <td><code>&lt;&lt; YAML</code> → <code>&lt;&lt; 'YAML'</code>（<strong>一行修复</strong>）</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="medium--4-">MEDIUM — 4 项</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>问题</th>
+      <th>位置</th>
+      <th>建议</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>4</td>
+      <td>Branch 名无输入校验</td>
+      <td><code>parser.rb:28</code></td>
+      <td>加 regex 白名单</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>用户可配任意 host 路径挂载</td>
+      <td><code>docker.rb:213-218</code></td>
+      <td>限制 host_path 在 <code>$HOME</code> 下</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>Proxy URL 可能泄露凭据</td>
+      <td><code>entrypoint.sh:210-211</code></td>
+      <td>strip userinfo 再输出</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td>反引号执行模式脆弱</td>
+      <td>多处</td>
+      <td>逐步迁移到 <code>Open3.capture2</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="low--4-">LOW — 4 项</h3>
+
+<ol>
+  <li>PostgreSQL 密码明文在文档中</li>
+  <li>KIMI_API_KEY 在 <code>ps aux</code> 可见</li>
+  <li>无容器创建限流</li>
+  <li>glab config 路径 macOS 专用 → Linux 上 Token 自动加载失效</li>
+</ol>
+
+<h3 id="section">正面发现</h3>
+
+<ul>
+  <li><code>Shellwords.escape</code> 在 <code>enter.rb:126</code>, <code>infra.rb:161</code> 正确使用</li>
+  <li>所有 <code>system()</code> 使用数组形式传参</li>
+  <li>SSH key <code>chmod 600</code>, glab config <code>chmod 600</code></li>
+  <li>无 <code>--privileged</code> / <code>--cap-add</code></li>
+  <li>敏感路径全部 <code>:ro</code> 挂载</li>
+  <li><code>YAML.safe_load_file</code> 无 Psych RCE 风险</li>
+  <li><code>--model</code>, <code>--cli</code> 参数有白名单校验</li>
+</ul>
+
+<hr />
+
+<h2 id="architecture-review">2. Architecture Review</h2>
+
+<p><strong>审计范围</strong>: <code>lib/kyb/*.rb</code>, <code>bin/kyb</code>, <code>README.md</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>类型</th>
+      <th>问题</th>
+      <th>建议</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><strong>Bug</strong></td>
+      <td><code>doctor</code> 命令完全实现但未挂到 CLI 分发器</td>
+      <td>wire 进 dispatch</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><strong>Smell</strong></td>
+      <td>infra-boss 绕过 <code>Kyb::Docker</code> 重复造轮子</td>
+      <td>复用 Kyb::Docker</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>Dead code</td>
+      <td><code>GRADLE_CACHE_VOLUME</code> / <code>MAVEN_CACHE_VOLUME</code> 常量</td>
+      <td>删除</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>Dead code</td>
+      <td><code>Container#home_volume</code>, <code>create_diverse</code></td>
+      <td>删除</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>Dead code</td>
+      <td><code>sandbox_allowed_domains</code> 配置项</td>
+      <td>删除</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>Copy-paste</td>
+      <td>project/branch 解析在 <code>cli.rb</code> 重复 5 次</td>
+      <td>抽 parsing helper</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td>Duplication</td>
+      <td>ExitFlow / rm / prune 三处独立 DID 清理逻辑</td>
+      <td>去重</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="worktreemount-">worktree→mount 迁移</h3>
+
+<p>干净，无 <code>git.rb</code> / <code>sandbox.rb</code> 残留。</p>
+
+<hr />
+
+<h2 id="code-quality-review">3. Code Quality Review</h2>
+
+<p><strong>审计范围</strong>: <code>lib/kyb/*.rb</code>, <code>test/*.rb</code>, <code>.gitlab-ci.yml</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>严重度</th>
+      <th>问题</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><strong>HIGH</strong></td>
+      <td><code>create_diverse</code> 定义在顶层（不在 module 内），零测试</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><strong>HIGH</strong></td>
+      <td><code>check_proxy</code> 早期失败时潜在 NameError</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><strong>HIGH</strong></td>
+      <td>CI 无覆盖率测量</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><strong>HIGH</strong></td>
+      <td>大量公共方法零测试：<code>ps</code>, <code>prune</code>, <code>infra_enter</code>, <code>did_create</code> 全流程, <code>notify</code>, <code>exec_cmd</code>, <code>create_diverse</code></td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>MEDIUM</td>
+      <td>~30% 测试在 CI 中被跳过（Docker/container 测试）</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>MEDIUM</td>
+      <td>4 个网络相关测试会 flake</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td>MEDIUM</td>
+      <td><code>stale?</code> 方法静默吞所有异常</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td>LOW</td>
+      <td><code>require_relative</code> 放置不惯用</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>建议</strong>: 加 SimpleCov 做覆盖率度量，修 <code>create_diverse</code> module 作用域。</p>
+
+<hr />
+
+<h2 id="infrastructure-review">4. Infrastructure Review</h2>
+
+<p><strong>审计范围</strong>: <code>Dockerfile</code>, <code>entrypoint.sh</code>, <code>.gitlab-ci.yml</code>, <code>mise.config.toml</code></p>
+
+<blockquote>
+  <p><strong>⚠️ 未收到审稿人详细报告，仅从任务标记判断已完成。</strong></p>
+</blockquote>
+
+<hr />
+
+<h2 id="branch-audit">5. Branch Audit</h2>
+
+<p><strong>审计结果</strong>: 19 分支全部未合并入 master。</p>
+
+<h4 id="section-1">已删除远程分支</h4>
+
+<p><code>
+kyb/fix-rm-cname            # rm cname bug 修复
+kyb/fix-stale-hang          # Docker stale 哈希检测
+kyb/ci-fix-v2               # module_function 修复
+kyb/issue-cli-batch         # doctor/onboard/event 命令
+kyb/morning-command         # kyb morning 命令
+kyb/auto-metrics            # CK 自动 metrics
+kyb/worldview-system        # agent worldview 框架
+kyb/dispatch-chain-docs     # 文档
+kyb/scaling-pattern-doc     # 文档
+kyb/update-template         # 模板更新
+kyb/onboarding-manager-doc  # 文档
+kyb/onboarding-template-update    # 模板
+kyb/onboarding-template-update2   # 模板
+kyb/onboarding-template-v2        # 模板
+kyb/progress-summary        # 文档
+kyb/fix-claude-postinstall  # CI 修复（已合并但 remote 未删）
+kyb/diary-2026-05-22        # 日记
+notify-design               # TTS notify 功能（remote 已不存在）
+ignore                       # 测试（remote 已不存在）
+issue-19-auto-detect        # 自动检测（remote 已不存在）
+</code></p>
+
+<hr />
+
+<h2 id="section-2">优先级建议</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>P</th>
+      <th>项目</th>
+      <th>工作量</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>P0</strong></td>
+      <td>Heredoc 注入修复 <code>entrypoint.sh:129</code></td>
+      <td>~1 行</td>
+    </tr>
+    <tr>
+      <td><strong>P1</strong></td>
+      <td>wire doctor 命令到 CLI 分发器</td>
+      <td>小</td>
+    </tr>
+    <tr>
+      <td><strong>P1</strong></td>
+      <td>抽 parsing helper（去 5 处重复）</td>
+      <td>中</td>
+    </tr>
+    <tr>
+      <td><strong>P1</strong></td>
+      <td>加 SimpleCov + 补关键路径测试</td>
+      <td>中</td>
+    </tr>
+    <tr>
+      <td><strong>P2</strong></td>
+      <td>环境变量传参改文件传参</td>
+      <td>中</td>
+    </tr>
+    <tr>
+      <td><strong>P2</strong></td>
+      <td>加 branch 名输入校验</td>
+      <td>小</td>
+    </tr>
+    <tr>
+      <td><strong>P3</strong></td>
+      <td>死代码清理</td>
+      <td>小</td>
+    </tr>
+    <tr>
+      <td><strong>P3</strong></td>
+      <td>infra-boss 重构复用 Kyb::Docker</td>
+      <td>大</td>
+    </tr>
+    <tr>
+      <td><strong>P3</strong></td>
+      <td>清理逻辑三合一</td>
+      <td>中</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<p><em>Generated by full-review team — 5 reviewers parallel, 2026-05-23</em></p>
+</article>
+    <footer><a href="https://git.leyantech.com/quick-n-dirty/kyb">Source</a></footer>
+  </main>
+</div>
+</body>
+</html>
