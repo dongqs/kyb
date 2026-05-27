@@ -185,8 +185,7 @@
 | 文件 | 内容 |
 |------|------|
 | [CLAUDE.md](/CLAUDE.md) | Agent 项目配置 |
-| [WISH_LIST.md](/WISH_LIST.md) | 愿望列表/路线图 |
-| [.kyb.md](/.kyb.md) | kyb 项目自描述 |
+| [diary/愿望清单.md](/diary/愿望清单.md) | 愿望列表/路线图 |
 
 ---
 
