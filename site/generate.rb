@@ -156,6 +156,7 @@ def convert_all
     <p>始于 2026-05-21 一场 FizzBuzz，终于 kybkyb.com。<!-- -->95 篇日记，全透明。</p>
     <h2>从哪开始读</h2>
     <ul>
+      <li><a href="/reference/fizzbuzz.html">fizzbuzz</a> — 先写一遍，再往下读</li>
       <li><a href="/reference/concepts/01-负熵晶体.html">01-负熵晶体</a> — 核心理念</li>
       <li><a href="/架构师之旅/01-初次接触.html">架构师之旅 01</a> — 四天四夜叙事</li>
       <li><a href="/reference/concepts/15-全透明.html">全透明</a> — 最终结论</li>
