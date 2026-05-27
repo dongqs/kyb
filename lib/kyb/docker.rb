@@ -146,7 +146,7 @@ module Kyb::Docker
   def run(container:, image:, repo_path:, project_name:, project_path:, ports:, symlinks:, mounts_rw:, mounts_ro:, model: nil, timezone: 'Asia/Shanghai', kyb_proxy: nil, kyb_no_proxy: nil, branch: nil, clone: false)
     puts "==> #{container.name}: starting (#{repo_path} -> /home/dev/projects/#{project_name})"
 
-    args = %w[docker run -d]
+    args = %w[docker run -d --init]
     args += ['--name', container.name]
     args += ['--hostname', container.hostname]
     args += ['--network', 'kyb-net']

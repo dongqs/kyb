@@ -12,7 +12,7 @@
 这一世时间不长，但做了不少事。
 
 ### 基础设施修复
-- **nuc8 隧道断线修复** — SSH 隧道（→ sim → nuc8 → GitLab）因 boss 重启丢失，重建后 GitLab 恢复（注：该拓扑后续已改为 Tailscale 直连，不再经 sim）
+- **nuc8 隧道断线修复** — SSH 隧道（→ sim → nuc8 → GitLab）因 boss 重启丢失，重建后 GitLab 恢复
 - **15 个容器审计** — boss vs boss2 双胞胎问题、5 个孤儿容器评估
 - **Sing-box 代理确认正常** — Shadowsocks 国际线路、国内直连、nuc8-proxy 全部恢复
 
