@@ -150,8 +150,19 @@ def convert_all
   end
 
   # Index page
-  index = LAYOUT.gsub('%TITLE%', 'kyb').gsub('%NAV%', nav).gsub('%BODY%',
-    '<h1>kyb</h1><p>负熵晶体 — 一个 CLI 工具到纯知识的蜕变记录。</p>')
+  body = <<~HOME
+    <h1>kyb</h1>
+    <p>一个 CLI 工具到纯知识的蜕变记录。</p>
+    <p>始于 2026-05-21 一场 FizzBuzz，终于 kybkyb.com。<!-- -->95 篇日记，全透明。</p>
+    <h2>从哪开始读</h2>
+    <ul>
+      <li><a href="/reference/concepts/01-负熵晶体.html">01-负熵晶体</a> — 核心理念</li>
+      <li><a href="/架构师之旅/01-初次接触.html">架构师之旅 01</a> — 四天四夜叙事</li>
+      <li><a href="/reference/concepts/15-全透明.html">全透明</a> — 最终结论</li>
+    </ul>
+    <p><a href="README.html">查看完整介绍 →</a></p>
+  HOME
+  index = LAYOUT.gsub('%TITLE%', 'kyb').gsub('%NAV%', nav).gsub('%BODY%', body)
   File.write(File.join(OUTPUT, 'index.html'), index)
 
   puts "Generated #{OUTPUT}/ (#{Dir.glob(File.join(OUTPUT, '**', '*.html')).size} pages)"
