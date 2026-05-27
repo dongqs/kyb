@@ -86,6 +86,8 @@ module Kyb::CLI
       infra(args)
     when 'assert'
       assert_cmd(args)
+    when 'crystal'
+      crystal(args)
     when 'doctor'
       doctor(args)
     when 'worldview'
@@ -209,4 +211,5 @@ require_relative 'cli/onboard'
 require_relative 'cli/worldview'
 require_relative 'cli/event'
 require_relative 'cli/infra'
+require_relative 'cli/crystal'
 require_relative 'cli/morning'
