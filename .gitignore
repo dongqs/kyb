@@ -1,7 +1,0 @@
-cloud-init.generated.yaml
-.DS_Store
-*.swp
-.env
-.env.kyb
-.lark-events/
-feishu-events
