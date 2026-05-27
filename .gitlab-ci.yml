@@ -1,0 +1,12 @@
+image: ruby:3.3-alpine
+
+pages:
+  stage: deploy
+  script:
+    - gem install kramdown
+    - ruby site/generate.rb
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
